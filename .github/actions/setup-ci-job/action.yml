@@ -360,7 +360,7 @@ runs:
           echo "Cache miss — cloning pypto"
           mkdir -p "$(dirname "$PYPTO_SRC")"
           # rm before each attempt so a retried clone never hits a partial dir.
-          clone_pypto() { rm -rf "$PYPTO_SRC"; git clone --depth=1 https://github.com/hw-native-sys/pypto.git "$PYPTO_SRC"; }
+          clone_pypto() { rm -rf "$PYPTO_SRC"; git clone --depth=1 https://github.com/pto3-dev/pypto.git "$PYPTO_SRC"; }
           retry clone_pypto || exit 1
         fi
         # An empty pypto-ref follows origin's default branch (HEAD); a pinning
