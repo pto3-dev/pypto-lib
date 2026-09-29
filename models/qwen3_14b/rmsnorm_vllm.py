@@ -19,11 +19,11 @@ K_TILE = 256
 EPS = 1e-6
 
 
-@pl.jit(auto_scope=False)
-def qwen3_rmsnorm_decode(
+@pl.jit.inline(auto_scope=False)
+def qwen3_rmsnorm_inline(
     x: pl.Tensor[[BATCH_PAD, HIDDEN], pl.BF16],
     weight: pl.Tensor[[1, HIDDEN], pl.BF16],
-    out: pl.Out[pl.Tensor[[BATCH_PAD, HIDDEN], pl.BF16]],
+    out: pl.Tensor[[BATCH_PAD, HIDDEN], pl.BF16],
 ):
     inv_rms_states = pl.create_tensor([1, BATCH_PAD], dtype=pl.FP32)
     with pl.at(level=pl.Level.CORE_GROUP, name_hint="input_rms_reduce"):
@@ -46,12 +46,22 @@ def qwen3_rmsnorm_decode(
 
 
 @pl.jit(auto_scope=False)
-def qwen3_add_rmsnorm_decode(
+def qwen3_rmsnorm_decode(
+    x: pl.Tensor[[BATCH_PAD, HIDDEN], pl.BF16],
+    weight: pl.Tensor[[1, HIDDEN], pl.BF16],
+    out: pl.Out[pl.Tensor[[BATCH_PAD, HIDDEN], pl.BF16]],
+):
+    out = qwen3_rmsnorm_inline(x, weight, out)
+    return out
+
+
+@pl.jit.inline(auto_scope=False)
+def qwen3_add_rmsnorm_inline(
     x: pl.Tensor[[BATCH_PAD, HIDDEN], pl.BF16],
     residual: pl.Tensor[[BATCH_PAD, HIDDEN], pl.BF16],
     weight: pl.Tensor[[1, HIDDEN], pl.BF16],
-    out: pl.Out[pl.Tensor[[BATCH_PAD, HIDDEN], pl.BF16]],
-    residual_out: pl.Out[pl.Tensor[[BATCH_PAD, HIDDEN], pl.BF16]],
+    out: pl.Tensor[[BATCH_PAD, HIDDEN], pl.BF16],
+    residual_out: pl.Tensor[[BATCH_PAD, HIDDEN], pl.BF16],
 ):
     inv_rms_states = pl.create_tensor([1, BATCH_PAD], dtype=pl.FP32)
     with pl.at(level=pl.Level.CORE_GROUP, name_hint="add_rms_reduce"):
@@ -76,4 +86,16 @@ def qwen3_add_rmsnorm_decode(
             out_tile = pl.cast(pl.col_expand_mul(normalized, weight_tile), pl.BF16, mode="rint")
             out = pl.assemble(out, out_tile, [0, k0])
             residual_out = pl.assemble(residual_out, summed, [0, k0])
+    return out, residual_out
+
+
+@pl.jit(auto_scope=False)
+def qwen3_add_rmsnorm_decode(
+    x: pl.Tensor[[BATCH_PAD, HIDDEN], pl.BF16],
+    residual: pl.Tensor[[BATCH_PAD, HIDDEN], pl.BF16],
+    weight: pl.Tensor[[1, HIDDEN], pl.BF16],
+    out: pl.Out[pl.Tensor[[BATCH_PAD, HIDDEN], pl.BF16]],
+    residual_out: pl.Out[pl.Tensor[[BATCH_PAD, HIDDEN], pl.BF16]],
+):
+    out, residual_out = qwen3_add_rmsnorm_inline(x, residual, weight, out, residual_out)
     return out, residual_out

@@ -27,11 +27,11 @@ K_TILE = 256
 N_TILE = 256
 
 
-@pl.jit(auto_scope=False)
-def qwen3_qkv_decode(
+@pl.jit.inline(auto_scope=False)
+def qwen3_qkv_inline(
     x: pl.Tensor[[BATCH_PAD, HIDDEN], pl.BF16],
     qkv_weight: pl.Tensor[[QKV_SIZE, HIDDEN], pl.BF16],
-    out: pl.Out[pl.Tensor[[BATCH_PAD, QKV_SIZE], pl.BF16]],
+    out: pl.Tensor[[BATCH_PAD, QKV_SIZE], pl.BF16],
 ):
     """Project hidden states into packed Q, K, and V rows."""
     for n0 in pl.parallel(0, QKV_SIZE, N_TILE):
@@ -42,4 +42,14 @@ def qwen3_qkv_decode(
                 w_tile = qkv_weight[n0 : n0 + N_TILE, k0 : k0 + K_TILE]
                 acc = pl.matmul_acc(acc, x_tile, w_tile, b_trans=True, init_cond=(k0 == 0))
             out = pl.assemble(out, pl.cast(acc, pl.BF16, mode="rint"), [0, n0])
+    return out
+
+
+@pl.jit(auto_scope=False)
+def qwen3_qkv_decode(
+    x: pl.Tensor[[BATCH_PAD, HIDDEN], pl.BF16],
+    qkv_weight: pl.Tensor[[QKV_SIZE, HIDDEN], pl.BF16],
+    out: pl.Out[pl.Tensor[[BATCH_PAD, QKV_SIZE], pl.BF16]],
+):
+    out = qwen3_qkv_inline(x, qkv_weight, out)
     return out

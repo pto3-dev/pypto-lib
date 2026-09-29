@@ -27,12 +27,12 @@ K_TILE = 256
 N_TILE = 256
 
 
-@pl.jit(auto_scope=False)
-def qwen3_mlp_decode(
+@pl.jit.inline(auto_scope=False)
+def qwen3_mlp_inline(
     x: pl.Tensor[[BATCH_PAD, HIDDEN], pl.BF16],
     gate_up_weight: pl.Tensor[[GATE_UP, HIDDEN], pl.BF16],
     down_weight: pl.Tensor[[HIDDEN, INTERMEDIATE], pl.BF16],
-    out: pl.Out[pl.Tensor[[BATCH_PAD, HIDDEN], pl.BF16]],
+    out: pl.Tensor[[BATCH_PAD, HIDDEN], pl.BF16],
 ):
     """Compute down_proj(silu(gate_proj(x)) * up_proj(x))."""
     gate_up = pl.create_tensor([BATCH_PAD, GATE_UP], dtype=pl.BF16)
@@ -65,4 +65,15 @@ def qwen3_mlp_decode(
                 w_tile = down_weight[n0 : n0 + N_TILE, k0 : k0 + K_TILE]
                 acc = pl.matmul_acc(acc, x_tile, w_tile, b_trans=True, init_cond=(k0 == 0))
             out = pl.assemble(out, pl.cast(acc, pl.BF16, mode="rint"), [0, n0])
+    return out
+
+
+@pl.jit(auto_scope=False)
+def qwen3_mlp_decode(
+    x: pl.Tensor[[BATCH_PAD, HIDDEN], pl.BF16],
+    gate_up_weight: pl.Tensor[[GATE_UP, HIDDEN], pl.BF16],
+    down_weight: pl.Tensor[[HIDDEN, INTERMEDIATE], pl.BF16],
+    out: pl.Out[pl.Tensor[[BATCH_PAD, HIDDEN], pl.BF16]],
+):
+    out = qwen3_mlp_inline(x, gate_up_weight, down_weight, out)
     return out
