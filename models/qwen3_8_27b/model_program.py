@@ -88,6 +88,12 @@ def build_model(
                 if nt < 16 or nt % 16 or kt < 256 or kt % 16:
                     raise ValueError("Invalid Cube tile policy")
                 options = dict(n_tile=nt, k_tile=kt)
+        if spec.tokens == 1 and input_dim == 5120 and output_dim == 5120:
+            from .static_a_projection import make_gemm as make_static_a
+
+            return make_static_a(
+                input_dim, output_dim, inner_k=256, weight_cache_bypass=bypass_weights, **kwargs, **options
+            )
         if spec.tokens == 1 and input_dim == 5120 and output_dim == 17408:
             from .nd_contiguous import make_gemm as make_contiguous_gemm
 

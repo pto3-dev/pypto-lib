@@ -28,7 +28,7 @@ def random(shape, dtype=torch.bfloat16):
     return torch.randn(shape, dtype=dtype)
 
 
-def cases():
+def base_cases():
     torch.manual_seed(183)
     starts = torch.tensor([0, 2, 5, 6], dtype=torch.int32)
     indices = torch.tensor([2, 0, -1], dtype=torch.int32)
@@ -349,6 +349,21 @@ def cases():
         "out": torch.empty(3, 6144, dtype=torch.bfloat16),
     }
     yield "attention_gate", make_pointwise(6144, "sigmoid_mul"), sigmoid, sigmoid_golden, 0.015, 0.015
+
+
+def cases():
+    yield from base_cases()
+    from .static_a_projection import make_gemm as static_a
+
+    torch.manual_seed(131219)
+    x = random([1, 5120])
+    weight = random([5120, 5120]) * 0.02
+    tensors = {"x": x, "weight": weight, "out": torch.empty(1, 5120, dtype=torch.bfloat16)}
+
+    def golden(data):
+        data["out"][:] = (data["x"].float() @ data["weight"].float().T).bfloat16()
+
+    yield "gdn_static_a", static_a(5120, 5120), tensors, golden, 0.02, 0.03
 
 
 def main():

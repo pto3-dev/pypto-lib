@@ -6,7 +6,8 @@ storage. Decode uses one CPU L3 and two L2 workers, without L1 workers.
 
 The model includes reduction/residual/normalization fusion, convolution/QK
 normalization fusion, Q/RoPE fusion, ND weight readers, gate/up/SwiGLU fusion,
-with staged projection loads.
+and GDN activation reuse in L1. GDN activation reuse changes a projection's
+local loads; it does not fix the projection to a physical core.
 
 The model builder uses ordinary dynamic dispatch. It does not request static
 block mapping and requires no local static-scheduler or L1Reuse compiler pass.
@@ -16,7 +17,7 @@ Run from the repository root with the configured PyPTO environment and the root
 on PYTHONPATH. Use the toolchain versions pinned by that PyPTO checkout.
 
 ```bash
-python -m models.qwen3_8_27b.validate --case gemm_gates --compile-only --output build_output/qwen38-check
+python -m models.qwen3_8_27b.validate --case gdn_static_a --compile-only --output build_output/qwen38-check
 python -m models.qwen3_8_27b.validate --device DEVICE --case all --output build_output/qwen38-check
 ```
 
