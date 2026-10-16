@@ -83,16 +83,14 @@ def prefill_compressor_ratio128(
     num_tokens: pl.Scalar[pl.INT32],
     cmp_slot_mapping: pl.Tensor[[T], pl.INT64],
     state_slot_mapping: pl.Tensor[[T], pl.INT64],
+    state_reuse_ready: pl.Scalar[pl.TASK_ID],
 ):
     x_flat = x
     state_block_num = pl.tensor.dim(compress_state, 0)
     cmp_block_num = pl.tensor.dim(cmp_kv, 0)
     kv_proj_scratch = pl.create_tensor([T, OUT_DIM], dtype=pl.FP32)
     score_proj_scratch = pl.create_tensor([T, OUT_DIM], dtype=pl.FP32)
-    compress_state_flat = pl.reshape(
-        compress_state,
-        [state_block_num * HCA_STATE_BLOCK_SIZE, COMPRESS_STATE_DIM],
-    )
+    compress_state_flat = pl.reshape(compress_state, [state_block_num * HCA_STATE_BLOCK_SIZE, COMPRESS_STATE_DIM])
     cmp_kv_flat = pl.reshape(cmp_kv, [cmp_block_num * CMP_STORAGE_BLOCK_SIZE, HEAD_DIM])
     pooled_kv_pad = pl.create_tensor([HCA_C128_RMS_PAD_ROWS, HEAD_DIM], dtype=pl.FP32)
     normed_kv_pad = pl.create_tensor([HCA_C128_RMS_PAD_ROWS, HEAD_DIM], dtype=pl.FP32)
@@ -118,7 +116,7 @@ def prefill_compressor_ratio128(
     # HCA_C128_RMS_TILE because rmsnorm_rope indexes padded rows beyond MAX_CMP_WRITES (rest stay -1).
     write_pos_map = pl.create_tensor([1, HCA_C128_RMS_TILE], dtype=pl.INT32)
     write_dst_map = pl.create_tensor([1, HCA_C128_RMS_TILE], dtype=pl.INT32)
-    with pl.at(level=pl.Level.CORE_GROUP, name_hint="prefill_hca_c128_write_map"):
+    with pl.at(level=pl.Level.CORE_GROUP, name_hint="prefill_hca_c128_write_map", allow_early_resolve=True):
         write_pos_map[0:1, 0:HCA_C128_RMS_TILE] = pl.full([1, HCA_C128_RMS_TILE], dtype=pl.INT32, value=0)
         write_dst_map[0:1, 0:HCA_C128_RMS_TILE] = pl.full([1, HCA_C128_RMS_TILE], dtype=pl.INT32, value=-1)
         map_seen = pl.cast(0, pl.INDEX)
@@ -130,23 +128,26 @@ def prefill_compressor_ratio128(
                     pl.write(write_dst_map, [0, map_seen], pl.cast(map_slot_raw, pl.INT32))
                     map_seen = map_seen + 1
 
-    # State scatter (decode order): write every token's raw projection (+APE on score) into
-    # paged kv_state/score_state BEFORE pooling, so softmax_pool reads its window straight from
-    # state (no seed+overlay, no pool_dep ordering hack). pool depends on this via kv_state RAW.
-    for scatter_t in pl.spmd(T, name_hint="prefill_hca_c128_state_scatter_pre"):
-        if scatter_t < num_tokens:
-            scatter_row_raw = pl.read(state_slot_mapping, [scatter_t])
-            if scatter_row_raw >= 0:
-                scatter_row = pl.cast(scatter_row_raw, pl.INDEX)
-                scatter_pos = pl.read(position_ids, [scatter_t])
-                scatter_ape_slot = pl.cast(scatter_pos % COMPRESS_RATIO, pl.INDEX)
-                compress_state_flat[scatter_row : scatter_row + 1, 0:OUT_DIM] = kv_proj_scratch[scatter_t : scatter_t + 1, 0:OUT_DIM]
-                compress_state_flat[scatter_row : scatter_row + 1, OUT_DIM:COMPRESS_STATE_DIM] = pl.add(
-                    score_proj_scratch[scatter_t : scatter_t + 1, 0:OUT_DIM],
-                    ape[scatter_ape_slot : scatter_ape_slot + 1, 0:OUT_DIM],
-                )
+    # Finish the previous leaf's state reads before scattering raw projections and scores.
+    with pl.spmd(((T) + 8 - 1) // 8, name_hint="prefill_hca_c128_state_scatter_pre", deps=[state_reuse_ready], allow_early_resolve=True) as _state_scatter_tid:
+        # One block owns 8 rows; the rows are independent.
+        scatter_t_blk = pl.tile.get_block_idx()
+        for scatter_t_i in pl.range(8):
+            scatter_t = scatter_t_blk * 8 + scatter_t_i
+            if scatter_t < num_tokens:
+                scatter_row_raw = pl.read(state_slot_mapping, [scatter_t])
+                if scatter_row_raw >= 0:
+                    scatter_row = pl.cast(scatter_row_raw, pl.INDEX)
+                    scatter_pos = pl.read(position_ids, [scatter_t])
+                    scatter_ape_slot = pl.cast(scatter_pos % COMPRESS_RATIO, pl.INDEX)
+                    compress_state_flat[scatter_row : scatter_row + 1, 0:OUT_DIM] = kv_proj_scratch[scatter_t : scatter_t + 1, 0:OUT_DIM]
+                    compress_state_flat[scatter_row : scatter_row + 1, OUT_DIM:COMPRESS_STATE_DIM] = pl.add(
+                        score_proj_scratch[scatter_t : scatter_t + 1, 0:OUT_DIM],
+                        ape[scatter_ape_slot : scatter_ape_slot + 1, 0:OUT_DIM],
+                    )
 
-    for pool_idx in pl.spmd(MAX_CMP_WRITES * (HEAD_DIM // HEAD_TILE), name_hint="prefill_hca_c128_softmax_pool"):
+    with pl.spmd(MAX_CMP_WRITES * (HEAD_DIM // HEAD_TILE), name_hint="prefill_hca_c128_softmax_pool", allow_early_resolve=True) as state_read_done:
+        pool_idx = pl.tile.get_block_idx()
         write_i = pool_idx // (HEAD_DIM // HEAD_TILE)
         hb = pool_idx - write_i * (HEAD_DIM // HEAD_TILE)
         h0 = hb * HEAD_TILE
@@ -155,7 +156,7 @@ def prefill_compressor_ratio128(
         write_slot_raw = pl.read(write_dst_map, [0, write_i])
         if write_slot_raw >= 0:
             write_pos = pl.read(write_pos_map, [0, write_i])
-            for pool_state_i in pl.range(STATE_LEN):
+            for pool_state_i in pl.pipeline(STATE_LEN, stage=2):
                 pool_kv_tile[pool_state_i : pool_state_i + 1, 0:HEAD_TILE] = pl.full(
                     [1, HEAD_TILE],
                     dtype=pl.FP32,
@@ -244,7 +245,7 @@ def prefill_compressor_ratio128(
         rope_rot = pl.add(pl.mul(rope_normed, cos_il), pl.mul(pl.mul(swapped, rope_sign), sin_il))
         normed_kv_pad[0:HCA_C128_RMS_TILE, NOPE_HEAD_DIM:HEAD_DIM] = rope_rot
 
-    with pl.at(level=pl.Level.CORE_GROUP, name_hint="prefill_hca_c128_kv_finalize"):
+    with pl.at(level=pl.Level.CORE_GROUP, name_hint="prefill_hca_c128_kv_finalize", allow_early_resolve=True):
         for final_i in pl.range(MAX_CMP_WRITES):
             final_cmp_row_raw = pl.read(write_dst_map, [0, final_i])
             if final_cmp_row_raw >= 0:
@@ -260,15 +261,13 @@ def prefill_compressor_ratio128(
 
     # Writes through the flattened views already update the caller-owned buffers.
     # Avoid a dynamic reshape-back here because this inline kernel is nested.
-    return cmp_kv, compress_state
+    return cmp_kv, compress_state, state_read_done
 
 
 @pl.jit
 def prefill_compressor_ratio128_test(
     x: pl.Tensor[[T, D], pl.BF16],
-    compress_state: pl.InOut[
-        pl.Tensor[[STATE_BLOCK_NUM_DYN, HCA_STATE_BLOCK_SIZE, COMPRESS_STATE_DIM], pl.FP32]
-    ],
+    compress_state: pl.InOut[pl.Tensor[[STATE_BLOCK_NUM_DYN, HCA_STATE_BLOCK_SIZE, COMPRESS_STATE_DIM], pl.FP32]],
     compress_state_block_table: pl.Tensor[[HCA_STATE_MAX_BLOCKS], pl.INT32],
     wkv: pl.Tensor[[OUT_DIM, D], pl.BF16],
     wgate: pl.Tensor[[OUT_DIM, D], pl.BF16],
@@ -282,10 +281,12 @@ def prefill_compressor_ratio128_test(
     cmp_slot_mapping: pl.Tensor[[T], pl.INT64],
     state_slot_mapping: pl.Tensor[[T], pl.INT64],
 ):
-    return prefill_compressor_ratio128(
+    state_reuse_ready = pl.system.task_dummy(deps=[])
+    cmp_kv, compress_state, _state_read_done = prefill_compressor_ratio128(
         x, compress_state, compress_state_block_table, wkv, wgate, ape, norm_w, freqs_cos, freqs_sin,
-        cmp_kv, position_ids, num_tokens, cmp_slot_mapping, state_slot_mapping,
+        cmp_kv, position_ids, num_tokens, cmp_slot_mapping, state_slot_mapping, state_reuse_ready,
     )
+    return cmp_kv, compress_state
 
 
 def golden_prefill_compressor_ratio128(tensors):
@@ -294,10 +295,7 @@ def golden_prefill_compressor_ratio128(tensors):
     num_tokens = int(tensors["num_tokens"])
     kv_proj = tensors["x"].float() @ tensors["wkv"].float().t()    # wkv stored [OUT_DIM, D] for b_trans
     score_proj = tensors["x"].float() @ tensors["wgate"].float().t()
-    compress_state_flat = tensors["compress_state"].view(
-        HCA_STATE_BLOCK_NUM * HCA_STATE_BLOCK_SIZE,
-        COMPRESS_STATE_DIM,
-    )
+    compress_state_flat = tensors["compress_state"].view(-1, COMPRESS_STATE_DIM)
     kv_state_flat = compress_state_flat[:, :OUT_DIM]
     score_state_flat = compress_state_flat[:, OUT_DIM:]
     state_block_table = tensors["compress_state_block_table"]
@@ -447,8 +445,7 @@ if __name__ == "__main__":
     from golden import ratio_allclose, run
 
     parser = argparse.ArgumentParser(description="Standalone token-major DeepSeek V4 prefill compressor ratio128 validation.")
-    parser.add_argument("-p", "--platform", type=str, default="a2a3",
-                        choices=["a2a3", "a2a3sim", "a5", "a5sim"])
+    parser.add_argument("-p", "--platform", type=str, default="a2a3", choices=["a2a3", "a2a3sim", "a5", "a5sim"])
     parser.add_argument("-d", "--device", type=int, default=0)
     parser.add_argument(
         "--compile-only",
@@ -465,7 +462,7 @@ if __name__ == "__main__":
             "slot mapping; it is not a JIT kernel parameter."
         ),
     )
-    parser.add_argument("--enable-chip-swimlane", action="store_true", default=False)
+    parser.add_argument("--enable-chip-swimlane", type=int, nargs="?", const=1, default=0, choices=range(5))
     parser.add_argument("--dump-passes", action="store_true", default=False)
     args = parser.parse_args()
 

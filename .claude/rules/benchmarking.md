@@ -23,7 +23,7 @@ Where the numbers come from — see
 
 | Metric | Source | Quote |
 | --- | --- | --- |
-| Wall time | `PYPTO_BENCH=1` → `[RUN] effective_us (N rounds) …` | `mean=` (daily CI's per-case number is exactly this field) |
+| Wall time | `PYPTO_BENCH=1` → `[RUN] effective_us (N rounds) …` | `median=`; historical Daily CI figures used `mean=`, so compare only matching metric contracts |
 | Core busy time | chip swimlane per-task durations; PMU `*_busy_cycles` vs `pmu_total_cycles` | The bottleneck pipe's ratio |
 
 A `*sim` platform prints `effective_us unavailable: no device-domain spans`. A
@@ -44,17 +44,15 @@ none of which is the thing being measured. Do not pay for them twice.
    torch recompute drop out. Regenerate only when specs, inputs, or the
    reference computation change. See the `test-with-golden` skill and
    [`docs/run-and-validate/save-and-replay.md`](../../docs/run-and-validate/save-and-replay.md).
-3. **Reuse the compiled work dir for untimed iterations** —
-   `--runtime-dir <build_output/…>` skips the pypto compile while validation
-   logic, `golden_fn`, or the generated `.cpp` / `.pto` change. Reuse it only
-   while the kernel source stays compatible with that build: the directory
-   carries the program it was compiled from, so a DSL, spec, or shape change
-   makes it stale and requires a fresh compile.
-   **A `runtime_dir` replay cannot be benchmarked**: there is no live
-   `CompiledProgram`, so the harness prints
-   `[RUN] benchmark skipped: no live CompiledProgram (runtime_dir replay)` even
-   with `PYPTO_BENCH=1`. A timed run compiles — budget for it rather than trying
-   to extract a number from a replay.
+3. **Reuse the compiled work dir** — `--runtime-dir <build_output/…>` skips
+   the pypto compile while validation logic, `golden_fn`, or the generated
+   `.cpp` / `.pto` change. Reuse it only while the kernel source stays
+   compatible with that build: the directory carries the program it was
+   compiled from, so a DSL, spec, or shape change makes it stale and requires
+   a fresh compile. A replay benchmarks under `PYPTO_BENCH=1` (L2 and L3), which
+   is how a patched `.cpp` — e.g. task-timing slot tags — gets timed. The one
+   exception is a spec with a stepped scalar (`ScalarSpec(benchmark_step=…)`):
+   the harness skips the benchmark and says so, and that entry needs a compile.
 4. **Batch a sweep into one process.** When comparing K tile sizes or constants,
    prefer a single process that runs all K variants over K invocations. When
    separate processes are unavoidable, they must still share one frozen golden
@@ -88,10 +86,12 @@ Ranks do not start together. A late-dispatched rank spends the head of its
 window waiting; that wait is not kernel time, it varies round to round, and it
 lands inside the measured window.
 
-**Report the fastest rank, not the headline.** The `effective_us` headline is
-the per-round **max across ranks** (the round ends when the slowest card
-finishes), so it carries the full start skew. For tuning comparisons, quote the
-lowest per-rank mean from the `[RUN] rank N: eff_us … mean=` breakdown.
+**Report the fastest rank's median, not the headline.** The `effective_us`
+headline is the per-round **max across ranks** (the round ends when the slowest
+card finishes), so it carries the full start skew. For tuning comparisons, quote
+the lowest per-rank **median** from the `[RUN] rank N: eff_us … median=`
+breakdown — the median over a mean, because a single stalled round moves the
+mean and not the median.
 
 When the per-rank breakdown is not enough:
 
@@ -113,6 +113,6 @@ Keep it honest:
 ## Reporting a Result
 
 Every benchmark number states: platform and device, rounds / warmup, the metric
-and its convention (headline mean vs fastest rank), the baseline it is compared
-against, and whether the golden was replayed. A number without those cannot be
-reproduced or trusted.
+and its convention (headline mean vs fastest rank's median), the baseline it is
+compared against, and whether the golden was replayed. A number without those
+cannot be reproduced or trusted.

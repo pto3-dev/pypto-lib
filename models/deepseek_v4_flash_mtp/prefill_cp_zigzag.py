@@ -22,9 +22,8 @@ TAIL_ROWS = 128
 HEAD_DIM = M.head_dim
 
 # CP layout
-CP_CHOICES = (2, 4, 8)
+CP_CHOICES = (1, 2, 4, 8, 16)
 CP_DEFAULT = 2
-MAX_SEGMENT_TILES = 4
 EPOCHS = 1
 
 # tiling
@@ -41,12 +40,54 @@ def _parse_static_int(name: str, default: int) -> int:
     return default
 
 
-CP_SIZE = _parse_static_int("cp", CP_DEFAULT)
+CP_SIZE = _parse_static_int("cp", _parse_static_int("ep", CP_DEFAULT))
 NUM_SEGMENTS = 2 * CP_SIZE
+# Segment capacity in TAIL_ROWS tiles. The fixed 4 sized the program for 2048
+# tokens at CP2, so a 1024-token request left 6 of the 10 compressor leaves empty
+# -- each still paid its four serialised task launches on the critical path
+# (~30 us per leaf for ~4.6 us of work). Deriving it from --num-tokens matches the
+# arena to the request the program is built for; without the flag the old
+# full-capacity default stands.
+_REQUEST_TOKENS = _parse_static_int("num-tokens", 0)
+# Capped at four: the staged CP-SWA wave sequence in prefill_sparse_attn is four
+# unrolled 128-row waves, so a larger arena would leave later rows unprocessed.
+MAX_SEGMENT_TILES = (
+    min(4, max(1, -(-_REQUEST_TOKENS // (NUM_SEGMENTS * TAIL_ROWS)))) if _REQUEST_TOKENS > 0 else 4
+)
 CP_PREFILL_CMP_BLOCK_NUM = NUM_SEGMENTS * MAX_SEGMENT_TILES
 
 # Rank-major tail-window rows.
 CP_TAIL_WINDOW_ROWS = NUM_SEGMENTS * TAIL_ROWS
+
+
+def cp_segment_layout(num_tokens: int, cp_size: int = CP_SIZE, *, prefix: int = 0):
+    """Return padded segment span, logical starts and real lengths for one chunk.
+
+    Distributed Recipes ownership uses 2*CP equal segments of at least one
+    SWA window each. CP=1 keeps the same local storage layout without peers.
+    The returned lengths exclude padding; starts use the padded segment span,
+    independently of the kernel's fixed backing capacity.
+
+    ``prefix`` is the number of tokens already resident in this request's caches
+    from earlier chunks. Starts are absolute positions, so ``starts[0] == prefix``
+    and the attention leaves read anything below it out of the paged caches.
+    ``num_tokens`` remains this chunk's length and is bounded by the per-chunk
+    capacity, which ``prefix`` does not change.
+    """
+    if type(num_tokens) is not int or type(cp_size) is not int or type(prefix) is not int:
+        raise TypeError("num_tokens, cp_size and prefix must be an int")
+    if cp_size not in CP_CHOICES:
+        raise ValueError(f"cp_size must be one of {CP_CHOICES}, got {cp_size}")
+    if prefix < 0:
+        raise ValueError(f"prefix must be non-negative, got {prefix}")
+    nseg = 2 * cp_size
+    capacity = nseg * MAX_SEGMENT_TILES * TAIL_ROWS
+    if not 1 <= num_tokens <= capacity:
+        raise ValueError(f"num_tokens must be in [1, {capacity}], got {num_tokens}")
+    span = max(TAIL_ROWS, (num_tokens + nseg - 1) // nseg)
+    starts = [prefix + segment * span for segment in range(nseg)]
+    lengths = [max(0, min(span, prefix + num_tokens - start)) for start in starts]
+    return span, starts, lengths
 
 
 def cp_owner_rank(segment: int, cp_size: int = CP_SIZE) -> int:
@@ -109,76 +150,6 @@ def cp_owner_tables(cp_size: int = CP_SIZE):
 
 
 
-@pl.jit.inline
-def _prefill_cp_zigzag_kv_tail_exchange_wave(
-    local_kv_tail: pl.Tensor[[2 * TAIL_ROWS, HEAD_DIM], pl.BF16],
-    reverse_index: pl.Tensor[[NUM_SEGMENTS], pl.INT32],
-    owner_rank_table: pl.Tensor[[NUM_SEGMENTS], pl.INT32],
-    kv_tail_window: pld.DistributedTensor[[CP_TAIL_WINDOW_ROWS, HEAD_DIM], pl.BF16],
-    ready: pld.DistributedTensor[[CP_SIZE, 1], pl.INT32],
-    consumed: pld.DistributedTensor[[CP_SIZE, 1], pl.INT32],
-    logical_tails_out: pl.Out[pl.Tensor[[CP_TAIL_WINDOW_ROWS, HEAD_DIM], pl.BF16]],
-    my_rank: pl.Scalar[pl.INT32],
-    epoch: pl.Scalar[pl.INT32],
-) -> pl.Tensor[[CP_TAIL_WINDOW_ROWS, HEAD_DIM], pl.BF16]:
-    """Exchange one local tail wave into logical segment order."""
-    epoch_value = pl.cast(epoch + 1, pl.INT32)
-
-    # Wait for prior window consumption.
-    for peer in pl.range(CP_SIZE):
-        if peer != my_rank:
-            pld.system.wait(
-                signal=consumed, offsets=[peer, 0],
-                expected=epoch, cmp=pld.WaitCmp.Ge,
-            )
-
-    # Publish both local tails.
-    for peer in pl.range(CP_SIZE):
-        for part in pl.range(2):
-            rank_major_pos = my_rank * 2 + part
-            dst_row_base = rank_major_pos * TAIL_ROWS
-            src_row_base = part * TAIL_ROWS
-            pld.tensor.put(
-                dst=kv_tail_window, peer=peer, src=local_kv_tail,
-                dst_offsets=[dst_row_base, 0], src_offsets=[src_row_base, 0], shape=[TAIL_ROWS, HEAD_DIM],
-                chunk_rows=ROW_TILE, chunk_cols=HEAD_DIM, pipeline=True,
-            )
-    for peer in pl.range(CP_SIZE):
-        if peer != my_rank:
-            pld.system.notify(
-                target=ready, peer=peer, offsets=[my_rank, 0],
-                value=1, op=pld.NotifyOp.AtomicAdd,
-            )
-
-    # Gather logical-segment tails.
-    for seg in pl.range(NUM_SEGMENTS):
-        rm_pos = reverse_index[seg]
-        owner = owner_rank_table[seg]
-        if owner != my_rank:
-            pld.system.wait(
-                signal=ready, offsets=[owner, 0],
-                expected=epoch_value, cmp=pld.WaitCmp.Ge,
-            )
-        rm_row_base = rm_pos * TAIL_ROWS
-        out_row_base = seg * TAIL_ROWS
-        for t0 in pl.range(0, TAIL_ROWS, ROW_TILE):
-            win_tile = pl.load(
-                kv_tail_window,
-                [rm_row_base + t0, 0],
-                [ROW_TILE, HEAD_DIM],
-            )
-            pl.store(win_tile, [out_row_base + t0, 0], logical_tails_out)
-
-    # Acknowledge window consumption.
-    for peer in pl.range(CP_SIZE):
-        if peer != my_rank:
-            pld.system.notify(
-                target=consumed, peer=peer, offsets=[my_rank, 0],
-                value=1, op=pld.NotifyOp.AtomicAdd,
-            )
-    return logical_tails_out
-
-
 @pl.jit.incore
 def prefill_cp_zigzag_kv_tail_exchange_core(
     local_kv_tail: pl.Tensor[[EPOCHS * 2 * TAIL_ROWS, HEAD_DIM], pl.BF16],
@@ -198,12 +169,7 @@ def prefill_cp_zigzag_kv_tail_exchange_core(
         epoch_value = pl.cast(epoch + 1, pl.INT32)
         for peer in pl.range(CP_SIZE):
             if peer != my_rank:
-                pld.system.wait(
-                    signal=consumed,
-                    offsets=[peer, 0],
-                    expected=epoch,
-                    cmp=pld.WaitCmp.Ge,
-                )
+                pld.system.wait(signal=consumed, offsets=[peer, 0], expected=epoch, cmp=pld.WaitCmp.Ge)
 
         for peer in pl.range(CP_SIZE):
             for part in pl.range(2):
@@ -221,47 +187,22 @@ def prefill_cp_zigzag_kv_tail_exchange_core(
                 )
         for peer in pl.range(CP_SIZE):
             if peer != my_rank:
-                pld.system.notify(
-                    target=ready,
-                    peer=peer,
-                    offsets=[my_rank, 0],
-                    value=1,
-                    op=pld.NotifyOp.AtomicAdd,
-                )
+                pld.system.notify(target=ready, peer=peer, offsets=[my_rank, 0], value=1, op=pld.NotifyOp.AtomicAdd)
 
         for seg in pl.range(NUM_SEGMENTS):
             rm_pos = reverse_index[seg]
             owner = owner_rank_table[seg]
             if owner != my_rank:
-                pld.system.wait(
-                    signal=ready,
-                    offsets=[owner, 0],
-                    expected=epoch_value,
-                    cmp=pld.WaitCmp.Ge,
-                )
+                pld.system.wait(signal=ready, offsets=[owner, 0], expected=epoch_value, cmp=pld.WaitCmp.Ge)
             source_row = rm_pos * TAIL_ROWS
             destination_row = epoch * CP_TAIL_WINDOW_ROWS + seg * TAIL_ROWS
             for t0 in pl.range(0, TAIL_ROWS, ROW_TILE):
-                win_tile = pl.load(
-                    kv_tail_window,
-                    [source_row + t0, 0],
-                    [ROW_TILE, HEAD_DIM],
-                )
-                pl.store(
-                    win_tile,
-                    [destination_row + t0, 0],
-                    logical_tails_out,
-                )
+                win_tile = pl.load(kv_tail_window, [source_row + t0, 0], [ROW_TILE, HEAD_DIM])
+                pl.store(win_tile, [destination_row + t0, 0], logical_tails_out)
 
         for peer in pl.range(CP_SIZE):
             if peer != my_rank:
-                pld.system.notify(
-                    target=consumed,
-                    peer=peer,
-                    offsets=[my_rank, 0],
-                    value=1,
-                    op=pld.NotifyOp.AtomicAdd,
-                )
+                pld.system.notify(target=consumed, peer=peer, offsets=[my_rank, 0], value=1, op=pld.NotifyOp.AtomicAdd)
 
     last_epoch_base = (EPOCHS - 1) * CP_TAIL_WINDOW_ROWS
     for j in pl.range(TAIL_ROWS):

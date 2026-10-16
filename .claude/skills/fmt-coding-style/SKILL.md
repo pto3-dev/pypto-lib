@@ -30,8 +30,9 @@ named file — do not sweep sibling kernels that share the same smells.
 
 Reference points:
 
-- `docs/pypto-coding/pypto-coding-style.md` — the canonical DSL reference (loop constructs,
-  `pl.at`, slice/assemble); this skill is the *formatting* layer on top of it.
+- `docs/pypto-coding/` — the canonical DSL reference (`l2-programming.md` for
+  `pl.at`, `operations.md` for slice/assemble, `loops.md` for loop constructs);
+  this skill is the *formatting* layer on top of it.
 - `models/deepseek_v4_flash_mtp/qkv_proj_rope.py` — reference header layout.
 - `ruff.toml` — `line-length = 110`, `target-version = py310`.
 
@@ -152,11 +153,11 @@ parser.add_argument(
     nargs="?",
     const=1,
     default=0,
-    choices=(0, 1, 2, 4),
+    choices=range(5),
 )
 
 # after
-parser.add_argument("--enable-chip-swimlane", type=int, nargs="?", const=1, default=0, choices=(0, 1, 2, 4))
+parser.add_argument("--enable-chip-swimlane", type=int, nargs="?", const=1, default=0, choices=range(5))
 ```
 
 Structures that stay one-item-per-line:

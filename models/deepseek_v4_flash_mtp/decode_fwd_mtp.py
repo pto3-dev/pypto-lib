@@ -22,22 +22,22 @@ from decode_fwd import (
     B,
     BLOCK_SIZE,
     CSA_CMP_BLOCK_NUM,
-    CSA_CMP_MAX_BLOCKS,
+    CSA_CMP_TABLE_BLOCKS_DYN,
     CSA_COMPRESS_RATIO,
     CSA_IDX_CACHE_BLOCK_NUM,
-    CSA_IDX_CACHE_MAX_BLOCKS,
     CSA_IDX_HEAD_DIM,
     CSA_IDX_N_HEADS,
+    CSA_IDX_TABLE_BLOCKS_DYN,
     CSA_INNER_OUT_DIM,
     CSA_INNER_STATE_BLOCK_NUM,
     CSA_INNER_STATE_BLOCK_SIZE,
     CSA_INNER_STATE_DIM,
-    CSA_INNER_STATE_MAX_BLOCKS,
+    CSA_INNER_STATE_TABLE_BLOCKS_DYN,
     CSA_MAIN_OUT_DIM,
     CSA_MAIN_STATE_BLOCK_NUM,
     CSA_MAIN_STATE_BLOCK_SIZE,
     CSA_MAIN_STATE_DIM,
-    CSA_MAIN_STATE_MAX_BLOCKS,
+    CSA_MAIN_STATE_TABLE_BLOCKS_DYN,
     CSA_NUM_LAYERS,
     D,
     DECODE_START_POS,
@@ -55,19 +55,17 @@ from decode_fwd import (
     HCA_COMPRESS_STATE_BLOCK_NUM,
     HCA_COMPRESS_STATE_BLOCK_SIZE,
     HCA_COMPRESS_STATE_DIM,
-    HCA_COMPRESS_STATE_MAX_BLOCKS,
-    HCA_CMP_MAX_BLOCKS,
     HCA_CMP_STORAGE_BLOCK_SIZE,
+    HCA_CMP_TABLE_BLOCKS_DYN,
     HCA_MAIN_OUT_DIM,
     HCA_NUM_LAYERS,
+    HCA_STATE_TABLE_BLOCKS_DYN,
     HC_DIM,
     HC_MULT,
     HEAD_DIM,
-    IDX_PAD,
     LM_HEAD_TP_SIZE,
     LM_HEAD_VOCAB,
     MAX_LOGIT_ROWS,
-    MAX_SEQ_LEN,
     MIX_HC,
     MOE_INTER,
     N_CACHE_GROUPS,
@@ -103,11 +101,10 @@ from decode_mtp import (
     decode_mtp,
 )
 from decode_prepare import (
+    ROPE_ROWS_DYN,
     VOCAB_DYN as EMBED_VOCAB_DYN,
-    build_decode_metadata,
     build_swa_metadata,
     pack_mtp_hidden,
-    pack_x_hc,
 )
 from lookup_embedding import lookup_embedding
 
@@ -132,6 +129,8 @@ TEMPERATURE_SCALE = 1000000.0
 STATE_TAIL_TOKEN = 0
 STATE_DRAFT_TOKEN = 1
 STATE_TOKEN_WIDTH = 2
+
+ROPE_STEP_MARGIN = 16384
 
 assert S == 2, "persistent MTP state requires decode_seq=2"
 assert MAX_LOGIT_ROWS >= T, "verification reads one sampled row per decode token"
@@ -400,16 +399,16 @@ def l2_decode_fwd_mtp(
     hc_attn_scale: pl.Tensor[[FWD_NUM_LAYERS * 3], pl.FP32],
     hc_attn_base: pl.Tensor[[FWD_NUM_LAYERS * MIX_HC], pl.FP32],
     attn_norm_w: pl.Tensor[[FWD_NUM_LAYERS * D], pl.BF16],
-    wq_a: pl.Tensor[[FWD_NUM_LAYERS * D, Q_LORA], pl.BF16],
-    wq_b: pl.Tensor[[FWD_NUM_LAYERS * Q_LORA, H * HEAD_DIM], pl.INT8],
+    wq_a: pl.Tensor[[FWD_NUM_LAYERS, D, Q_LORA], pl.BF16, pl.NZ],
+    wq_b: pl.Tensor[[FWD_NUM_LAYERS, Q_LORA, H * HEAD_DIM], pl.INT8, pl.NZ],
     wq_b_scale: pl.Tensor[[FWD_NUM_LAYERS * H * HEAD_DIM], pl.FP32],
-    wkv: pl.Tensor[[FWD_NUM_LAYERS * D, HEAD_DIM], pl.BF16],
+    wkv: pl.Tensor[[FWD_NUM_LAYERS, D, HEAD_DIM], pl.BF16, pl.NZ],
     gamma_cq: pl.Tensor[[FWD_NUM_LAYERS * Q_LORA], pl.BF16],
     gamma_ckv: pl.Tensor[[FWD_NUM_LAYERS * HEAD_DIM], pl.BF16],
     kv_cache: pl.InOut[pl.Tensor[[FWD_ORI_BLOCK_NUM_DYN, BLOCK_SIZE, 1, HEAD_DIM], pl.BF16]],
     attn_sink: pl.Tensor[[FWD_NUM_LAYERS * H], pl.FP32],
-    wo_a: pl.Tensor[[FWD_NUM_LAYERS * O_GROUPS, O_LORA, O_GROUP_IN], pl.BF16],
-    wo_b: pl.Tensor[[FWD_NUM_LAYERS * D, O_GROUPS * O_LORA], pl.INT8],
+    wo_a: pl.Tensor[[FWD_NUM_LAYERS * O_GROUPS, O_LORA, O_GROUP_IN], pl.BF16, pl.NZ],
+    wo_b: pl.Tensor[[FWD_NUM_LAYERS * O_GROUPS, D, O_LORA], pl.INT8, pl.NZ],
     wo_b_scale: pl.Tensor[[FWD_NUM_LAYERS * D], pl.FP32],
     hca_cmp_wkv: pl.Tensor[[HCA_NUM_LAYERS * HCA_MAIN_OUT_DIM, D], pl.BF16],
     hca_cmp_wgate: pl.Tensor[[HCA_NUM_LAYERS * HCA_MAIN_OUT_DIM, D], pl.BF16],
@@ -421,9 +420,9 @@ def l2_decode_fwd_mtp(
     csa_cmp_ape: pl.Tensor[[CSA_NUM_LAYERS * CSA_COMPRESS_RATIO, CSA_MAIN_OUT_DIM], pl.FP32],
     csa_cmp_norm_w: pl.Tensor[[CSA_NUM_LAYERS * HEAD_DIM], pl.BF16],
     csa_compress_state: pl.InOut[pl.Tensor[[FWD_CSA_STATE_BLOCK_NUM_DYN, CSA_MAIN_STATE_BLOCK_SIZE, CSA_MAIN_STATE_DIM], pl.FP32]],
-    csa_idx_wq_b: pl.Tensor[[CSA_NUM_LAYERS * Q_LORA, CSA_IDX_N_HEADS * CSA_IDX_HEAD_DIM], pl.INT8],
+    csa_idx_wq_b: pl.Tensor[[CSA_NUM_LAYERS, Q_LORA, CSA_IDX_N_HEADS * CSA_IDX_HEAD_DIM], pl.INT8, pl.NZ],
     csa_idx_wq_b_scale: pl.Tensor[[CSA_NUM_LAYERS * CSA_IDX_N_HEADS * CSA_IDX_HEAD_DIM], pl.FP32],
-    csa_weights_proj: pl.Tensor[[CSA_NUM_LAYERS * D, CSA_IDX_N_HEADS], pl.BF16],
+    csa_weights_proj: pl.Tensor[[CSA_NUM_LAYERS, D, CSA_IDX_N_HEADS], pl.BF16, pl.NZ],
     csa_hadamard_idx: pl.Tensor[[CSA_NUM_LAYERS * CSA_IDX_HEAD_DIM, CSA_IDX_HEAD_DIM], pl.BF16],
     csa_inner_wkv: pl.Tensor[[CSA_NUM_LAYERS * CSA_INNER_OUT_DIM, D], pl.BF16],
     csa_inner_wgate: pl.Tensor[[CSA_NUM_LAYERS * CSA_INNER_OUT_DIM, D], pl.BF16],
@@ -441,36 +440,36 @@ def l2_decode_fwd_mtp(
     gate_w: pl.Tensor[[FWD_NUM_LAYERS * N_EXPERTS_GLOBAL, D], pl.FP32],
     gate_bias: pl.Tensor[[FWD_NUM_LAYERS * N_EXPERTS_GLOBAL], pl.FP32],
     tid2eid: pl.Tensor[[FWD_NUM_LAYERS * VOCAB, TOPK], pl.INT32],
-    routed_w1: pl.Tensor[[FWD_NUM_LAYERS * N_LOCAL, MOE_INTER, D], pl.INT8],
+    routed_w1: pl.Tensor[[FWD_NUM_LAYERS * N_LOCAL, MOE_INTER, D], pl.INT8, pl.NZ],
     routed_w1_scale: pl.Tensor[[FWD_NUM_LAYERS * N_LOCAL, MOE_INTER], pl.FP32],
-    routed_w3: pl.Tensor[[FWD_NUM_LAYERS * N_LOCAL, MOE_INTER, D], pl.INT8],
+    routed_w3: pl.Tensor[[FWD_NUM_LAYERS * N_LOCAL, MOE_INTER, D], pl.INT8, pl.NZ],
     routed_w3_scale: pl.Tensor[[FWD_NUM_LAYERS * N_LOCAL, MOE_INTER], pl.FP32],
-    routed_w2: pl.Tensor[[FWD_NUM_LAYERS * N_LOCAL, D, MOE_INTER], pl.INT8],
+    routed_w2: pl.Tensor[[FWD_NUM_LAYERS * N_LOCAL, D, MOE_INTER], pl.INT8, pl.NZ],
     routed_w2_scale: pl.Tensor[[FWD_NUM_LAYERS * N_LOCAL, D], pl.FP32],
-    shared_w1: pl.Tensor[[FWD_NUM_LAYERS * MOE_INTER, D], pl.INT8],
+    shared_w1: pl.Tensor[[FWD_NUM_LAYERS, MOE_INTER, D], pl.INT8, pl.NZ],
     shared_w1_scale: pl.Tensor[[FWD_NUM_LAYERS * MOE_INTER], pl.FP32],
-    shared_w3: pl.Tensor[[FWD_NUM_LAYERS * MOE_INTER, D], pl.INT8],
+    shared_w3: pl.Tensor[[FWD_NUM_LAYERS, MOE_INTER, D], pl.INT8, pl.NZ],
     shared_w3_scale: pl.Tensor[[FWD_NUM_LAYERS * MOE_INTER], pl.FP32],
-    shared_w2: pl.Tensor[[FWD_NUM_LAYERS * D, MOE_INTER], pl.INT8],
+    shared_w2: pl.Tensor[[FWD_NUM_LAYERS, D, MOE_INTER], pl.INT8, pl.NZ],
     shared_w2_scale: pl.Tensor[[FWD_NUM_LAYERS * D], pl.FP32],
-    freqs_cos: pl.Tensor[[2, MAX_SEQ_LEN, ROPE_HEAD_DIM], pl.BF16],
-    freqs_sin: pl.Tensor[[2, MAX_SEQ_LEN, ROPE_HEAD_DIM], pl.BF16],
+    freqs_cos: pl.Tensor[[2, ROPE_ROWS_DYN, ROPE_HEAD_DIM], pl.BF16],
+    freqs_sin: pl.Tensor[[2, ROPE_ROWS_DYN, ROPE_HEAD_DIM], pl.BF16],
     block_table: pl.Tensor[[B, ORI_TABLE_MAX_BLOCKS], pl.INT32],
     position_ids: pl.InOut[pl.Tensor[[T], pl.INT32]],
     kv_seq_lens: pl.InOut[pl.Tensor[[B], pl.INT32]],
-    hca_compress_state_block_table: pl.Tensor[[B, HCA_COMPRESS_STATE_MAX_BLOCKS], pl.INT32],
-    csa_compress_state_block_table: pl.Tensor[[B, CSA_MAIN_STATE_MAX_BLOCKS], pl.INT32],
-    csa_inner_compress_state_block_table: pl.Tensor[[B, CSA_INNER_STATE_MAX_BLOCKS], pl.INT32],
-    hca_cmp_block_table: pl.Tensor[[B, HCA_CMP_MAX_BLOCKS], pl.INT32],
-    csa_cmp_block_table: pl.Tensor[[B, CSA_CMP_MAX_BLOCKS], pl.INT32],
-    idx_block_table: pl.Tensor[[B, CSA_IDX_CACHE_MAX_BLOCKS], pl.INT32],
+    hca_compress_state_block_table: pl.Tensor[[B, HCA_STATE_TABLE_BLOCKS_DYN], pl.INT32],
+    csa_compress_state_block_table: pl.Tensor[[B, CSA_MAIN_STATE_TABLE_BLOCKS_DYN], pl.INT32],
+    csa_inner_compress_state_block_table: pl.Tensor[[B, CSA_INNER_STATE_TABLE_BLOCKS_DYN], pl.INT32],
+    hca_cmp_block_table: pl.Tensor[[B, HCA_CMP_TABLE_BLOCKS_DYN], pl.INT32],
+    csa_cmp_block_table: pl.Tensor[[B, CSA_CMP_TABLE_BLOCKS_DYN], pl.INT32],
+    idx_block_table: pl.Tensor[[B, CSA_IDX_TABLE_BLOCKS_DYN], pl.INT32],
     block_counts: pl.Tensor[[B, N_CACHE_GROUPS], pl.INT32],
     input_ids: pl.InOut[pl.Tensor[[T], pl.INT64]],
     hc_head_fn: pl.Tensor[[HC_MULT, HC_DIM], pl.FP32],
     hc_head_scale: pl.Tensor[[1], pl.FP32],
     hc_head_base: pl.Tensor[[HC_MULT], pl.FP32],
     final_norm_w: pl.Tensor[[D], pl.BF16],
-    lm_head_weight: pl.Tensor[[VOCAB_PER_TP, D], pl.BF16],
+    lm_head_weight: pl.Tensor[[VOCAB_PER_TP, D], pl.BF16, pl.NZ],
     logit_row_indices: pl.Tensor[[MAX_LOGIT_ROWS], pl.INT32],
     sampling_temperatures: pl.InOut[pl.Tensor[[MAX_LOGIT_ROWS], pl.FP32]],
     sampling_top_ks: pl.InOut[pl.Tensor[[MAX_LOGIT_ROWS], pl.INT32]],
@@ -483,7 +482,6 @@ def l2_decode_fwd_mtp(
     recv_meta: pld.DistributedTensor[[N_RANKS, N_LOCAL], pl.INT32],
     recv_x: pld.DistributedTensor[[N_LOCAL * RECV_MAX, D], pl.INT8],
     recv_aux: pld.DistributedTensor[[N_LOCAL * RECV_MAX, AUX_PAD], pl.FP32],
-    recv_route: pld.DistributedTensor[[N_LOCAL * RECV_MAX, IDX_PAD], pl.INT32],
     arrived: pld.DistributedTensor[[N_RANKS, 1], pl.INT32],
     data_arrived: pld.DistributedTensor[[N_RANKS, 1], pl.INT32],
     routed_y_buf: pld.DistributedTensor[[N_ROUTES, D], pl.BF16],
@@ -505,26 +503,26 @@ def l2_decode_fwd_mtp(
     mtp_tail_pre_hc_pool: pl.InOut[pl.Tensor[[B, HC_MULT, D], pl.FP32]],
     mtp_enorm_w: pl.Tensor[[D], pl.FP32],
     mtp_hnorm_w: pl.Tensor[[D], pl.FP32],
-    mtp_e_proj_w: pl.Tensor[[D, D], pl.INT8],
+    mtp_e_proj_w: pl.Tensor[[D, D], pl.INT8, pl.NZ],
     mtp_e_proj_w_scale: pl.Tensor[[D], pl.FP32],
     mtp_e_proj_smooth: pl.Tensor[[D], pl.FP32],
-    mtp_h_proj_w: pl.Tensor[[D, D], pl.INT8],
+    mtp_h_proj_w: pl.Tensor[[D, D], pl.INT8, pl.NZ],
     mtp_h_proj_w_scale: pl.Tensor[[D], pl.FP32],
     mtp_h_proj_smooth: pl.Tensor[[D], pl.FP32],
     mtp_hc_attn_fn: pl.Tensor[[MIX_HC, HC_DIM], pl.FP32],
     mtp_hc_attn_scale: pl.Tensor[[3], pl.FP32],
     mtp_hc_attn_base: pl.Tensor[[MIX_HC], pl.FP32],
     mtp_attn_norm_w: pl.Tensor[[D], pl.BF16],
-    mtp_wq_a: pl.Tensor[[D, Q_LORA], pl.BF16],
-    mtp_wq_b: pl.Tensor[[Q_LORA, H * HEAD_DIM], pl.INT8],
+    mtp_wq_a: pl.Tensor[[D, Q_LORA], pl.BF16, pl.NZ],
+    mtp_wq_b: pl.Tensor[[Q_LORA, H * HEAD_DIM], pl.INT8, pl.NZ],
     mtp_wq_b_scale: pl.Tensor[[H * HEAD_DIM], pl.FP32],
-    mtp_wkv: pl.Tensor[[D, HEAD_DIM], pl.BF16],
+    mtp_wkv: pl.Tensor[[D, HEAD_DIM], pl.BF16, pl.NZ],
     mtp_gamma_cq: pl.Tensor[[Q_LORA], pl.BF16],
     mtp_gamma_ckv: pl.Tensor[[HEAD_DIM], pl.BF16],
     mtp_kv_cache: pl.InOut[pl.Tensor[[MTP_ORI_BLOCK_NUM_DYN, BLOCK_SIZE, 1, HEAD_DIM], pl.BF16]],
     mtp_attn_sink: pl.Tensor[[H], pl.FP32],
-    mtp_wo_a: pl.Tensor[[O_GROUPS, O_LORA, O_GROUP_IN], pl.BF16],
-    mtp_wo_b: pl.Tensor[[D, O_GROUPS * O_LORA], pl.INT8],
+    mtp_wo_a: pl.Tensor[[O_GROUPS, O_LORA, O_GROUP_IN], pl.BF16, pl.NZ],
+    mtp_wo_b: pl.Tensor[[O_GROUPS, D, O_LORA], pl.INT8, pl.NZ],
     mtp_wo_b_scale: pl.Tensor[[D], pl.FP32],
     mtp_hc_ffn_fn: pl.Tensor[[MIX_HC, HC_DIM], pl.FP32],
     mtp_hc_ffn_scale: pl.Tensor[[3], pl.FP32],
@@ -533,17 +531,17 @@ def l2_decode_fwd_mtp(
     mtp_gate_w: pl.Tensor[[N_EXPERTS_GLOBAL, D], pl.FP32],
     mtp_gate_bias: pl.Tensor[[N_EXPERTS_GLOBAL], pl.FP32],
     mtp_tid2eid: pl.Tensor[[MOE_VOCAB, MOE_TOPK], pl.INT32],
-    mtp_routed_w1: pl.Tensor[[N_LOCAL, MOE_INTER, D], pl.INT8],
+    mtp_routed_w1: pl.Tensor[[N_LOCAL, MOE_INTER, D], pl.INT8, pl.NZ],
     mtp_routed_w1_scale: pl.Tensor[[N_LOCAL, MOE_INTER], pl.FP32],
-    mtp_routed_w3: pl.Tensor[[N_LOCAL, MOE_INTER, D], pl.INT8],
+    mtp_routed_w3: pl.Tensor[[N_LOCAL, MOE_INTER, D], pl.INT8, pl.NZ],
     mtp_routed_w3_scale: pl.Tensor[[N_LOCAL, MOE_INTER], pl.FP32],
-    mtp_routed_w2: pl.Tensor[[N_LOCAL, D, MOE_INTER], pl.INT8],
+    mtp_routed_w2: pl.Tensor[[N_LOCAL, D, MOE_INTER], pl.INT8, pl.NZ],
     mtp_routed_w2_scale: pl.Tensor[[N_LOCAL, D], pl.FP32],
-    mtp_shared_w1: pl.Tensor[[MOE_INTER, D], pl.INT8],
+    mtp_shared_w1: pl.Tensor[[MOE_INTER, D], pl.INT8, pl.NZ],
     mtp_shared_w1_scale: pl.Tensor[[MOE_INTER], pl.FP32],
-    mtp_shared_w3: pl.Tensor[[MOE_INTER, D], pl.INT8],
+    mtp_shared_w3: pl.Tensor[[MOE_INTER, D], pl.INT8, pl.NZ],
     mtp_shared_w3_scale: pl.Tensor[[MOE_INTER], pl.FP32],
-    mtp_shared_w2: pl.Tensor[[D, MOE_INTER], pl.INT8],
+    mtp_shared_w2: pl.Tensor[[D, MOE_INTER], pl.INT8, pl.NZ],
     mtp_shared_w2_scale: pl.Tensor[[D], pl.FP32],
     mtp_mtp_hc_head_fn: pl.Tensor[[HC_MULT, HC_DIM], pl.FP32],
     mtp_mtp_hc_head_scale: pl.Tensor[[1], pl.FP32],
@@ -561,7 +559,6 @@ def l2_decode_fwd_mtp(
     mtp_recv_meta: pld.DistributedTensor[[N_RANKS, N_LOCAL], pl.INT32],
     mtp_recv_x: pld.DistributedTensor[[N_LOCAL * RECV_MAX, D], pl.INT8],
     mtp_recv_aux: pld.DistributedTensor[[N_LOCAL * RECV_MAX, AUX_PAD], pl.FP32],
-    mtp_recv_route: pld.DistributedTensor[[N_LOCAL * RECV_MAX, IDX_PAD], pl.INT32],
     mtp_arrived: pld.DistributedTensor[[N_RANKS, 1], pl.INT32],
     mtp_data_arrived: pld.DistributedTensor[[N_RANKS, 1], pl.INT32],
     mtp_routed_y_buf: pld.DistributedTensor[[N_ROUTES, D], pl.BF16],
@@ -573,10 +570,14 @@ def l2_decode_fwd_mtp(
     rank: pl.Scalar[pl.INT32],
     mtp_num_tokens: pl.Scalar[pl.INT32],
 ):
-    swa_cos_profile: pl.Tensor[[1, MAX_SEQ_LEN, ROPE_HEAD_DIM], pl.BF16] = pl.slice(freqs_cos, [1, MAX_SEQ_LEN, ROPE_HEAD_DIM], [0, 0, 0])
-    swa_sin_profile: pl.Tensor[[1, MAX_SEQ_LEN, ROPE_HEAD_DIM], pl.BF16] = pl.slice(freqs_sin, [1, MAX_SEQ_LEN, ROPE_HEAD_DIM], [0, 0, 0])
-    swa_freqs_cos: pl.Tensor[[MAX_SEQ_LEN, ROPE_HEAD_DIM], pl.BF16] = pl.reshape(swa_cos_profile, [MAX_SEQ_LEN, ROPE_HEAD_DIM])
-    swa_freqs_sin: pl.Tensor[[MAX_SEQ_LEN, ROPE_HEAD_DIM], pl.BF16] = pl.reshape(swa_sin_profile, [MAX_SEQ_LEN, ROPE_HEAD_DIM])
+    freqs_cos.bind_dynamic(1, ROPE_ROWS_DYN)
+    freqs_sin.bind_dynamic(1, ROPE_ROWS_DYN)
+    hca_compress_state_block_table.bind_dynamic(1, HCA_STATE_TABLE_BLOCKS_DYN)
+    csa_compress_state_block_table.bind_dynamic(1, CSA_MAIN_STATE_TABLE_BLOCKS_DYN)
+    csa_inner_compress_state_block_table.bind_dynamic(1, CSA_INNER_STATE_TABLE_BLOCKS_DYN)
+    hca_cmp_block_table.bind_dynamic(1, HCA_CMP_TABLE_BLOCKS_DYN)
+    csa_cmp_block_table.bind_dynamic(1, CSA_CMP_TABLE_BLOCKS_DYN)
+    idx_block_table.bind_dynamic(1, CSA_IDX_TABLE_BLOCKS_DYN)
     # Recurrent token, position, and length fields arrive as placeholders; resolve
     # them from each request's stable device slot before main decode reads them.
     prepare_decode_from_device_state(
@@ -586,40 +587,8 @@ def l2_decode_fwd_mtp(
         sampling_temperatures, sampling_top_ks,
         sampling_seeds, sampling_positions,
     )
-    ori_slot_mapping = pl.create_tensor([T], dtype=pl.INT64)
-    swa_slot_mapping = pl.create_tensor([T], dtype=pl.INT64)
-    swa_indices = pl.create_tensor([T, SWA_WIN], dtype=pl.INT32)
-    swa_lens = pl.create_tensor([T], dtype=pl.INT32)
-    hca_cmp_slot_mapping = pl.create_tensor([T], dtype=pl.INT64)
-    hca_state_slot_mapping = pl.create_tensor([T], dtype=pl.INT64)
-    csa_cmp_slot_mapping = pl.create_tensor([T], dtype=pl.INT64)
-    csa_idx_slot_mapping = pl.create_tensor([T], dtype=pl.INT64)
-    csa_state_slot_mapping = pl.create_tensor([T], dtype=pl.INT64)
-    csa_inner_state_slot_mapping = pl.create_tensor([T], dtype=pl.INT64)
-    build_decode_metadata(
-        position_ids,
-        block_table,
-        hca_cmp_block_table,
-        csa_cmp_block_table,
-        idx_block_table,
-        hca_compress_state_block_table,
-        csa_compress_state_block_table,
-        csa_inner_compress_state_block_table,
-        block_counts,
-        ori_slot_mapping,
-        swa_slot_mapping,
-        swa_indices,
-        swa_lens,
-        hca_cmp_slot_mapping,
-        hca_state_slot_mapping,
-        csa_cmp_slot_mapping,
-        csa_idx_slot_mapping,
-        csa_state_slot_mapping,
-        csa_inner_state_slot_mapping,
-    )
-    x_hc = pl.create_tensor([T, HC_MULT, D], dtype=pl.FP32)
-    pack_x_hc(input_ids, embed_weight, x_hc)
     decode_fwd(
+        embed_weight,
         hc_attn_fn, hc_attn_scale, hc_attn_base,
         attn_norm_w, wq_a, wq_b, wq_b_scale,
         wkv, gamma_cq, gamma_ckv,
@@ -635,18 +604,15 @@ def l2_decode_fwd_mtp(
         routed_w1, routed_w1_scale, routed_w3, routed_w3_scale, routed_w2, routed_w2_scale,
         shared_w1, shared_w1_scale, shared_w3, shared_w3_scale, shared_w2, shared_w2_scale,
         freqs_cos, freqs_sin,
-        x_hc, position_ids, kv_seq_lens,
+        block_table, position_ids, kv_seq_lens,
         hca_compress_state_block_table, csa_compress_state_block_table, csa_inner_compress_state_block_table,
         hca_cmp_block_table, csa_cmp_block_table, idx_block_table,
-        ori_slot_mapping, swa_slot_mapping, swa_indices, swa_lens,
-        hca_cmp_slot_mapping, hca_state_slot_mapping,
-        csa_cmp_slot_mapping, csa_idx_slot_mapping, csa_state_slot_mapping, csa_inner_state_slot_mapping,
-        input_ids,
+        block_counts, input_ids,
         hc_head_fn, hc_head_scale, hc_head_base, final_norm_w,
         lm_head_weight, logit_row_indices,
         sampling_temperatures, sampling_top_ks, sampling_seeds, sampling_positions,
         pre_hc_hidden_out, hidden_out, logits, sampled_ids,
-        recv_meta, recv_x, recv_aux, recv_route,
+        recv_meta, recv_x, recv_aux,
         arrived, data_arrived, routed_y_buf, combine_arrived,
         lm_head_hidden_window, lm_head_hidden_done, lm_head_logits_window, lm_head_logits_done,
         num_tokens_per_owner, rank,
@@ -691,7 +657,7 @@ def l2_decode_fwd_mtp(
         mtp_h_proj_w, mtp_h_proj_w_scale, mtp_h_proj_smooth,
         mtp_hc_attn_fn, mtp_hc_attn_scale, mtp_hc_attn_base,
         mtp_attn_norm_w, mtp_wq_a, mtp_wq_b, mtp_wq_b_scale, mtp_wkv, mtp_gamma_cq, mtp_gamma_ckv,
-        swa_freqs_cos, swa_freqs_sin,
+        freqs_cos, freqs_sin,
         mtp_kv_cache, mtp_swa_slot_mapping, mtp_swa_indices, mtp_swa_lens,
         mtp_attn_sink, mtp_wo_a, mtp_wo_b, mtp_wo_b_scale,
         mtp_hc_ffn_fn, mtp_hc_ffn_scale, mtp_hc_ffn_base,
@@ -703,7 +669,7 @@ def l2_decode_fwd_mtp(
         mtp_sampling_temperatures, mtp_sampling_top_ks,
         mtp_sampling_seeds, mtp_sampling_positions,
         mtp_hidden_out, mtp_next_pre_hc_hidden, mtp_logits, mtp_sampled_ids,
-        mtp_recv_meta, mtp_recv_x, mtp_recv_aux, mtp_recv_route,
+        mtp_recv_meta, mtp_recv_x, mtp_recv_aux,
         mtp_arrived, mtp_data_arrived, mtp_routed_y_buf, mtp_combine_arrived,
         mtp_lm_head_hidden_window, mtp_lm_head_hidden_done, mtp_lm_head_logits_window, mtp_lm_head_logits_done,
         rank, mtp_num_tokens,
@@ -727,16 +693,16 @@ def l3_decode_fwd_mtp(
     hc_attn_scale: pl.Tensor[[N_RANKS, FWD_NUM_LAYERS * 3], pl.FP32],
     hc_attn_base: pl.Tensor[[N_RANKS, FWD_NUM_LAYERS * MIX_HC], pl.FP32],
     attn_norm_w: pl.Tensor[[N_RANKS, FWD_NUM_LAYERS * D], pl.BF16],
-    wq_a: pl.Tensor[[N_RANKS, FWD_NUM_LAYERS * D, Q_LORA], pl.BF16],
-    wq_b: pl.Tensor[[N_RANKS, FWD_NUM_LAYERS * Q_LORA, H * HEAD_DIM], pl.INT8],
+    wq_a: pl.Tensor[[N_RANKS, FWD_NUM_LAYERS, D, Q_LORA], pl.BF16],
+    wq_b: pl.Tensor[[N_RANKS, FWD_NUM_LAYERS, Q_LORA, H * HEAD_DIM], pl.INT8],
     wq_b_scale: pl.Tensor[[N_RANKS, FWD_NUM_LAYERS * H * HEAD_DIM], pl.FP32],
-    wkv: pl.Tensor[[N_RANKS, FWD_NUM_LAYERS * D, HEAD_DIM], pl.BF16],
+    wkv: pl.Tensor[[N_RANKS, FWD_NUM_LAYERS, D, HEAD_DIM], pl.BF16],
     gamma_cq: pl.Tensor[[N_RANKS, FWD_NUM_LAYERS * Q_LORA], pl.BF16],
     gamma_ckv: pl.Tensor[[N_RANKS, FWD_NUM_LAYERS * HEAD_DIM], pl.BF16],
     kv_cache: pl.InOut[pl.Tensor[[N_RANKS, FWD_ORI_BLOCK_NUM_DYN, BLOCK_SIZE, 1, HEAD_DIM], pl.BF16]],
     attn_sink: pl.Tensor[[N_RANKS, FWD_NUM_LAYERS * H], pl.FP32],
     wo_a: pl.Tensor[[N_RANKS, FWD_NUM_LAYERS * O_GROUPS, O_LORA, O_GROUP_IN], pl.BF16],
-    wo_b: pl.Tensor[[N_RANKS, FWD_NUM_LAYERS * D, O_GROUPS * O_LORA], pl.INT8],
+    wo_b: pl.Tensor[[N_RANKS, FWD_NUM_LAYERS * O_GROUPS, D, O_LORA], pl.INT8],
     wo_b_scale: pl.Tensor[[N_RANKS, FWD_NUM_LAYERS * D], pl.FP32],
     hca_cmp_wkv: pl.Tensor[[N_RANKS, HCA_NUM_LAYERS * HCA_MAIN_OUT_DIM, D], pl.BF16],
     hca_cmp_wgate: pl.Tensor[[N_RANKS, HCA_NUM_LAYERS * HCA_MAIN_OUT_DIM, D], pl.BF16],
@@ -757,9 +723,9 @@ def l3_decode_fwd_mtp(
             [N_RANKS, FWD_CSA_STATE_BLOCK_NUM_DYN, CSA_MAIN_STATE_BLOCK_SIZE, CSA_MAIN_STATE_DIM], pl.FP32
         ]
     ],
-    csa_idx_wq_b: pl.Tensor[[N_RANKS, CSA_NUM_LAYERS * Q_LORA, CSA_IDX_N_HEADS * CSA_IDX_HEAD_DIM], pl.INT8],
+    csa_idx_wq_b: pl.Tensor[[N_RANKS, CSA_NUM_LAYERS, Q_LORA, CSA_IDX_N_HEADS * CSA_IDX_HEAD_DIM], pl.INT8],
     csa_idx_wq_b_scale: pl.Tensor[[N_RANKS, CSA_NUM_LAYERS * CSA_IDX_N_HEADS * CSA_IDX_HEAD_DIM], pl.FP32],
-    csa_weights_proj: pl.Tensor[[N_RANKS, CSA_NUM_LAYERS * D, CSA_IDX_N_HEADS], pl.BF16],
+    csa_weights_proj: pl.Tensor[[N_RANKS, CSA_NUM_LAYERS, D, CSA_IDX_N_HEADS], pl.BF16],
     csa_hadamard_idx: pl.Tensor[[N_RANKS, CSA_NUM_LAYERS * CSA_IDX_HEAD_DIM, CSA_IDX_HEAD_DIM], pl.BF16],
     csa_inner_wkv: pl.Tensor[[N_RANKS, CSA_NUM_LAYERS * CSA_INNER_OUT_DIM, D], pl.BF16],
     csa_inner_wgate: pl.Tensor[[N_RANKS, CSA_NUM_LAYERS * CSA_INNER_OUT_DIM, D], pl.BF16],
@@ -789,23 +755,23 @@ def l3_decode_fwd_mtp(
     routed_w3_scale: pl.Tensor[[N_RANKS, FWD_NUM_LAYERS * N_LOCAL, MOE_INTER], pl.FP32],
     routed_w2: pl.Tensor[[N_RANKS, FWD_NUM_LAYERS * N_LOCAL, D, MOE_INTER], pl.INT8],
     routed_w2_scale: pl.Tensor[[N_RANKS, FWD_NUM_LAYERS * N_LOCAL, D], pl.FP32],
-    shared_w1: pl.Tensor[[N_RANKS, FWD_NUM_LAYERS * MOE_INTER, D], pl.INT8],
+    shared_w1: pl.Tensor[[N_RANKS, FWD_NUM_LAYERS, MOE_INTER, D], pl.INT8],
     shared_w1_scale: pl.Tensor[[N_RANKS, FWD_NUM_LAYERS * MOE_INTER], pl.FP32],
-    shared_w3: pl.Tensor[[N_RANKS, FWD_NUM_LAYERS * MOE_INTER, D], pl.INT8],
+    shared_w3: pl.Tensor[[N_RANKS, FWD_NUM_LAYERS, MOE_INTER, D], pl.INT8],
     shared_w3_scale: pl.Tensor[[N_RANKS, FWD_NUM_LAYERS * MOE_INTER], pl.FP32],
-    shared_w2: pl.Tensor[[N_RANKS, FWD_NUM_LAYERS * D, MOE_INTER], pl.INT8],
+    shared_w2: pl.Tensor[[N_RANKS, FWD_NUM_LAYERS, D, MOE_INTER], pl.INT8],
     shared_w2_scale: pl.Tensor[[N_RANKS, FWD_NUM_LAYERS * D], pl.FP32],
-    freqs_cos: pl.Tensor[[N_RANKS, 2, MAX_SEQ_LEN, ROPE_HEAD_DIM], pl.BF16],
-    freqs_sin: pl.Tensor[[N_RANKS, 2, MAX_SEQ_LEN, ROPE_HEAD_DIM], pl.BF16],
+    freqs_cos: pl.Tensor[[N_RANKS, 2, ROPE_ROWS_DYN, ROPE_HEAD_DIM], pl.BF16],
+    freqs_sin: pl.Tensor[[N_RANKS, 2, ROPE_ROWS_DYN, ROPE_HEAD_DIM], pl.BF16],
     block_table: pl.Tensor[[N_RANKS, B, ORI_TABLE_MAX_BLOCKS], pl.INT32],
     position_ids: pl.InOut[pl.Tensor[[N_RANKS, T], pl.INT32]],
     kv_seq_lens: pl.InOut[pl.Tensor[[N_RANKS, B], pl.INT32]],
-    hca_compress_state_block_table: pl.Tensor[[N_RANKS, B, HCA_COMPRESS_STATE_MAX_BLOCKS], pl.INT32],
-    csa_compress_state_block_table: pl.Tensor[[N_RANKS, B, CSA_MAIN_STATE_MAX_BLOCKS], pl.INT32],
-    csa_inner_compress_state_block_table: pl.Tensor[[N_RANKS, B, CSA_INNER_STATE_MAX_BLOCKS], pl.INT32],
-    hca_cmp_block_table: pl.Tensor[[N_RANKS, B, HCA_CMP_MAX_BLOCKS], pl.INT32],
-    csa_cmp_block_table: pl.Tensor[[N_RANKS, B, CSA_CMP_MAX_BLOCKS], pl.INT32],
-    idx_block_table: pl.Tensor[[N_RANKS, B, CSA_IDX_CACHE_MAX_BLOCKS], pl.INT32],
+    hca_compress_state_block_table: pl.Tensor[[N_RANKS, B, HCA_STATE_TABLE_BLOCKS_DYN], pl.INT32],
+    csa_compress_state_block_table: pl.Tensor[[N_RANKS, B, CSA_MAIN_STATE_TABLE_BLOCKS_DYN], pl.INT32],
+    csa_inner_compress_state_block_table: pl.Tensor[[N_RANKS, B, CSA_INNER_STATE_TABLE_BLOCKS_DYN], pl.INT32],
+    hca_cmp_block_table: pl.Tensor[[N_RANKS, B, HCA_CMP_TABLE_BLOCKS_DYN], pl.INT32],
+    csa_cmp_block_table: pl.Tensor[[N_RANKS, B, CSA_CMP_TABLE_BLOCKS_DYN], pl.INT32],
+    idx_block_table: pl.Tensor[[N_RANKS, B, CSA_IDX_TABLE_BLOCKS_DYN], pl.INT32],
     block_counts: pl.Tensor[[N_RANKS, B, N_CACHE_GROUPS], pl.INT32],
     input_ids: pl.InOut[pl.Tensor[[N_RANKS, T], pl.INT64]],
     hc_head_fn: pl.Tensor[[N_RANKS, HC_MULT, HC_DIM], pl.FP32],
@@ -857,7 +823,7 @@ def l3_decode_fwd_mtp(
     mtp_kv_cache: pl.InOut[pl.Tensor[[N_RANKS, MTP_ORI_BLOCK_NUM_DYN, BLOCK_SIZE, 1, HEAD_DIM], pl.BF16]],
     mtp_attn_sink: pl.Tensor[[N_RANKS, H], pl.FP32],
     mtp_wo_a: pl.Tensor[[N_RANKS, O_GROUPS, O_LORA, O_GROUP_IN], pl.BF16],
-    mtp_wo_b: pl.Tensor[[N_RANKS, D, O_GROUPS * O_LORA], pl.INT8],
+    mtp_wo_b: pl.Tensor[[N_RANKS, O_GROUPS, D, O_LORA], pl.INT8],
     mtp_wo_b_scale: pl.Tensor[[N_RANKS, D], pl.FP32],
     mtp_hc_ffn_fn: pl.Tensor[[N_RANKS, MIX_HC, HC_DIM], pl.FP32],
     mtp_hc_ffn_scale: pl.Tensor[[N_RANKS, 3], pl.FP32],
@@ -894,10 +860,17 @@ def l3_decode_fwd_mtp(
     mtp_logit_row_indices: pl.Tensor[[N_RANKS, MAX_LOGIT_ROWS], pl.INT32],
     mtp_num_tokens: pl.Scalar[pl.INT32],
 ):
+    freqs_cos.bind_dynamic(2, ROPE_ROWS_DYN)
+    freqs_sin.bind_dynamic(2, ROPE_ROWS_DYN)
+    hca_compress_state_block_table.bind_dynamic(2, HCA_STATE_TABLE_BLOCKS_DYN)
+    csa_compress_state_block_table.bind_dynamic(2, CSA_MAIN_STATE_TABLE_BLOCKS_DYN)
+    csa_inner_compress_state_block_table.bind_dynamic(2, CSA_INNER_STATE_TABLE_BLOCKS_DYN)
+    hca_cmp_block_table.bind_dynamic(2, HCA_CMP_TABLE_BLOCKS_DYN)
+    csa_cmp_block_table.bind_dynamic(2, CSA_CMP_TABLE_BLOCKS_DYN)
+    idx_block_table.bind_dynamic(2, CSA_IDX_TABLE_BLOCKS_DYN)
     recv_meta_buf = pld.alloc_window_buffer([N_RANKS, N_LOCAL], dtype=pl.INT32)
     recv_x_buf = pld.alloc_window_buffer(N_LOCAL * RECV_MAX * D)
     recv_aux_buf = pld.alloc_window_buffer([N_LOCAL * RECV_MAX, AUX_PAD], dtype=pl.FP32)
-    recv_route_buf = pld.alloc_window_buffer([N_LOCAL * RECV_MAX, IDX_PAD], dtype=pl.INT32)
     arrived_buf = pld.alloc_window_buffer([N_RANKS, 1], dtype=pl.INT32)
     data_arrived_buf = pld.alloc_window_buffer([N_RANKS, 1], dtype=pl.INT32)
     routed_y_buf_buf = pld.alloc_window_buffer([N_ROUTES, D], dtype=pl.BF16)
@@ -909,7 +882,6 @@ def l3_decode_fwd_mtp(
     mtp_recv_meta_buf = pld.alloc_window_buffer([N_RANKS, N_LOCAL], dtype=pl.INT32)
     mtp_recv_x_buf = pld.alloc_window_buffer([N_LOCAL * RECV_MAX, D], dtype=pl.INT8)
     mtp_recv_aux_buf = pld.alloc_window_buffer([N_LOCAL * RECV_MAX, AUX_PAD], dtype=pl.FP32)
-    mtp_recv_route_buf = pld.alloc_window_buffer([N_LOCAL * RECV_MAX, IDX_PAD], dtype=pl.INT32)
     mtp_arrived_buf = pld.alloc_window_buffer([N_RANKS, 1], dtype=pl.INT32)
     mtp_data_arrived_buf = pld.alloc_window_buffer([N_RANKS, 1], dtype=pl.INT32)
     mtp_routed_y_buf_buf = pld.alloc_window_buffer([N_ROUTES, D], dtype=pl.BF16)
@@ -922,7 +894,6 @@ def l3_decode_fwd_mtp(
         recv_meta: pld.DistributedTensor[[N_RANKS, N_LOCAL], pl.INT32] = pld.window(recv_meta_buf, [N_RANKS, N_LOCAL], dtype=pl.INT32)
         recv_x: pld.DistributedTensor[[N_LOCAL * RECV_MAX, D], pl.INT8] = pld.window(recv_x_buf, [N_LOCAL * RECV_MAX, D], dtype=pl.INT8)
         recv_aux: pld.DistributedTensor[[N_LOCAL * RECV_MAX, AUX_PAD], pl.FP32] = pld.window(recv_aux_buf, [N_LOCAL * RECV_MAX, AUX_PAD], dtype=pl.FP32)
-        recv_route: pld.DistributedTensor[[N_LOCAL * RECV_MAX, IDX_PAD], pl.INT32] = pld.window(recv_route_buf, [N_LOCAL * RECV_MAX, IDX_PAD], dtype=pl.INT32)
         arrived: pld.DistributedTensor[[N_RANKS, 1], pl.INT32] = pld.window(arrived_buf, [N_RANKS, 1], dtype=pl.INT32)
         data_arrived: pld.DistributedTensor[[N_RANKS, 1], pl.INT32] = pld.window(data_arrived_buf, [N_RANKS, 1], dtype=pl.INT32)
         routed_y_buf: pld.DistributedTensor[[N_ROUTES, D], pl.BF16] = pld.window(routed_y_buf_buf, [N_ROUTES, D], dtype=pl.BF16)
@@ -934,7 +905,6 @@ def l3_decode_fwd_mtp(
         mtp_recv_meta = pld.window(mtp_recv_meta_buf, [N_RANKS, N_LOCAL], dtype=pl.INT32)
         mtp_recv_x = pld.window(mtp_recv_x_buf, [N_LOCAL * RECV_MAX, D], dtype=pl.INT8)
         mtp_recv_aux = pld.window(mtp_recv_aux_buf, [N_LOCAL * RECV_MAX, AUX_PAD], dtype=pl.FP32)
-        mtp_recv_route = pld.window(mtp_recv_route_buf, [N_LOCAL * RECV_MAX, IDX_PAD], dtype=pl.INT32)
         mtp_arrived = pld.window(mtp_arrived_buf, [N_RANKS, 1], dtype=pl.INT32)
         mtp_data_arrived = pld.window(mtp_data_arrived_buf, [N_RANKS, 1], dtype=pl.INT32)
         mtp_routed_y_buf = pld.window(mtp_routed_y_buf_buf, [N_ROUTES, D], dtype=pl.BF16)
@@ -976,7 +946,7 @@ def l3_decode_fwd_mtp(
             sampling_temperatures[rank], sampling_top_ks[rank],
             sampling_seeds[rank], sampling_positions[rank],
             pre_hc_hidden_out[rank], hidden_out[rank], logits[rank], sampled_ids[rank],
-            recv_meta, recv_x, recv_aux, recv_route,
+            recv_meta, recv_x, recv_aux,
             arrived, data_arrived, routed_y_buf, combine_arrived,
             lm_head_hidden_window, lm_head_hidden_done, lm_head_logits_window, lm_head_logits_done,
             num_tokens_per_owner,
@@ -1004,7 +974,7 @@ def l3_decode_fwd_mtp(
             mtp_sampling_temperatures[rank], mtp_sampling_top_ks[rank],
             mtp_sampling_seeds[rank], mtp_sampling_positions[rank],
             mtp_hidden_out[rank], mtp_next_pre_hc_hidden[rank], mtp_logits[rank], mtp_sampled_ids[rank],
-            mtp_recv_meta, mtp_recv_x, mtp_recv_aux, mtp_recv_route,
+            mtp_recv_meta, mtp_recv_x, mtp_recv_aux,
             mtp_arrived, mtp_data_arrived, mtp_routed_y_buf, mtp_combine_arrived,
             mtp_lm_head_hidden_window, mtp_lm_head_hidden_done, mtp_lm_head_logits_window,
             mtp_lm_head_logits_done,
@@ -1025,6 +995,8 @@ def build_tensor_specs(
 ):
     import torch
     from golden import ScalarSpec, TensorSpec
+    from config import FLASH as MODEL_CONFIG
+    from utils import build_rope_tables
 
     forward_specs = {
         spec.name: spec
@@ -1199,6 +1171,20 @@ def build_tensor_specs(
             continue
         specs[f"mtp_{name}"] = replace(spec, name=f"mtp_{name}")
 
+    # Device-state positions advance every dispatch, so the RoPE table covers a step margin.
+    rope_rows = min(MODEL_CONFIG.max_position_embeddings, start_pos + ROPE_STEP_MARGIN)
+    for rope_name in ("freqs_cos", "freqs_sin"):
+        rope_spec = specs[rope_name]
+        rope_table = build_rope_tables(MODEL_CONFIG, 0, max_seq_len=rope_rows, dtype=torch.bfloat16)
+        cmp_rope_table = build_rope_tables(MODEL_CONFIG, CSA_COMPRESS_RATIO, max_seq_len=rope_rows, dtype=torch.bfloat16)
+        table_index = 0 if rope_name == "freqs_cos" else 1
+        rope_value = torch.stack((rope_table[table_index], cmp_rope_table[table_index]), dim=0)
+        specs[rope_name] = replace(
+            rope_spec,
+            shape=[N_RANKS, 2, rope_rows, ROPE_HEAD_DIM],
+            init_value=lambda rope_value=rope_value: rope_value.unsqueeze(0).expand(N_RANKS, -1, -1, -1).contiguous(),
+        )
+
     param_names = l3_decode_fwd_mtp._param_names()
     missing = set(param_names) - specs.keys()
     extra = specs.keys() - set(param_names)
@@ -1221,7 +1207,7 @@ def main():
         type=int,
         default=N_RANKS,
         choices=[2, 4, 8],
-        help="EP world size / rank count (parsed at import by moe).",
+        help="EP world size / rank count (parsed at import by decode_moe).",
     )
     parser.add_argument(
         "--tp",

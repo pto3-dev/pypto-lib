@@ -8,7 +8,7 @@
 # -----------------------------------------------------------------------------------------------------------
 """Host-side torch helpers for the decode/prefill test fixtures.
 
-Paged-KV metadata lowering and RoPE/YaRN table generation.
+Paged-KV metadata lowering, RoPE/YaRN table generation and FRACTAL_NZ weight packing.
 """
 
 from __future__ import annotations
@@ -31,23 +31,78 @@ from config import (
 )
 
 
+# --- FRACTAL_NZ weight packing. ---
+# A ``pl.NZ`` parameter asserts the GM bytes are already in pto-isa fractal order:
+# c0 contiguous elements form one 32-byte C0 line, 16 rows form one fractal, and
+# column blocks walk outermost. The fixture packs, the golden reads back logically.
+NZ_FRACTAL_ROWS = 16
+NZ_C0_BYTES = 32
+
+
+def pack_nz(logical: torch.Tensor) -> torch.Tensor:
+    """Reorder the trailing ``[R, C]`` of a row-major tensor into NZ fractal order."""
+    rows, cols = logical.shape[-2:]
+    c0 = NZ_C0_BYTES // logical.element_size()
+    assert rows % NZ_FRACTAL_ROWS == 0, f"NZ needs {NZ_FRACTAL_ROWS}-row fractals, got {rows} rows"
+    assert cols % c0 == 0, f"NZ needs whole C0 lines of {c0} elements, got {cols} cols"
+    blocked = logical.reshape(-1, rows // NZ_FRACTAL_ROWS, NZ_FRACTAL_ROWS, cols // c0, c0)
+    return blocked.permute(0, 3, 1, 2, 4).contiguous().reshape(logical.shape)
+
+
+def unpack_nz(packed: torch.Tensor) -> torch.Tensor:
+    """Restore NZ-ordered bytes to the logical row-major ``[..., R, C]`` tensor."""
+    rows, cols = packed.shape[-2:]
+    c0 = NZ_C0_BYTES // packed.element_size()
+    blocked = packed.reshape(-1, cols // c0, rows // NZ_FRACTAL_ROWS, NZ_FRACTAL_ROWS, c0)
+    return blocked.permute(0, 2, 3, 1, 4).contiguous().reshape(packed.shape)
+
+
 # --- Paged-KV metadata lowering. ---
 def resolve_start_positions(
-    start_pos: int | None,
+    start_pos: int | list[int] | tuple[int, ...] | torch.Tensor | None,
     *,
     batch: int = DECODE_BATCH,
     seq: int = DECODE_SEQ,
     max_seq_len: int = M.max_position_embeddings,
     default_fn: Callable[[], torch.Tensor] | None = None,
 ) -> torch.Tensor:
-    if start_pos is not None:
+    if isinstance(start_pos, torch.Tensor):
+        starts = start_pos.to(torch.int32).reshape(-1)
+    elif isinstance(start_pos, (list, tuple)):
+        starts = torch.tensor(start_pos, dtype=torch.int32)
+    elif start_pos is not None:
         starts = torch.full((batch,), int(start_pos), dtype=torch.int32)
     elif default_fn is not None:
         starts = default_fn().to(torch.int32)
     else:
         starts = torch.zeros(batch, dtype=torch.int32)
+    if starts.shape != (batch,):
+        raise ValueError(
+            f"decode start positions need {batch} entries, got {starts.numel()}"
+        )
     _validate_starts(starts, seq=seq, max_seq_len=max_seq_len)
     return starts
+
+
+def parse_start_pos_arg(value: str | None) -> int | list[int] | None:
+    """Parse a scalar or comma-separated ``--start-pos`` value."""
+    if value is None:
+        return None
+    parts = [part.strip() for part in value.split(",") if part.strip()]
+    if len(parts) == 1:
+        return int(parts[0])
+    return [int(part) for part in parts]
+
+
+def logical_table_blocks(
+    starts: torch.Tensor,
+    *,
+    seq: int = DECODE_SEQ,
+    block_size: int,
+) -> int:
+    """Runtime block-table width covering every position of the decode step."""
+    last_position = int(starts.to(torch.int64).max().item()) + seq - 1
+    return last_position // block_size + 1
 
 
 # --- Canonical decode fixture start-position sets, one per attention family. ---
@@ -258,51 +313,6 @@ def swa_indices_and_lens(
     return indices, lens
 
 
-def history_window_swa_indices_and_lens(
-    positions: torch.Tensor,
-    window_block_table: torch.Tensor,
-    *,
-    block_size: int = BLOCK_SIZE,
-    window: int = M.sliding_window,
-) -> tuple[torch.Tensor, torch.Tensor]:
-    """Lower historical HCA/CSA window rows to physical KV-cache slots.
-
-    Current decode-chunk positions are excluded from this list because HCA/CSA
-    still attend current MTP tokens through their overlay raw-index range. The
-    returned rows are packed oldest-to-newest; invalid tail columns are -1. The
-    block table follows the same vLLM-style absolute logical block contract as
-    SWA, while physical blocks may still be a small sliding-window ring.
-    """
-    if positions.ndim != 2:
-        raise ValueError("history window indices expect positions with shape [B, S]")
-    positions_i64 = positions.to(torch.int64)
-    table_i64 = window_block_table.to(device=positions.device, dtype=torch.int64)
-    batch, seq = positions_i64.shape
-    indices = torch.full((batch * seq, window), -1, dtype=torch.int32, device=positions.device)
-    lens = torch.zeros((batch * seq,), dtype=torch.int32, device=positions.device)
-
-    for b in range(batch):
-        for s in range(seq):
-            t = b * seq + s
-            abs_pos = int(positions_i64[b, s].item())
-            overlay_positions = {int(positions_i64[b, os].item()) for os in range(s + 1)}
-            start = max(0, abs_pos - window + 1)
-            out_k = 0
-            for pos in range(start, abs_pos + 1):
-                if pos in overlay_positions:
-                    continue
-                logical_blk = pos // block_size
-                intra = pos % block_size
-                if logical_blk >= table_i64.shape[1]:
-                    continue
-                blk = int(table_i64[b, logical_blk].item())
-                if blk >= 0:
-                    indices[t, out_k] = blk * block_size + intra
-                    out_k += 1
-            lens[t] = out_k
-    return indices, lens
-
-
 def compressed_slot_mapping(
     positions: torch.Tensor,
     cmp_block_table: torch.Tensor,
@@ -445,9 +455,7 @@ def precompute_freqs_cos_sin(
     out_device = torch.device(device) if device is not None else None
     half_dim = dim // 2
 
-    inv_freq = 1.0 / (
-        float(base) ** (torch.arange(0, dim, 2, dtype=torch.float32, device=out_device) / dim)
-    )
+    inv_freq = 1.0 / (float(base) ** (torch.arange(0, dim, 2, dtype=torch.float32, device=out_device) / dim))
     if original_seq_len > 0:
         low, high = _find_correction_range(beta_fast, beta_slow, dim, float(base), int(original_seq_len))
         smooth = 1 - _linear_ramp_factor(low, high, half_dim, device=out_device)
@@ -489,6 +497,52 @@ def build_rope_tables(
     )
 
 
+def token_local_rope(
+    config: Any,
+    compress_ratio: int,
+    position_ids: torch.Tensor,
+    *,
+    max_seq_len: int = M.max_position_embeddings,
+    rope_dim: int | None = None,
+    dtype: torch.dtype | str = torch.bfloat16,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Compute only the ``[N, rope_dim]`` RoPE rows used by ``position_ids``.
+
+    Row ``i`` equals row ``position_ids[i]`` of :func:`build_rope_tables`.
+    """
+    dim = int(rope_dim if rope_dim is not None else config.qk_rope_head_dim)
+    if dim <= 0 or dim % 2 != 0:
+        raise ValueError(f"RoPE dim must be a positive even integer, got {dim}")
+    positions_i64 = position_ids.to(torch.int64).reshape(-1)
+    if bool((positions_i64 < 0).any()) or bool((positions_i64 >= max_seq_len).any()):
+        raise ValueError(f"RoPE positions must be in [0, {max_seq_len})")
+
+    base, original_seq_len = rope_profile_for_compress_ratio(config, compress_ratio)
+    half_dim = dim // 2
+    inv_freq = 1.0 / (float(base) ** (torch.arange(0, dim, 2, dtype=torch.float32) / dim))
+    if original_seq_len > 0:
+        low, high = _find_correction_range(
+            int(config.beta_fast), int(config.beta_slow), dim, float(base), int(original_seq_len),
+        )
+        smooth = 1 - _linear_ramp_factor(low, high, half_dim)
+        inv_freq = inv_freq / float(config.rope_factor) * (1 - smooth) + inv_freq * smooth
+
+    angles = torch.outer(positions_i64.to(torch.float32), inv_freq)
+    cos_half = torch.cos(angles)
+    sin_half = torch.sin(angles)
+    out_dtype = _torch_dtype(dtype)
+    return (
+        torch.cat([cos_half, cos_half], dim=-1).to(out_dtype).contiguous(),
+        torch.cat([sin_half, sin_half], dim=-1).to(out_dtype).contiguous(),
+    )
+
+
+def compressed_boundary_positions(first_positions: torch.Tensor, compress_ratio: int) -> torch.Tensor:
+    """Position whose RoPE row rotates the compressed entry a decode step may write."""
+    first_i64 = first_positions.to(torch.int64)
+    return first_i64 - first_i64 % compress_ratio
+
+
 def materialize_token_rope_tables(
     freqs_cos: torch.Tensor,
     freqs_sin: torch.Tensor,
@@ -519,7 +573,8 @@ def int8_quant_per_row(x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
     """
     rows = x.float().reshape(-1, x.shape[-1])
     amax = rows.abs().amax(dim=-1, keepdim=True).clamp_min(INT8_AMAX_EPS)
-    scale_quant = INT8_SCALE_MAX / amax
+    # Explicit division preserves half-amax ties as in device pl.div.
+    scale_quant = torch.div(torch.full_like(amax, INT8_SCALE_MAX), amax)
     scaled = rows * scale_quant
     out_i8 = torch.round(scaled).to(torch.int32).to(torch.float16).to(torch.int8)
     scale_dequant = 1.0 / scale_quant

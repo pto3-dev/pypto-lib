@@ -9,6 +9,8 @@
 """DeepSeek-V4 hc_pre -- hyper-connection pre-mix, unified over decode and prefill."""
 
 
+from math import gcd
+
 import pypto.language as pl
 
 from config import FLASH as M, DECODE_BATCH, DECODE_SEQ, TP, PREFILL_BATCH, PREFILL_SEQ
@@ -34,12 +36,14 @@ HC_PAD = 8  # hc (4) padded for 32B-aligned vector ops
 T_TILE = 8  # other values miscompare
 LINEAR_T_TILE = 16  # cube matmul rows must be a 16-row boxed tile
 COMB_T_TILE = 8
+PRE_POST_WORKERS = 16
 RMS_K_TILE = 512
 LINEAR_K_TILE = 256
 D_TILE = 256
-D_SPMD = 4096
+D_SPMD = gcd(4096, D)
 LINEAR_OK = 4
 LINEAR_K_PER_SPLIT = HC_DIM // LINEAR_OK
+LINEAR_WORKERS = 24  # hc_pre_linear workers, one per AIC
 
 # pre0..pre3 / row0..row3 are hand-unrolled over the hc lanes.
 assert HC_MULT == 4, f"hc_pre is specialized to HC_MULT == 4, got {HC_MULT}"
@@ -54,6 +58,7 @@ def hc_pre_gates(
     pre_val_store: pl.Tensor[[T_DYN, HC_PAD], pl.FP32],
     post: pl.Tensor[[T_DYN, HC_MULT], pl.FP32],
     comb: pl.Tensor[[T_DYN, HC_MULT * HC_MULT], pl.FP32],
+    row_recip: pl.Scalar[pl.BOOL],
 ):
     """Compute pre/post gates and Sinkhorn combinations with padded linear intermediates."""
     t_dim = pl.tensor.dim(x, 0)
@@ -91,19 +96,24 @@ def hc_pre_gates(
     # linear: split-K matmul -> per-split partials. The t_dim..t_linear pad rows are
     # zero-filled by valid_shape, never materialized.
     mixes_partials = pl.create_tensor([LINEAR_OK * t_linear, MIX_PAD], dtype=pl.FP32)
-    for task in pl.spmd((t_linear // LINEAR_T_TILE) * LINEAR_OK, name_hint="hc_pre_linear", allow_early_resolve=True):
-        t0 = (task // LINEAR_OK) * LINEAR_T_TILE
-        linear_split = task % LINEAR_OK
-        k_base = linear_split * LINEAR_K_PER_SPLIT
-        t_rows = pl.min(LINEAR_T_TILE, t_dim - t0)  # last row-block spills past t_dim; valid_shape zero-fills the tail
-        acc = pl.create_tensor([LINEAR_T_TILE, MIX_PAD], dtype=pl.FP32)
-        for kb in pl.pipeline(0, LINEAR_K_PER_SPLIT // LINEAR_K_TILE, stage=2):
-            k0 = k_base + kb * LINEAR_K_TILE
-            x_linear_chunk = pl.slice(x_flat, [LINEAR_T_TILE, LINEAR_K_TILE], [t0, k0], valid_shape=[t_rows, LINEAR_K_TILE])
-            w_chunk = pl.slice(hc_fn, [MIX_PAD, LINEAR_K_TILE], [0, k0], valid_shape=[MIX_HC, LINEAR_K_TILE])
-            acc = pl.matmul_acc(acc, x_linear_chunk, w_chunk, b_trans=True, init_cond=(kb == 0))
-        partial_row0 = linear_split * t_linear + t0
-        mixes_partials[partial_row0 : partial_row0 + LINEAR_T_TILE, 0:MIX_PAD] = acc
+    linear_units = (t_linear // LINEAR_T_TILE) * LINEAR_OK
+    linear_workers = pl.min(linear_units, LINEAR_WORKERS)
+    for linear_worker in pl.spmd(linear_workers, name_hint="hc_pre_linear", allow_early_resolve=True):
+        # Weight reads bypass L2.
+        pl.set_cache_policy(hc_fn, pl.CachePolicy.BYPASS)
+        for task in pl.range(linear_worker, linear_units, linear_workers):
+            t0 = (task // LINEAR_OK) * LINEAR_T_TILE
+            linear_split = task % LINEAR_OK
+            k_base = linear_split * LINEAR_K_PER_SPLIT
+            t_rows = pl.min(LINEAR_T_TILE, t_dim - t0)  # last row-block spills past t_dim; valid_shape zero-fills the tail
+            acc = pl.create_tensor([LINEAR_T_TILE, MIX_PAD], dtype=pl.FP32)
+            for kb in pl.pipeline(0, LINEAR_K_PER_SPLIT // LINEAR_K_TILE, stage=2):
+                k0 = k_base + kb * LINEAR_K_TILE
+                x_linear_chunk = pl.slice(x_flat, [LINEAR_T_TILE, LINEAR_K_TILE], [t0, k0], valid_shape=[t_rows, LINEAR_K_TILE])
+                w_chunk = pl.slice(hc_fn, [MIX_PAD, LINEAR_K_TILE], [0, k0], valid_shape=[MIX_HC, LINEAR_K_TILE])
+                acc = pl.matmul_acc(acc, x_linear_chunk, w_chunk, b_trans=True, init_cond=(kb == 0))
+            partial_row0 = linear_split * t_linear + t0
+            mixes_partials[partial_row0 : partial_row0 + LINEAR_T_TILE, 0:MIX_PAD] = acc
 
     # Partials are reduced in ascending K order.
     mixes_raw = pl.create_tensor([t_linear, MIX_PAD], dtype=pl.FP32)
@@ -122,29 +132,30 @@ def hc_pre_gates(
     # lives in comb_sinkhorn.
     # Only the final partial token tile uses these fixed-size staging buffers.
     post_tail_store = pl.create_tensor([T_TILE, HC_PAD], dtype=pl.FP32)
-    for ob in pl.spmd(token_tiles, name_hint="split_pre_post", allow_early_resolve=True):
-        t0 = ob * T_TILE
-        valid_rows = pl.min(T_TILE, t_dim - t0)
-        inv_col = inv_rms[t0:t0 + T_TILE, 0:1]
+    for ob_worker in pl.spmd(pl.min(token_tiles, PRE_POST_WORKERS), name_hint="split_pre_post", allow_early_resolve=True):
+        for ob in pl.range(ob_worker, token_tiles, pl.min(token_tiles, PRE_POST_WORKERS)):
+            t0 = ob * T_TILE
+            valid_rows = pl.min(T_TILE, t_dim - t0)
+            inv_col = inv_rms[t0:t0 + T_TILE, 0:1]
 
-        pre_base = pl.reshape(hc_base[0:HC_PAD], [1, HC_PAD])
-        pre_scaled = pl.mul(pl.row_expand_mul(mixes_raw[t0:t0 + T_TILE, 0:HC_PAD], inv_col), scale0)
-        pre_logits = pl.add(pre_scaled, pl.col_expand(pre_scaled, pre_base))
-        pre_sig = pl.recip(pl.add(pl.exp(pl.neg(pre_logits)), 1.0))
-        pre_val = pl.add(pre_sig, HC_EPS)
-        pre_val_store[t0:t0 + T_TILE, 0:HC_PAD] = pre_val
+            pre_base = pl.reshape(hc_base[0:HC_PAD], [1, HC_PAD])
+            pre_scaled = pl.mul(pl.row_expand_mul(mixes_raw[t0:t0 + T_TILE, 0:HC_PAD], inv_col), scale0)
+            pre_logits = pl.add(pre_scaled, pl.col_expand(pre_scaled, pre_base))
+            pre_sig = pl.recip(pl.add(pl.exp(pl.neg(pre_logits)), 1.0))
+            pre_val = pl.add(pre_sig, HC_EPS)
+            pre_val_store[t0:t0 + T_TILE, 0:HC_PAD] = pre_val
 
-        post_base = pl.reshape(hc_base[HC_MULT:HC_MULT + HC_PAD], [1, HC_PAD])
-        post_scaled = pl.mul(pl.row_expand_mul(mixes_raw[t0:t0 + T_TILE, HC_MULT:HC_MULT + HC_PAD], inv_col), scale1)
-        post_logits = pl.add(post_scaled, pl.col_expand(post_scaled, post_base))
-        post_sig = pl.recip(pl.add(pl.exp(pl.neg(post_logits)), 1.0))
-        post_pad = pl.mul(post_sig, 2.0)
-        if valid_rows == T_TILE:
-            post[t0:t0 + T_TILE, 0:HC_MULT] = pl.slice(post_pad, [T_TILE, HC_PAD], [0, 0], valid_shape=[T_TILE, HC_MULT])
-        else:
-            post_tail_store[0:T_TILE, 0:HC_PAD] = post_pad
-            post_tile = pl.load(post_tail_store, [0, 0], [T_TILE, HC_PAD], valid_shape=[valid_rows, HC_MULT], target_memory=pl.MemorySpace.Vec)
-            pl.store(post_tile, [t0, 0], post)
+            post_base = pl.reshape(hc_base[HC_MULT:HC_MULT + HC_PAD], [1, HC_PAD])
+            post_scaled = pl.mul(pl.row_expand_mul(mixes_raw[t0:t0 + T_TILE, HC_MULT:HC_MULT + HC_PAD], inv_col), scale1)
+            post_logits = pl.add(post_scaled, pl.col_expand(post_scaled, post_base))
+            post_sig = pl.recip(pl.add(pl.exp(pl.neg(post_logits)), 1.0))
+            post_pad = pl.mul(post_sig, 2.0)
+            if valid_rows == T_TILE:
+                post[t0:t0 + T_TILE, 0:HC_MULT] = pl.slice(post_pad, [T_TILE, HC_PAD], [0, 0], valid_shape=[T_TILE, HC_MULT])
+            else:
+                post_tail_store[0:T_TILE, 0:HC_PAD] = post_pad
+                post_tile = pl.load(post_tail_store, [0, 0], [T_TILE, HC_PAD], valid_shape=[valid_rows, HC_MULT], target_memory=pl.MemorySpace.Vec)
+                pl.store(post_tile, [t0, 0], post)
 
     # comb_sinkhorn: comb gate from mixes_raw cols 8/12/16/20, softmax, then a
     # column-first 20-iteration Sinkhorn -> comb.
@@ -185,10 +196,24 @@ def hc_pre_gates(
         row1_sum = pl.row_sum(row1_exp, row_sum_tmp)
         row2_sum = pl.row_sum(row2_exp, row_sum_tmp)
         row3_sum = pl.row_sum(row3_exp, row_sum_tmp)
-        row0_soft = pl.add(pl.row_expand_div(row0_exp, row0_sum), HC_EPS)
-        row1_soft = pl.add(pl.row_expand_div(row1_exp, row1_sum), HC_EPS)
-        row2_soft = pl.add(pl.row_expand_div(row2_exp, row2_sum), HC_EPS)
-        row3_soft = pl.add(pl.row_expand_div(row3_exp, row3_sum), HC_EPS)
+        if row_recip:
+            row0_inv = pl.recip(row0_sum)
+            row0_prob = pl.row_expand_mul(row0_exp, row0_inv)
+            row0_soft = pl.add(row0_prob, HC_EPS)
+            row1_inv = pl.recip(row1_sum)
+            row1_prob = pl.row_expand_mul(row1_exp, row1_inv)
+            row1_soft = pl.add(row1_prob, HC_EPS)
+            row2_inv = pl.recip(row2_sum)
+            row2_prob = pl.row_expand_mul(row2_exp, row2_inv)
+            row2_soft = pl.add(row2_prob, HC_EPS)
+            row3_inv = pl.recip(row3_sum)
+            row3_prob = pl.row_expand_mul(row3_exp, row3_inv)
+            row3_soft = pl.add(row3_prob, HC_EPS)
+        else:
+            row0_soft = pl.add(pl.row_expand_div(row0_exp, row0_sum), HC_EPS)
+            row1_soft = pl.add(pl.row_expand_div(row1_exp, row1_sum), HC_EPS)
+            row2_soft = pl.add(pl.row_expand_div(row2_exp, row2_sum), HC_EPS)
+            row3_soft = pl.add(pl.row_expand_div(row3_exp, row3_sum), HC_EPS)
 
         row0_valid = pl.set_validshape(row0_soft, COMB_T_TILE, HC_MULT)
         row1_valid = pl.set_validshape(row1_soft, COMB_T_TILE, HC_MULT)
@@ -212,10 +237,20 @@ def hc_pre_gates(
             row1_rowsum = pl.add(pl.row_sum(row1_cur, row_sum_tmp_iter), HC_EPS)
             row2_rowsum = pl.add(pl.row_sum(row2_cur, row_sum_tmp_iter), HC_EPS)
             row3_rowsum = pl.add(pl.row_sum(row3_cur, row_sum_tmp_iter), HC_EPS)
-            row0_norm = pl.row_expand_div(row0_cur, row0_rowsum)
-            row1_norm = pl.row_expand_div(row1_cur, row1_rowsum)
-            row2_norm = pl.row_expand_div(row2_cur, row2_rowsum)
-            row3_norm = pl.row_expand_div(row3_cur, row3_rowsum)
+            if row_recip:
+                row0_inv = pl.recip(row0_rowsum)
+                row0_norm = pl.row_expand_mul(row0_cur, row0_inv)
+                row1_inv = pl.recip(row1_rowsum)
+                row1_norm = pl.row_expand_mul(row1_cur, row1_inv)
+                row2_inv = pl.recip(row2_rowsum)
+                row2_norm = pl.row_expand_mul(row2_cur, row2_inv)
+                row3_inv = pl.recip(row3_rowsum)
+                row3_norm = pl.row_expand_mul(row3_cur, row3_inv)
+            else:
+                row0_norm = pl.row_expand_div(row0_cur, row0_rowsum)
+                row1_norm = pl.row_expand_div(row1_cur, row1_rowsum)
+                row2_norm = pl.row_expand_div(row2_cur, row2_rowsum)
+                row3_norm = pl.row_expand_div(row3_cur, row3_rowsum)
             col_sum = pl.add(pl.add(row0_norm, row1_norm), pl.add(row2_norm, row3_norm))
             col_sum = pl.add(col_sum, HC_EPS)
             row0_cur = pl.div(row0_norm, col_sum)
@@ -249,22 +284,25 @@ def hc_pre_gates(
     return pre_val_store
 
 
-@pl.jit.inline
-def hc_pre(
+def _hc_pre(
     x: pl.Tensor[[T_DYN, HC_MULT, D], pl.FP32],
     hc_fn: pl.Tensor[[MIX_HC, HC_DIM], pl.FP32],
     hc_scale: pl.Tensor[[3], pl.FP32],
     hc_base: pl.Tensor[[MIX_HC], pl.FP32],
-    x_mixed: pl.Tensor[[T_DYN, D], pl.BF16],
-    post: pl.Tensor[[T_DYN, HC_MULT], pl.FP32],
-    comb: pl.Tensor[[T_DYN, HC_MULT * HC_MULT], pl.FP32],
+    x_mixed: pl.Out[pl.Tensor[[T_DYN, D], pl.BF16]],
+    post: pl.Out[pl.Tensor[[T_DYN, HC_MULT], pl.FP32]],
+    comb: pl.Out[pl.Tensor[[T_DYN, HC_MULT * HC_MULT], pl.FP32]],
 ):
     """Compute HC gates and BF16 pre-mixed activations."""
+    x.bind_dynamic(0, T_DYN)
+    x_mixed.bind_dynamic(0, T_DYN)
+    post.bind_dynamic(0, T_DYN)
+    comb.bind_dynamic(0, T_DYN)
     t_dim = pl.tensor.dim(x, 0)
     token_tiles = (t_dim + T_TILE - 1) // T_TILE
     t_linear = ((t_dim + LINEAR_T_TILE - 1) // LINEAR_T_TILE) * LINEAR_T_TILE
     pre_val_store = pl.create_tensor([t_linear, HC_PAD], dtype=pl.FP32)
-    hc_pre_gates(x, hc_fn, hc_scale, hc_base, pre_val_store, post, comb)
+    hc_pre_gates(x, hc_fn, hc_scale, hc_base, pre_val_store, post, comb, False)
     x_flat = pl.reshape(x, [t_dim, HC_DIM])
 
     # mix_x: x_mixed = sum_h pre[:,h]*x[:,h,:], fanned over D/D_SPMD blocks per token tile.
@@ -299,6 +337,8 @@ def hc_pre(
     return x_mixed
 
 
+hc_pre = pl.jit.inline(_hc_pre)
+hc_pre_test = pl.jit(_hc_pre)
 
 
 @pl.jit.inline
@@ -311,12 +351,13 @@ def hc_pre_norm(
     post: pl.Tensor[[T_DYN, HC_MULT], pl.FP32],
     comb: pl.Tensor[[T_DYN, HC_MULT * HC_MULT], pl.FP32],
     x_normed: pl.Tensor[[T_DYN, D], pl.BF16],
+    row_recip: pl.Scalar[pl.BOOL],
 ):
     """Normalize pre-mixed activations for complete eight-token decode tiles."""
     t_dim = pl.tensor.dim(x, 0)
     t_linear = ((t_dim + LINEAR_T_TILE - 1) // LINEAR_T_TILE) * LINEAR_T_TILE
     pre_val_store = pl.create_tensor([t_linear, HC_PAD], dtype=pl.FP32)
-    hc_pre_gates(x, hc_fn, hc_scale, hc_base, pre_val_store, post, comb)
+    hc_pre_gates(x, hc_fn, hc_scale, hc_base, pre_val_store, post, comb, row_recip)
     x_flat = pl.reshape(x, [t_dim, HC_DIM])
     x_mixed = pl.create_tensor([t_dim, D], dtype=pl.BF16)
 
@@ -363,25 +404,6 @@ def hc_pre_norm(
             normed_bf16 = rms_norm_apply(mixed_input, norm_w_row, y_inv)
             x_normed[t0:t0 + T_TILE, d0:d0 + D_TILE] = normed_bf16
     return mixed_tid
-
-
-@pl.jit
-def hc_pre_test(
-    x: pl.Tensor[[T_DYN, HC_MULT, D], pl.FP32],
-    hc_fn: pl.Tensor[[MIX_HC, HC_DIM], pl.FP32],
-    hc_scale: pl.Tensor[[3], pl.FP32],
-    hc_base: pl.Tensor[[MIX_HC], pl.FP32],
-    x_mixed: pl.Out[pl.Tensor[[T_DYN, D], pl.BF16]],
-    post: pl.Out[pl.Tensor[[T_DYN, HC_MULT], pl.FP32]],
-    comb: pl.Out[pl.Tensor[[T_DYN, HC_MULT * HC_MULT], pl.FP32]],
-):
-    x.bind_dynamic(0, T_DYN)
-    x_mixed.bind_dynamic(0, T_DYN)
-    post.bind_dynamic(0, T_DYN)
-    comb.bind_dynamic(0, T_DYN)
-
-    hc_pre(x, hc_fn, hc_scale, hc_base, x_mixed, post, comb)
-    return x_mixed
 
 
 def _golden_a2a3_cube_linear(x_flat_2d, hc_fn):
@@ -508,7 +530,7 @@ if __name__ == "__main__":
     parser.add_argument("-p", "--platform", type=str, default="a2a3", choices=["a2a3", "a2a3sim", "a5", "a5sim"])
     parser.add_argument("-d", "--device", type=int, default=0)
     parser.add_argument("--mode", choices=["decode", "decode_dp", "prefill", "all"], default="all", help="decode (per-TP-rank batch) / decode_dp (whole DP-rank batch) / prefill batch sizes, or decode+prefill.")
-    parser.add_argument("--enable-chip-swimlane", action="store_true", default=False)
+    parser.add_argument("--enable-chip-swimlane", type=int, nargs="?", const=1, default=0, choices=range(5))
     parser.add_argument("--runtime-dir", type=str, default=None)
     parser.add_argument("--golden-data", type=str, default=None)
     parser.add_argument("--compile-only", action="store_true", default=False)

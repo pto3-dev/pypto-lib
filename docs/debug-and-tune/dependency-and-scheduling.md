@@ -137,7 +137,7 @@ Four opt-outs, from narrowest to widest. Each is an assertion the compiler
 |-----------|--------------------|-------------------|
 | `pl.at(..., no_dep_args=[t])` | One tensor, one task | the `gate_up_dual_proj` scope in `models/qwen3_14b/decode_layer_a8w8.py` |
 | `pl.no_dep(t)` at a call argument | One tensor, one task (`@pl.program` form) | — |
-| `pl.create_tensor(..., manual_dep=True)` | One tensor, its whole lifetime | `post_ffn` in `models/deepseek_v4_pro/moe.py` |
+| `pl.create_tensor(..., manual_dep=True)` | One tensor, its whole lifetime | `post_ffn` in `models/deepseek_v4_flash_dspark/moe.py` |
 | `with pl.manual_scope():` | Every task in the region | `_decode_layer` in `models/qwen3_14b/decode_fwd.py` |
 
 Prefer the narrowest one that expresses the claim. `manual_scope` says "I own
@@ -271,13 +271,17 @@ Anything that reasons about dispatch — gap attribution, early-dispatch proof �
 needs level 4. Note this is the chip swimlane's *perf level*; it is unrelated to
 the runtime hierarchy's L4 worker level.
 
-**Check the entry's `argparse` before assuming a flag shape.** Across
-`models/` and `examples/` the flag is declared six different ways in 128
-places: 68 use `action="store_true"` (a bare flag means level 4), 28 use
-`nargs="?", const=1, choices=(0, 1, 2)` (a bare flag means level **1**, and
-level 4 is rejected outright), 17 allow 4 explicitly, 5 make a bare flag mean
-4, and 7 require an explicit value. There is no safe default form; read the
-target's `--help`.
+Every entry across `models/` and `examples/` declares the flag the same way:
+
+```python
+parser.add_argument("--enable-chip-swimlane", type=int, nargs="?", const=1, default=0, choices=range(5))
+```
+
+So a bare `--enable-chip-swimlane` means level **1** everywhere, every level
+through `4` is accepted everywhere, and level 4 is always requested explicitly
+as `--enable-chip-swimlane 4`. Declare it this way in a new entry too — a
+`store_true` flag cannot express a level, and its `True` silently binds to the
+most expensive capture.
 
 ### Identity chain
 
@@ -529,8 +533,7 @@ with non-deterministic indices — the signature of a race, not of a numerics
 bug. The live fix is a no-op self-copy that marks the parameter `inout` before
 the gather, so the writeback takes a WAW edge on it; `add_inout` is a
 param-level property, so one tile touch is enough. See the `kv_touch` scope in
-`models/deepseek_v4_pro/decode_sparse_attn.py` and its siblings in the
-`_csa` variants.
+`models/deepseek_v4_flash_mtp/decode_sparse_attn_csa.py`.
 
 **A GM round-trip registered as `add_output`.** A GM tensor written by one task
 and read by a later one must be registered on the producing task as
@@ -563,8 +566,9 @@ can exceed the serialization it removed — measure both ends.
 - [Ring Heap and Scope Stats](ring-heap-and-scope-stats.md) — the ring model
   behind the back-pressure above, and how to size it.
 - [Debugging](debugging.md) — device logs for a hang, and 507xxx triage.
-- [PyPTO coding style](../pypto-coding/pypto-coding-style.md) — the kernel forms
-  and loop constructs these tasks are written with.
+- [L2 Programming](../pypto-coding/l2-programming.md) and
+  [Loops](../pypto-coding/loops.md) — the kernel forms and loop constructs
+  these tasks are written with.
 
 Upstream references:
 

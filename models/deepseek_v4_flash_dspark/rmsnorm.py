@@ -138,6 +138,23 @@ def _rms_norm_tail_tile(
         pl.store(x_normed_valid, [tg, apply_d0], x_normed)
 
 
+@pl.jit.incore
+def rms_norm_spmd(
+    x_normed: pl.Tensor[[T_DYN, D], pl.BF16],
+    x: pl.Tensor[[T_DYN, D], pl.BF16],
+    norm_w: pl.Tensor[[D], pl.BF16],
+):
+    """Normalize one token tile into the caller-owned output."""
+    t_dim = pl.tensor.dim(x, 0)
+    tg_idx = pl.tile.get_block_idx()
+    tg = tg_idx * T_TILE
+    valid_rows = pl.min(T_TILE, t_dim - tg)
+    if valid_rows == T_TILE:
+        _rms_norm_full_tile(x, norm_w, x_normed)
+    else:
+        _rms_norm_tail_tile(x, norm_w, x_normed)
+
+
 @pl.jit.inline
 def rms_norm(
     x: pl.Tensor[[T_DYN, D], pl.BF16],
@@ -145,17 +162,9 @@ def rms_norm(
     x_normed: pl.Tensor[[T_DYN, D], pl.BF16],
 ):
     t_dim = pl.tensor.dim(x, 0)
-    # Capture form (not `for ... in pl.spmd`): callers need the producer TaskId to
-    # hang a `pl.system.task_dummy` barrier off it and defer non-critical consumers.
     token_tiles = (t_dim + T_TILE - 1) // T_TILE
     with pl.spmd(token_tiles, name_hint="rms_norm", allow_early_resolve=True) as rms_tid:
-        tg_idx = pl.tile.get_block_idx()
-        tg = tg_idx * T_TILE
-        valid_rows = pl.min(T_TILE, t_dim - tg)
-        if valid_rows == T_TILE:
-            _rms_norm_full_tile(x, norm_w, x_normed)
-        else:
-            _rms_norm_tail_tile(x, norm_w, x_normed)
+        rms_norm_spmd(x_normed, x, norm_w)
 
     return rms_tid
 
@@ -219,7 +228,7 @@ if __name__ == "__main__":
     parser.add_argument("-d", "--device", type=int, default=0)
     parser.add_argument("--mode", choices=["decode", "prefill", "all"], default="all",
                         help="Use decode or prefill batch sizes, or 'all' to test both.")
-    parser.add_argument("--enable-chip-swimlane", type=int, nargs="?", const=1, default=0, choices=(0, 1, 2, 4))
+    parser.add_argument("--enable-chip-swimlane", type=int, nargs="?", const=1, default=0, choices=range(5))
     parser.add_argument("--runtime-dir", type=str, default=None)
     parser.add_argument("--golden-data", type=str, default=None)
     parser.add_argument("--compile-only", action="store_true", default=False)

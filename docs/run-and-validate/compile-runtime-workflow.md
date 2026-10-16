@@ -15,7 +15,7 @@ the harness:
 ```python
 parser.add_argument("-p", "--platform", choices=["a2a3", "a2a3sim", "a5", "a5sim"])
 parser.add_argument("-d", "--device", type=int, default=0)
-parser.add_argument("--enable-chip-swimlane", action="store_true")
+parser.add_argument("--enable-chip-swimlane", type=int, nargs="?", const=1, default=0, choices=range(5))
 args = parser.parse_args()
 
 result = run(
@@ -38,7 +38,7 @@ differs, see [Compile configuration](#compile-configuration).
 |------|---------|
 | `-p` / `--platform` | Target backend. `a2a3` is Ascend 910B/C; `a5` is Ascend 950 — both run on real NPU. `a2a3sim` / `a5sim` are the matching simulators. |
 | `-d` / `--device` | Device ID for multi-card hosts. |
-| `--enable-chip-swimlane` | Forwarded to the runtime; collects per-task chip swimlane records into the build_output (see [Runtime DFX flags](#runtime-dfx-flags)). |
+| `--enable-chip-swimlane` | Capture **level** 0-4 forwarded to the runtime; collects per-task chip swimlane records into the build_output (see [Runtime DFX flags](#runtime-dfx-flags)). A bare flag means level 1; dispatch analysis needs an explicit `4`. |
 
 `a2a3*` maps to `BackendType.Ascend910B`; `a5*` maps to
 `BackendType.Ascend950`.
@@ -53,7 +53,7 @@ says otherwise — commonly EP2 for the distributed DeepSeek entries.
 Multi-card kernels use HCCL, which silent-crashes inside docker: run them on
 the host, in a shell that has entered the Python environment and sourced
 CANN's `set_env.sh`, e.g.
-`python models/deepseek_v4_flash_mtp/moe.py -p a2a3 --ep 2 -d 0,1`. Ring
+`python models/deepseek_v4_flash_mtp/decode_moe.py -p a2a3 --ep 2 -d 0,1`. Ring
 sizing is not part of that environment — it is per task now, see
 [Ring Heap and Scope Stats](../debug-and-tune/ring-heap-and-scope-stats.md).
 
@@ -242,7 +242,7 @@ entry-specific; the table lists the common spelling when a script exposes it.
 
 | Kwarg | CLI flag | Artefact under `dfx_outputs/` |
 |-------|----------|-------------------------------|
-| `enable_chip_swimlane=True` (or a supported level) | `--enable-chip-swimlane [N]` | `chip_swimlane_records.json`; onboard runs also attempt `merged_swimlane_*.json` |
+| `enable_chip_swimlane=<N>` (int `0`-`4`, `0`=off) | `--enable-chip-swimlane [N]` (bare = `1`) | `chip_swimlane_records.json`; onboard runs also attempt `merged_swimlane_*.json` |
 | `enable_dump_args=<N>` (int, `0`=off) | `--dump-args [N]` (bare = `1`) | `args_dump/{args_dump.json,args.bin}` |
 | `enable_pmu=<N>` (int, `0`=off) | `--enable-pmu [N]` (bare = `2`) | `pmu.csv` |
 | `enable_dep_gen=True` | `--enable-dep-gen` | `deps.json` |
@@ -252,6 +252,15 @@ Args-dump level `1` captures only arguments selected with `pl.dump_tag` or a
 `dumps=` list; level `2` captures every task's tensor payloads and scalar
 values. Level `3` captures the same argument metadata without writing tensor
 payloads or `args.bin`.
+
+Chip-swimlane level `1` records AICore start/end per task, `2` adds AICPU
+dispatch/finish, `3` adds scheduler phases, and `4` adds orchestrator phases —
+see
+[Capture levels](../debug-and-tune/dependency-and-scheduling.md#capture-levels).
+Every entry in this repository declares the flag identically, so a bare
+`--enable-chip-swimlane` always means level 1 and every level through `4` is
+accepted everywhere; gap attribution and early-dispatch proofs need an explicit
+`--enable-chip-swimlane 4`.
 
 For an onboard chip swimlane run, PyPTO first attempts a dependency-graph
 capture and then a clean timing capture so the converter can add dependency
@@ -336,7 +345,7 @@ false; an uncaught compile/runtime exception is already a nonzero failure.
 |------|--------|
 | `compile_only=True` | Stops after the compile phase. Useful for a smoke test that just checks the program lowers cleanly. |
 | `runtime_dir="<path>"` | Skips compile and reuses an existing `build_output/<...>` directory. Useful when iterating on `golden_fn` or validation logic without recompiling. |
-| `golden_data="<path>"` | Loads inputs from `<path>/in/` and goldens from `<path>/out/` instead of generating them. `golden_data` overrides `golden_fn`. Useful for deterministic regressions: a previous run leaves these files in its `data/` dir, so passing that dir reproduces the exact failing inputs. |
+| `golden_data="<path>"` | Loads inputs from `<path>/in/` and goldens from `<path>/out/` instead of generating them. `golden_data` overrides `golden_fn`. With `golden_fn=None` and no `<path>/out/`, only the inputs are replayed and validation is skipped. Useful for deterministic regressions: a previous run leaves these files in its `data/` dir, so passing that dir reproduces the exact failing inputs. |
 | `save_data=True` (default `False`) | Writes the `data/in/` + `data/out/` snapshot so the exact inputs/goldens can be replayed later via `golden_data`. Off by default: runs skip the snapshot and validate against the in-memory golden only. Opt in when you need replay; full-model kernels like `models/qwen3_14b/{prefill_fwd,decode_fwd}.py` expose it as `--save-data`. |
 
 For diagnosing compile errors, runtime hangs, and precision mismatches, see

@@ -87,10 +87,7 @@ def _prefill_indexer_compressor_with_completion(
     idx_block_num = pl.tensor.dim(idx_kv_cache, 0)
     kv_proj_scratch = pl.create_tensor([T, OUT_DIM], dtype=pl.FP32)
     score_proj_scratch = pl.create_tensor([T, OUT_DIM], dtype=pl.FP32)
-    compress_state_flat = pl.reshape(
-        compress_state,
-        [state_block_num * INNER_STATE_BLOCK_SIZE, COMPRESS_STATE_DIM],
-    )
+    compress_state_flat = pl.reshape(compress_state, [state_block_num * INNER_STATE_BLOCK_SIZE, COMPRESS_STATE_DIM])
     idx_kv_cache_flat = pl.reshape(idx_kv_cache, [idx_block_num * IDX_STORAGE_BLOCK_SIZE, HEAD_DIM])
     idx_kv_scale_flat = pl.reshape(idx_kv_scale, [idx_block_num * IDX_STORAGE_BLOCK_SIZE, 1])
     pooled_kv = pl.create_tensor([MAX_CMP_WRITES, HEAD_DIM], dtype=pl.FP32)
@@ -338,10 +335,7 @@ def _prefill_indexer_compressor_with_completion(
             final_kv[final_base : final_base + PACKED_RMS_TILE, o0 : o0 + OUT_TILE] = final_acc
 
     scale_scratch = pl.create_tensor([MAX_CMP_WRITES, 1], dtype=pl.FP32)
-    with pl.spmd(
-        MAX_CMP_WRITES // PACKED_RMS_TILE,
-        name_hint="prefill_idx_c4_cache_write",
-    ) as cache_write_tid:
+    with pl.spmd(MAX_CMP_WRITES // PACKED_RMS_TILE, name_hint="prefill_idx_c4_cache_write") as cache_write_tid:
         final_block = pl.tile.get_block_idx()
         final_base = final_block * PACKED_RMS_TILE
         # C8 quant-on-write: per-row INT8 quant of the bf16-rounded block + per-position dequant scale
@@ -385,35 +379,32 @@ def _prefill_indexer_compressor_with_completion(
                 keepalive_value = pl.read(idx_kv_scale_flat, [keepalive_row, 0])
                 pl.write(idx_kv_scale_flat, [keepalive_row, 0], keepalive_value)
 
-    with pl.spmd(T, name_hint="prefill_idx_c4_state_update") as state_update_tid:
-        update_t = pl.tile.get_block_idx()
-        if update_t < num_tokens:
-            state_row_raw = pl.read(inner_state_slot_mapping, [update_t])
-            if state_row_raw >= 0:
-                state_row = pl.cast(state_row_raw, pl.INDEX)
-                update_pos = pl.read(position_ids, [update_t])
-                ape_slot = pl.cast(update_pos % COMPRESS_RATIO, pl.INDEX)
-                pool_dep = pl.mul(pooled_kv[0:1, 0:OUT_TILE], 0.0)
-                for update_ob in pl.range(OUT_DIM // OUT_TILE):
-                    update_o0 = update_ob * OUT_TILE
-                    ape_row = ape[ape_slot : ape_slot + 1, update_o0 : update_o0 + OUT_TILE]
-                    compress_state_flat[state_row : state_row + 1, update_o0 : update_o0 + OUT_TILE] = pl.add(
-                        kv_proj_scratch[
-                            update_t : update_t + 1,
-                            update_o0 : update_o0 + OUT_TILE,
-                        ],
-                        pool_dep,
-                    )
-                    compress_state_flat[
-                        state_row : state_row + 1,
-                        OUT_DIM + update_o0 : OUT_DIM + update_o0 + OUT_TILE,
-                    ] = pl.add(
-                        pl.add(
-                            score_proj_scratch[update_t : update_t + 1, update_o0 : update_o0 + OUT_TILE],
-                            ape_row,
-                        ),
-                        pool_dep,
-                    )
+    with pl.spmd(((T) + 8 - 1) // 8, name_hint="prefill_idx_c4_state_update") as state_update_tid:
+        # One block owns 8 rows; the rows are independent.
+        update_t_blk = pl.tile.get_block_idx()
+        for update_t_i in pl.range(8):
+            update_t = update_t_blk * 8 + update_t_i
+            if update_t < num_tokens:
+                state_row_raw = pl.read(inner_state_slot_mapping, [update_t])
+                if state_row_raw >= 0:
+                    state_row = pl.cast(state_row_raw, pl.INDEX)
+                    update_pos = pl.read(position_ids, [update_t])
+                    ape_slot = pl.cast(update_pos % COMPRESS_RATIO, pl.INDEX)
+                    pool_dep = pl.mul(pooled_kv[0:1, 0:OUT_TILE], 0.0)
+                    for update_ob in pl.range(OUT_DIM // OUT_TILE):
+                        update_o0 = update_ob * OUT_TILE
+                        ape_row = ape[ape_slot : ape_slot + 1, update_o0 : update_o0 + OUT_TILE]
+                        compress_state_flat[state_row : state_row + 1, update_o0 : update_o0 + OUT_TILE] = pl.add(
+                            kv_proj_scratch[update_t : update_t + 1, update_o0 : update_o0 + OUT_TILE],
+                            pool_dep,
+                        )
+                        compress_state_flat[
+                            state_row : state_row + 1,
+                            OUT_DIM + update_o0 : OUT_DIM + update_o0 + OUT_TILE,
+                        ] = pl.add(
+                            pl.add(score_proj_scratch[update_t : update_t + 1, update_o0 : update_o0 + OUT_TILE], ape_row),
+                            pool_dep,
+                        )
 
     completion[0] = pl.system.task_dummy(deps=[cache_write_tid, scale_scatter_tid, state_update_tid])
 
@@ -457,9 +448,7 @@ def prefill_indexer_compressor(
 def prefill_indexer_compressor_test(
     x: pl.Tensor[[T, D], pl.BF16],
     kv: pl.Out[pl.Tensor[[MAX_CMP_WRITES, HEAD_DIM], pl.INT8]],
-    compress_state: pl.InOut[
-        pl.Tensor[[STATE_BLOCK_NUM_DYN, INNER_STATE_BLOCK_SIZE, COMPRESS_STATE_DIM], pl.FP32]
-    ],
+    compress_state: pl.InOut[pl.Tensor[[STATE_BLOCK_NUM_DYN, INNER_STATE_BLOCK_SIZE, COMPRESS_STATE_DIM], pl.FP32]],
     inner_compress_state_block_table: pl.Tensor[[INNER_STATE_MAX_BLOCKS], pl.INT32],
     wkv: pl.Tensor[[OUT_DIM, D], pl.BF16],
     wgate: pl.Tensor[[OUT_DIM, D], pl.BF16],
@@ -522,10 +511,7 @@ def golden_prefill_indexer_compressor(tensors):
 
     kv_proj = tensors["x"].float() @ tensors["wkv"].float().t()   # wkv stored [OUT_DIM, D] for b_trans
     score_proj = tensors["x"].float() @ tensors["wgate"].float().t()
-    compress_state_flat = tensors["compress_state"].view(
-        INNER_STATE_BLOCK_NUM * INNER_STATE_BLOCK_SIZE,
-        COMPRESS_STATE_DIM,
-    )
+    compress_state_flat = tensors["compress_state"].view(-1, COMPRESS_STATE_DIM)
     kv_state_flat = compress_state_flat[:, :OUT_DIM]
     score_state_flat = compress_state_flat[:, OUT_DIM:]
     state_block_table = tensors["inner_compress_state_block_table"]
@@ -764,8 +750,7 @@ if __name__ == "__main__":
     from golden import ratio_allclose, run
 
     parser = argparse.ArgumentParser(description="Standalone token-major DeepSeek V4 prefill indexer compressor validation.")
-    parser.add_argument("-p", "--platform", type=str, default="a2a3",
-                        choices=["a2a3", "a2a3sim", "a5", "a5sim"])
+    parser.add_argument("-p", "--platform", type=str, default="a2a3", choices=["a2a3", "a2a3sim", "a5", "a5sim"])
     parser.add_argument("-d", "--device", type=int, default=0)
     parser.add_argument(
         "--compile-only",
@@ -775,7 +760,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--start-pos", type=int, default=START_POS,
                         help="Fixture-only absolute position for token 0; lowered into position_ids and dense idx_slot_mapping.")
-    parser.add_argument("--enable-chip-swimlane", action="store_true", default=False)
+    parser.add_argument("--enable-chip-swimlane", type=int, nargs="?", const=1, default=0, choices=range(5))
     parser.add_argument("--dump-passes", action="store_true", default=False)
     args = parser.parse_args()
 

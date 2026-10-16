@@ -21,7 +21,6 @@ from decode_swa import (
     BLOCK_SIZE,
     HEAD_DIM,
     H,
-    MAX_SEQ_LEN,
     O_GROUP_IN,
     O_GROUPS,
     O_LORA,
@@ -48,12 +47,11 @@ from lm_head import (
     golden_lm_head,
     lm_head_with_sampling,
 )
-from moe import (
+from decode_moe import (
     AUX_PAD,
     D,
     HC_DIM,
     HC_MULT,
-    IDX_PAD,
     MIX_HC,
     MOE_INTER,
     N_EXPERTS_GLOBAL,
@@ -68,6 +66,7 @@ from moe import (
     golden_moe,
     moe,
 )
+from decode_prepare import ROPE_ROWS_DYN, gather_swa_rope_rows
 from mtp_projection import golden_mtp_projection, mtp_projection
 from rmsnorm import golden_rms_norm, rms_norm
 
@@ -81,38 +80,37 @@ MTP_MOE_EPOCH = 1
 LM_HEAD_COMM_EPOCH = 1
 
 
-@pl.jit.inline(auto_scope=False)
-def decode_mtp(
+def _decode_mtp(
     hidden_states: pl.Tensor[[T, D], pl.BF16],
     prev_pre_hc_hidden: pl.Tensor[[T, HC_MULT, D], pl.FP32],
     position_ids: pl.Tensor[[T], pl.INT32],
     enorm_w: pl.Tensor[[D], pl.FP32],
     hnorm_w: pl.Tensor[[D], pl.FP32],
-    e_proj_w: pl.Tensor[[D, D], pl.INT8],
+    e_proj_w: pl.Tensor[[D, D], pl.INT8, pl.NZ],
     e_proj_w_scale: pl.Tensor[[D], pl.FP32],
     e_proj_smooth: pl.Tensor[[D], pl.FP32],
-    h_proj_w: pl.Tensor[[D, D], pl.INT8],
+    h_proj_w: pl.Tensor[[D, D], pl.INT8, pl.NZ],
     h_proj_w_scale: pl.Tensor[[D], pl.FP32],
     h_proj_smooth: pl.Tensor[[D], pl.FP32],
     hc_attn_fn: pl.Tensor[[MIX_HC, HC_DIM], pl.FP32],
     hc_attn_scale: pl.Tensor[[3], pl.FP32],
     hc_attn_base: pl.Tensor[[MIX_HC], pl.FP32],
     attn_norm_w: pl.Tensor[[D], pl.BF16],
-    wq_a: pl.Tensor[[D, Q_LORA], pl.BF16],
-    wq_b: pl.Tensor[[Q_LORA, H * HEAD_DIM], pl.INT8],
+    wq_a: pl.Tensor[[D, Q_LORA], pl.BF16, pl.NZ],
+    wq_b: pl.Tensor[[Q_LORA, H * HEAD_DIM], pl.INT8, pl.NZ],
     wq_b_scale: pl.Tensor[[H * HEAD_DIM], pl.FP32],
-    wkv: pl.Tensor[[D, HEAD_DIM], pl.BF16],
+    wkv: pl.Tensor[[D, HEAD_DIM], pl.BF16, pl.NZ],
     gamma_cq: pl.Tensor[[Q_LORA], pl.BF16],
     gamma_ckv: pl.Tensor[[HEAD_DIM], pl.BF16],
-    freqs_cos: pl.Tensor[[MAX_SEQ_LEN, ROPE_HEAD_DIM], pl.BF16],
-    freqs_sin: pl.Tensor[[MAX_SEQ_LEN, ROPE_HEAD_DIM], pl.BF16],
+    freqs_cos: pl.Tensor[[2, ROPE_ROWS_DYN, ROPE_HEAD_DIM], pl.BF16],
+    freqs_sin: pl.Tensor[[2, ROPE_ROWS_DYN, ROPE_HEAD_DIM], pl.BF16],
     kv_cache: pl.InOut[pl.Tensor[[ORI_BLOCK_NUM_DYN, BLOCK_SIZE, 1, HEAD_DIM], pl.BF16]],
     swa_slot_mapping: pl.Tensor[[T], pl.INT64],
     swa_indices: pl.Tensor[[T, WIN], pl.INT32],
     swa_lens: pl.Tensor[[T], pl.INT32],
     attn_sink: pl.Tensor[[H], pl.FP32],
-    wo_a: pl.Tensor[[O_GROUPS, O_LORA, O_GROUP_IN], pl.BF16],
-    wo_b: pl.Tensor[[D, O_GROUPS * O_LORA], pl.INT8],
+    wo_a: pl.Tensor[[O_GROUPS, O_LORA, O_GROUP_IN], pl.BF16, pl.NZ],
+    wo_b: pl.Tensor[[O_GROUPS, D, O_LORA], pl.INT8, pl.NZ],
     wo_b_scale: pl.Tensor[[D], pl.FP32],
     hc_ffn_fn: pl.Tensor[[MIX_HC, HC_DIM], pl.FP32],
     hc_ffn_scale: pl.Tensor[[3], pl.FP32],
@@ -122,23 +120,23 @@ def decode_mtp(
     gate_bias: pl.Tensor[[N_EXPERTS_GLOBAL], pl.FP32],
     tid2eid: pl.Tensor[[MOE_VOCAB, MOE_TOPK], pl.INT32],
     input_ids: pl.Tensor[[T], pl.INT64],
-    routed_w1: pl.Tensor[[N_LOCAL, MOE_INTER, D], pl.INT8],
+    routed_w1: pl.Tensor[[N_LOCAL, MOE_INTER, D], pl.INT8, pl.NZ],
     routed_w1_scale: pl.Tensor[[N_LOCAL, MOE_INTER], pl.FP32],
-    routed_w3: pl.Tensor[[N_LOCAL, MOE_INTER, D], pl.INT8],
+    routed_w3: pl.Tensor[[N_LOCAL, MOE_INTER, D], pl.INT8, pl.NZ],
     routed_w3_scale: pl.Tensor[[N_LOCAL, MOE_INTER], pl.FP32],
-    routed_w2: pl.Tensor[[N_LOCAL, D, MOE_INTER], pl.INT8],
+    routed_w2: pl.Tensor[[N_LOCAL, D, MOE_INTER], pl.INT8, pl.NZ],
     routed_w2_scale: pl.Tensor[[N_LOCAL, D], pl.FP32],
-    shared_w1: pl.Tensor[[MOE_INTER, D], pl.INT8],
+    shared_w1: pl.Tensor[[MOE_INTER, D], pl.INT8, pl.NZ],
     shared_w1_scale: pl.Tensor[[MOE_INTER], pl.FP32],
-    shared_w3: pl.Tensor[[MOE_INTER, D], pl.INT8],
+    shared_w3: pl.Tensor[[MOE_INTER, D], pl.INT8, pl.NZ],
     shared_w3_scale: pl.Tensor[[MOE_INTER], pl.FP32],
-    shared_w2: pl.Tensor[[D, MOE_INTER], pl.INT8],
+    shared_w2: pl.Tensor[[D, MOE_INTER], pl.INT8, pl.NZ],
     shared_w2_scale: pl.Tensor[[D], pl.FP32],
     mtp_hc_head_fn: pl.Tensor[[HC_MULT, HC_DIM], pl.FP32],
     mtp_hc_head_scale: pl.Tensor[[1], pl.FP32],
     mtp_hc_head_base: pl.Tensor[[HC_MULT], pl.FP32],
     mtp_norm_w: pl.Tensor[[D], pl.BF16],
-    lm_head_weight: pl.Tensor[[VOCAB_PER_TP, D], pl.BF16],
+    lm_head_weight: pl.Tensor[[VOCAB_PER_TP, D], pl.BF16, pl.NZ],
     logit_row_indices: pl.Tensor[[MAX_LOGIT_ROWS], pl.INT32],
     sampling_temperatures: pl.Tensor[[MAX_LOGIT_ROWS], pl.FP32],
     sampling_top_ks: pl.Tensor[[MAX_LOGIT_ROWS], pl.INT32],
@@ -153,7 +151,6 @@ def decode_mtp(
     recv_meta: pld.DistributedTensor[[N_RANKS, N_LOCAL], pl.INT32],
     recv_x: pld.DistributedTensor[[N_LOCAL * RECV_MAX, D], pl.INT8],
     recv_aux: pld.DistributedTensor[[N_LOCAL * RECV_MAX, AUX_PAD], pl.FP32],
-    recv_route: pld.DistributedTensor[[N_LOCAL * RECV_MAX, IDX_PAD], pl.INT32],
     arrived: pld.DistributedTensor[[N_RANKS, 1], pl.INT32],
     data_arrived: pld.DistributedTensor[[N_RANKS, 1], pl.INT32],
     routed_y_buf: pld.DistributedTensor[[N_ROUTES, D], pl.BF16],
@@ -165,6 +162,11 @@ def decode_mtp(
     my_rank: pl.Scalar[pl.INT32],
     num_tokens: pl.Scalar[pl.INT32],
 ) -> pl.Tensor[[T, HC_MULT, D], pl.BF16]:
+    freqs_cos.bind_dynamic(1, ROPE_ROWS_DYN)
+    freqs_sin.bind_dynamic(1, ROPE_ROWS_DYN)
+    swa_freqs_cos = pl.create_tensor([T, ROPE_HEAD_DIM], dtype=pl.BF16)
+    swa_freqs_sin = pl.create_tensor([T, ROPE_HEAD_DIM], dtype=pl.BF16)
+    gather_swa_rope_rows(freqs_cos, freqs_sin, position_ids, swa_freqs_cos, swa_freqs_sin)
     projected_hidden = pl.create_tensor([T, HC_MULT, D], dtype=pl.FP32)
     with pl.scope():
         mtp_projection(
@@ -183,7 +185,7 @@ def decode_mtp(
             attn_norm_w,
             wq_a, wq_b, wq_b_scale,
             wkv, gamma_cq, gamma_ckv,
-            freqs_cos, freqs_sin,
+            swa_freqs_cos, swa_freqs_sin,
             kv_cache, swa_slot_mapping, swa_indices, swa_lens,
             position_ids,
             attn_sink, wo_a, wo_b, wo_b_scale,
@@ -201,7 +203,7 @@ def decode_mtp(
             shared_w1, shared_w1_scale, shared_w3, shared_w3_scale,
             shared_w2, shared_w2_scale,
             next_pre_hc_hidden,
-            recv_meta, recv_x, recv_aux, recv_route,
+            recv_meta, recv_x, recv_aux,
             arrived, data_arrived, routed_y_buf, combine_arrived,
             pl.cast(MTP_LAYER_ID, pl.INT32), num_tokens, my_rank, pl.cast(MTP_MOE_EPOCH, pl.INT32),
         )
@@ -223,124 +225,8 @@ def decode_mtp(
     return hidden_out
 
 
-@pl.jit(auto_scope=False)
-def l2_decode_mtp(
-    hidden_states: pl.Tensor[[T, D], pl.BF16],
-    prev_pre_hc_hidden: pl.Tensor[[T, HC_MULT, D], pl.FP32],
-    position_ids: pl.Tensor[[T], pl.INT32],
-    enorm_w: pl.Tensor[[D], pl.FP32],
-    hnorm_w: pl.Tensor[[D], pl.FP32],
-    e_proj_w: pl.Tensor[[D, D], pl.INT8],
-    e_proj_w_scale: pl.Tensor[[D], pl.FP32],
-    e_proj_smooth: pl.Tensor[[D], pl.FP32],
-    h_proj_w: pl.Tensor[[D, D], pl.INT8],
-    h_proj_w_scale: pl.Tensor[[D], pl.FP32],
-    h_proj_smooth: pl.Tensor[[D], pl.FP32],
-    hc_attn_fn: pl.Tensor[[MIX_HC, HC_DIM], pl.FP32],
-    hc_attn_scale: pl.Tensor[[3], pl.FP32],
-    hc_attn_base: pl.Tensor[[MIX_HC], pl.FP32],
-    attn_norm_w: pl.Tensor[[D], pl.BF16],
-    wq_a: pl.Tensor[[D, Q_LORA], pl.BF16],
-    wq_b: pl.Tensor[[Q_LORA, H * HEAD_DIM], pl.INT8],
-    wq_b_scale: pl.Tensor[[H * HEAD_DIM], pl.FP32],
-    wkv: pl.Tensor[[D, HEAD_DIM], pl.BF16],
-    gamma_cq: pl.Tensor[[Q_LORA], pl.BF16],
-    gamma_ckv: pl.Tensor[[HEAD_DIM], pl.BF16],
-    freqs_cos: pl.Tensor[[2, MAX_SEQ_LEN, ROPE_HEAD_DIM], pl.BF16],
-    freqs_sin: pl.Tensor[[2, MAX_SEQ_LEN, ROPE_HEAD_DIM], pl.BF16],
-    kv_cache: pl.InOut[pl.Tensor[[ORI_BLOCK_NUM_DYN, BLOCK_SIZE, 1, HEAD_DIM], pl.BF16]],
-    swa_slot_mapping: pl.Tensor[[T], pl.INT64],
-    swa_indices: pl.Tensor[[T, WIN], pl.INT32],
-    swa_lens: pl.Tensor[[T], pl.INT32],
-    attn_sink: pl.Tensor[[H], pl.FP32],
-    wo_a: pl.Tensor[[O_GROUPS, O_LORA, O_GROUP_IN], pl.BF16],
-    wo_b: pl.Tensor[[D, O_GROUPS * O_LORA], pl.INT8],
-    wo_b_scale: pl.Tensor[[D], pl.FP32],
-    hc_ffn_fn: pl.Tensor[[MIX_HC, HC_DIM], pl.FP32],
-    hc_ffn_scale: pl.Tensor[[3], pl.FP32],
-    hc_ffn_base: pl.Tensor[[MIX_HC], pl.FP32],
-    norm_w: pl.Tensor[[D], pl.BF16],
-    gate_w: pl.Tensor[[N_EXPERTS_GLOBAL, D], pl.FP32],
-    gate_bias: pl.Tensor[[N_EXPERTS_GLOBAL], pl.FP32],
-    tid2eid: pl.Tensor[[MOE_VOCAB, MOE_TOPK], pl.INT32],
-    input_ids: pl.Tensor[[T], pl.INT64],
-    routed_w1: pl.Tensor[[N_LOCAL, MOE_INTER, D], pl.INT8],
-    routed_w1_scale: pl.Tensor[[N_LOCAL, MOE_INTER], pl.FP32],
-    routed_w3: pl.Tensor[[N_LOCAL, MOE_INTER, D], pl.INT8],
-    routed_w3_scale: pl.Tensor[[N_LOCAL, MOE_INTER], pl.FP32],
-    routed_w2: pl.Tensor[[N_LOCAL, D, MOE_INTER], pl.INT8],
-    routed_w2_scale: pl.Tensor[[N_LOCAL, D], pl.FP32],
-    shared_w1: pl.Tensor[[MOE_INTER, D], pl.INT8],
-    shared_w1_scale: pl.Tensor[[MOE_INTER], pl.FP32],
-    shared_w3: pl.Tensor[[MOE_INTER, D], pl.INT8],
-    shared_w3_scale: pl.Tensor[[MOE_INTER], pl.FP32],
-    shared_w2: pl.Tensor[[D, MOE_INTER], pl.INT8],
-    shared_w2_scale: pl.Tensor[[D], pl.FP32],
-    mtp_hc_head_fn: pl.Tensor[[HC_MULT, HC_DIM], pl.FP32],
-    mtp_hc_head_scale: pl.Tensor[[1], pl.FP32],
-    mtp_hc_head_base: pl.Tensor[[HC_MULT], pl.FP32],
-    mtp_norm_w: pl.Tensor[[D], pl.BF16],
-    lm_head_weight: pl.Tensor[[VOCAB_PER_TP, D], pl.BF16],
-    logit_row_indices: pl.Tensor[[MAX_LOGIT_ROWS], pl.INT32],
-    sampling_temperatures: pl.Tensor[[MAX_LOGIT_ROWS], pl.FP32],
-    sampling_top_ks: pl.Tensor[[MAX_LOGIT_ROWS], pl.INT32],
-    sampling_seeds: pl.Tensor[[MAX_LOGIT_ROWS], pl.INT32],
-    sampling_positions: pl.Tensor[[MAX_LOGIT_ROWS], pl.INT32],
-    hidden_out: pl.Out[pl.Tensor[[T, D], pl.BF16]],
-    next_pre_hc_hidden: pl.Out[pl.Tensor[[T, HC_MULT, D], pl.FP32]],
-    logits: pl.Out[pl.Tensor[[MAX_LOGIT_ROWS, LM_HEAD_VOCAB], pl.FP32]],
-    sampled_ids: pl.Out[pl.Tensor[[MAX_LOGIT_ROWS, SAMPLED_IDS_PAD], pl.INT32]],
-    recv_meta: pld.DistributedTensor[[N_RANKS, N_LOCAL], pl.INT32],
-    recv_x: pld.DistributedTensor[[N_LOCAL * RECV_MAX, D], pl.INT8],
-    recv_aux: pld.DistributedTensor[[N_LOCAL * RECV_MAX, AUX_PAD], pl.FP32],
-    recv_route: pld.DistributedTensor[[N_LOCAL * RECV_MAX, IDX_PAD], pl.INT32],
-    arrived: pld.DistributedTensor[[N_RANKS, 1], pl.INT32],
-    data_arrived: pld.DistributedTensor[[N_RANKS, 1], pl.INT32],
-    routed_y_buf: pld.DistributedTensor[[N_ROUTES, D], pl.BF16],
-    combine_arrived: pld.DistributedTensor[[N_RANKS, 1], pl.INT32],
-    lm_head_hidden_window: pld.DistributedTensor[[GROUP_LOGIT_ROWS, D], pl.BF16],
-    lm_head_hidden_done: pld.DistributedTensor[[LM_HEAD_TP_SIZE, 1], pl.INT32],
-    lm_head_logits_window: pld.DistributedTensor[[MAX_LOGIT_ROWS, LM_HEAD_VOCAB], pl.FP32],
-    lm_head_logits_done: pld.DistributedTensor[[LM_HEAD_TP_SIZE, 1], pl.INT32],
-    my_rank: pl.Scalar[pl.INT32],
-    num_tokens: pl.Scalar[pl.INT32],
-) -> pl.Tensor[[T, HC_MULT, D], pl.BF16]:
-    swa_cos_profile: pl.Tensor[[1, MAX_SEQ_LEN, ROPE_HEAD_DIM], pl.BF16] = pl.slice(
-        freqs_cos, [1, MAX_SEQ_LEN, ROPE_HEAD_DIM], [0, 0, 0]
-    )
-    swa_sin_profile: pl.Tensor[[1, MAX_SEQ_LEN, ROPE_HEAD_DIM], pl.BF16] = pl.slice(
-        freqs_sin, [1, MAX_SEQ_LEN, ROPE_HEAD_DIM], [0, 0, 0]
-    )
-    swa_freqs_cos: pl.Tensor[[MAX_SEQ_LEN, ROPE_HEAD_DIM], pl.BF16] = pl.reshape(
-        swa_cos_profile, [MAX_SEQ_LEN, ROPE_HEAD_DIM]
-    )
-    swa_freqs_sin: pl.Tensor[[MAX_SEQ_LEN, ROPE_HEAD_DIM], pl.BF16] = pl.reshape(
-        swa_sin_profile, [MAX_SEQ_LEN, ROPE_HEAD_DIM]
-    )
-    return decode_mtp(
-        hidden_states, prev_pre_hc_hidden, position_ids,
-        enorm_w, hnorm_w,
-        e_proj_w, e_proj_w_scale, e_proj_smooth,
-        h_proj_w, h_proj_w_scale, h_proj_smooth,
-        hc_attn_fn, hc_attn_scale, hc_attn_base,
-        attn_norm_w, wq_a, wq_b, wq_b_scale,
-        wkv, gamma_cq, gamma_ckv,
-        swa_freqs_cos, swa_freqs_sin,
-        kv_cache, swa_slot_mapping, swa_indices, swa_lens,
-        attn_sink, wo_a, wo_b, wo_b_scale,
-        hc_ffn_fn, hc_ffn_scale, hc_ffn_base,
-        norm_w, gate_w, gate_bias, tid2eid, input_ids,
-        routed_w1, routed_w1_scale, routed_w3, routed_w3_scale, routed_w2, routed_w2_scale,
-        shared_w1, shared_w1_scale, shared_w3, shared_w3_scale, shared_w2, shared_w2_scale,
-        mtp_hc_head_fn, mtp_hc_head_scale, mtp_hc_head_base, mtp_norm_w,
-        lm_head_weight, logit_row_indices,
-        sampling_temperatures, sampling_top_ks, sampling_seeds, sampling_positions,
-        hidden_out, next_pre_hc_hidden, logits, sampled_ids,
-        recv_meta, recv_x, recv_aux, recv_route,
-        arrived, data_arrived, routed_y_buf, combine_arrived,
-        lm_head_hidden_window, lm_head_hidden_done, lm_head_logits_window, lm_head_logits_done,
-        my_rank, num_tokens,
-    )
+decode_mtp = pl.jit.inline(auto_scope=False)(_decode_mtp)
+l2_decode_mtp = pl.jit(auto_scope=False)(_decode_mtp)
 
 
 @pl.jit.host
@@ -366,15 +252,15 @@ def l3_decode_mtp(
     wkv: pl.Tensor[[N_RANKS, D, HEAD_DIM], pl.BF16],
     gamma_cq: pl.Tensor[[N_RANKS, Q_LORA], pl.BF16],
     gamma_ckv: pl.Tensor[[N_RANKS, HEAD_DIM], pl.BF16],
-    freqs_cos: pl.Tensor[[N_RANKS, 2, MAX_SEQ_LEN, ROPE_HEAD_DIM], pl.BF16],
-    freqs_sin: pl.Tensor[[N_RANKS, 2, MAX_SEQ_LEN, ROPE_HEAD_DIM], pl.BF16],
+    freqs_cos: pl.Tensor[[N_RANKS, 2, ROPE_ROWS_DYN, ROPE_HEAD_DIM], pl.BF16],
+    freqs_sin: pl.Tensor[[N_RANKS, 2, ROPE_ROWS_DYN, ROPE_HEAD_DIM], pl.BF16],
     kv_cache: pl.InOut[pl.Tensor[[N_RANKS, ORI_BLOCK_NUM_DYN, BLOCK_SIZE, 1, HEAD_DIM], pl.BF16]],
     swa_slot_mapping: pl.Tensor[[N_RANKS, T], pl.INT64],
     swa_indices: pl.Tensor[[N_RANKS, T, WIN], pl.INT32],
     swa_lens: pl.Tensor[[N_RANKS, T], pl.INT32],
     attn_sink: pl.Tensor[[N_RANKS, H], pl.FP32],
     wo_a: pl.Tensor[[N_RANKS, O_GROUPS, O_LORA, O_GROUP_IN], pl.BF16],
-    wo_b: pl.Tensor[[N_RANKS, D, O_GROUPS * O_LORA], pl.INT8],
+    wo_b: pl.Tensor[[N_RANKS, O_GROUPS, D, O_LORA], pl.INT8],
     wo_b_scale: pl.Tensor[[N_RANKS, D], pl.FP32],
     hc_ffn_fn: pl.Tensor[[N_RANKS, MIX_HC, HC_DIM], pl.FP32],
     hc_ffn_scale: pl.Tensor[[N_RANKS, 3], pl.FP32],
@@ -414,10 +300,11 @@ def l3_decode_mtp(
     logit_row_indices: pl.Tensor[[N_RANKS, MAX_LOGIT_ROWS], pl.INT32],
     num_tokens: pl.Scalar[pl.INT32],
 ):
+    freqs_cos.bind_dynamic(2, ROPE_ROWS_DYN)
+    freqs_sin.bind_dynamic(2, ROPE_ROWS_DYN)
     recv_meta_buf = pld.alloc_window_buffer([N_RANKS, N_LOCAL], dtype=pl.INT32)
     recv_x_buf = pld.alloc_window_buffer([N_LOCAL * RECV_MAX, D], dtype=pl.INT8)
     recv_aux_buf = pld.alloc_window_buffer([N_LOCAL * RECV_MAX, AUX_PAD], dtype=pl.FP32)
-    recv_route_buf = pld.alloc_window_buffer([N_LOCAL * RECV_MAX, IDX_PAD], dtype=pl.INT32)
     arrived_buf = pld.alloc_window_buffer([N_RANKS, 1], dtype=pl.INT32)
     data_arrived_buf = pld.alloc_window_buffer([N_RANKS, 1], dtype=pl.INT32)
     routed_y_buf_buf = pld.alloc_window_buffer([N_ROUTES, D], dtype=pl.BF16)
@@ -431,7 +318,6 @@ def l3_decode_mtp(
         recv_meta = pld.window(recv_meta_buf, [N_RANKS, N_LOCAL], dtype=pl.INT32)
         recv_x = pld.window(recv_x_buf, [N_LOCAL * RECV_MAX, D], dtype=pl.INT8)
         recv_aux = pld.window(recv_aux_buf, [N_LOCAL * RECV_MAX, AUX_PAD], dtype=pl.FP32)
-        recv_route = pld.window(recv_route_buf, [N_LOCAL * RECV_MAX, IDX_PAD], dtype=pl.INT32)
         arrived = pld.window(arrived_buf, [N_RANKS, 1], dtype=pl.INT32)
         data_arrived = pld.window(data_arrived_buf, [N_RANKS, 1], dtype=pl.INT32)
         routed_y_buf = pld.window(routed_y_buf_buf, [N_ROUTES, D], dtype=pl.BF16)
@@ -464,7 +350,7 @@ def l3_decode_mtp(
             sampling_temperatures[r], sampling_top_ks[r],
             sampling_seeds[r], sampling_positions[r],
             hidden_out[r], next_pre_hc_hidden[r], logits[r], sampled_ids[r],
-            recv_meta, recv_x, recv_aux, recv_route,
+            recv_meta, recv_x, recv_aux,
             arrived, data_arrived, routed_y_buf, combine_arrived,
             lm_head_hidden_window, lm_head_hidden_done,
             lm_head_logits_window, lm_head_logits_done,
@@ -497,6 +383,7 @@ def _projection_specs():
     import torch
     from golden import TensorSpec
     from mtp_projection import _quantize_weight_per_out
+    from utils import pack_nz
 
     e_proj_cache = None
     h_proj_cache = None
@@ -514,7 +401,7 @@ def _projection_specs():
     def init_e_proj_w():
         nonlocal e_proj_cache
         e_proj_cache = init_proj_pair()
-        return e_proj_cache[0]
+        return pack_nz(e_proj_cache[0])
 
     def init_e_proj_w_scale():
         nonlocal e_proj_cache
@@ -525,7 +412,7 @@ def _projection_specs():
     def init_h_proj_w():
         nonlocal h_proj_cache
         h_proj_cache = init_proj_pair()
-        return h_proj_cache[0]
+        return pack_nz(h_proj_cache[0])
 
     def init_h_proj_w_scale():
         nonlocal h_proj_cache
@@ -613,7 +500,7 @@ def _mtp_head_specs():
 def build_tensor_specs(start_pos=DECODE_START_POS, num_tokens=T, ori_block_num=ORI_BLOCK_NUM):
     import torch
     from golden import ScalarSpec, TensorSpec
-    from utils import build_rope_tables
+    from utils import build_rope_tables, pack_nz, resolve_start_positions
 
     projection_specs = _projection_specs()
     mtp_head_specs = _mtp_head_specs()
@@ -621,38 +508,28 @@ def build_tensor_specs(start_pos=DECODE_START_POS, num_tokens=T, ori_block_num=O
     swa_specs = {spec.name: spec for spec in swa_tensor_specs if isinstance(spec, TensorSpec)}
     moe_tensor_specs = build_moe_tensor_specs(layer_id=MTP_LAYER_ID, num_tokens=num_tokens)
     moe_specs = {spec.name: spec for spec in moe_tensor_specs if isinstance(spec, TensorSpec)}
-    compressed_freqs_cos, compressed_freqs_sin = build_rope_tables(M, 4, dtype=torch.bfloat16)
-
-    def init_freqs_cos():
-        return torch.stack(
-            (swa_specs["freqs_cos"].create_tensor(), compressed_freqs_cos.clone()),
-            dim=0,
-        )
-
-    def init_freqs_sin():
-        return torch.stack(
-            (swa_specs["freqs_sin"].create_tensor(), compressed_freqs_sin.clone()),
-            dim=0,
-        )
+    rope_rows = int(resolve_start_positions(start_pos, batch=B, seq=DECODE_SEQ).max().item()) + DECODE_SEQ
+    swa_freqs_cos, swa_freqs_sin = build_rope_tables(M, 0, max_seq_len=rope_rows, dtype=torch.bfloat16)
+    compressed_freqs_cos, compressed_freqs_sin = build_rope_tables(M, 4, max_seq_len=rope_rows, dtype=torch.bfloat16)
 
     rope_specs = {
         "freqs_cos": TensorSpec(
             "freqs_cos",
-            [2, *swa_specs["freqs_cos"].shape],
-            swa_specs["freqs_cos"].dtype,
-            init_value=init_freqs_cos,
+            [2, rope_rows, ROPE_HEAD_DIM],
+            torch.bfloat16,
+            init_value=lambda: torch.stack((swa_freqs_cos, compressed_freqs_cos), dim=0),
         ),
         "freqs_sin": TensorSpec(
             "freqs_sin",
-            [2, *swa_specs["freqs_sin"].shape],
-            swa_specs["freqs_sin"].dtype,
-            init_value=init_freqs_sin,
+            [2, rope_rows, ROPE_HEAD_DIM],
+            torch.bfloat16,
+            init_value=lambda: torch.stack((swa_freqs_sin, compressed_freqs_sin), dim=0),
         ),
     }
 
     def init_lm_head_weight():
         shards = (torch.randn(LM_HEAD_TP_SIZE, VOCAB_PER_TP, D) / D ** 0.5).to(torch.bfloat16)
-        return torch.stack([shards[r % LM_HEAD_TP_SIZE] for r in range(N_RANKS)], dim=0)
+        return pack_nz(torch.stack([shards[r % LM_HEAD_TP_SIZE] for r in range(N_RANKS)], dim=0))
 
     def init_logit_row_indices():
         indices = torch.full((N_RANKS, MAX_LOGIT_ROWS), -1, dtype=torch.int32)
@@ -895,8 +772,8 @@ def golden_decode_mtp(tensors):
             "wkv": tensors["wkv"][rank],
             "gamma_cq": tensors["gamma_cq"][rank],
             "gamma_ckv": tensors["gamma_ckv"][rank],
-            "freqs_cos": tensors["freqs_cos"][rank, 0],
-            "freqs_sin": tensors["freqs_sin"][rank, 0],
+            "freqs_cos": tensors["freqs_cos"][rank, 0][tensors["position_ids"][rank].to(torch.int64)],
+            "freqs_sin": tensors["freqs_sin"][rank, 0][tensors["position_ids"][rank].to(torch.int64)],
             "kv_cache": tensors["kv_cache"][rank],
             "swa_slot_mapping": tensors["swa_slot_mapping"][rank],
             "swa_indices": tensors["swa_indices"][rank],
@@ -945,6 +822,7 @@ def golden_decode_mtp(tensors):
 
 def main():
     from golden import ratio_reldiff, run
+    from utils import parse_start_pos_arg
 
     parser = argparse.ArgumentParser(description="DeepSeek-V4 MTP decode layer driver.")
     parser.add_argument(
@@ -953,7 +831,7 @@ def main():
     )
     parser.add_argument(
         "--ep", type=int, default=N_RANKS, choices=[2, 4, 8],
-        help="EP world size / rank count (parsed at import by moe).",
+        help="EP world size / rank count (parsed at import by decode_moe).",
     )
     parser.add_argument(
         "--tp", type=int, default=LM_HEAD_TP_SIZE, choices=[2, 4, 8, 16],
@@ -963,10 +841,11 @@ def main():
         "-d", "--device", type=str, default=",".join(str(i) for i in range(N_RANKS)),
         help=f"comma-separated device ids; need at least {N_RANKS}",
     )
-    parser.add_argument("--start-pos", type=int, default=DECODE_START_POS)
+    parser.add_argument("--start-pos", type=str, default=str(DECODE_START_POS),
+                        help="Fixture start_pos: one value or a comma-separated per-request list.")
     parser.add_argument("--num-tokens", type=int, default=T)
     parser.add_argument("--ori-block-num", type=int, default=ORI_BLOCK_NUM)
-    parser.add_argument("--enable-chip-swimlane", type=int, nargs="?", const=1, default=0, choices=(0, 1, 2))
+    parser.add_argument("--enable-chip-swimlane", type=int, nargs="?", const=1, default=0, choices=range(5))
     parser.add_argument("--compile-only", action="store_true", default=False)
     parser.add_argument("--runtime-dir", type=str, default=None)
     parser.add_argument("--dump-passes", action="store_true", default=False)
@@ -985,7 +864,7 @@ def main():
     result = run(
         fn=l3_decode_mtp,
         specs=build_tensor_specs(
-            start_pos=args.start_pos,
+            start_pos=parse_start_pos_arg(args.start_pos),
             num_tokens=args.num_tokens,
             ori_block_num=args.ori_block_num,
         ),

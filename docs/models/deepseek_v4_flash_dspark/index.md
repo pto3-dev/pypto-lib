@@ -66,7 +66,36 @@ decode_fwd
 │                     decode_hca  → moe        (layers 3, 5, …, 41)
 ├── layer 42          decode_csa  → moe
 └── tail              hc_head → rms_norm → lm_head (TP vocab shard)
+                      → greedy_sample
 ```
+
+`decode_fwd` is the plain forward: it takes its token ids, positions, and
+sequence lengths from the host and carries no persistent-state coupling.
+Both the prefill and decode forwards require a rank-sharded `grammar_mask`
+input for LM-head sampling. Its `int16` shape per rank is
+`[MAX_LOGIT_ROWS, VOCAB // 808, 64]`: each 808-token segment stores allowed
+tokens in consecutive words, with token offset `i` in bit `i % 16` of word
+`i // 16` (including signed bit 15). The last word of segment zero is a
+header: `-1` selects unconstrained argmax, while `0` selects masked argmax.
+An unconstrained row can fill the entire mask with `-1`; a constrained row
+must have at least one allowed vocabulary token and set its header to `0`.
+
+Speculative decoding brackets it with two device-state stages that
+[decode_prepare.py](../../../models/deepseek_v4_flash_dspark/decode_prepare.py)
+exports, and the fused DSpark L2 in
+[decode_fwd_dspark.py](../../../models/deepseek_v4_flash_dspark/decode_fwd_dspark.py)
+is the only place that composes them:
+
+```
+prepare_target_group_from_device_state   late-bind the step from request slots
+decode_fwd_inline                        the forward above, unchanged
+accept_target_into_device_state          accept the longest matching prefix
+```
+
+The fused decode also requires rank-sharded `valid_draft_counts` with shape
+`[DECODE_BATCH]` per rank. For each request, preparation and acceptance cap
+the stored draft count by `max(valid_draft_counts[request], 0)`, so invalid
+proposals cannot enter the target or accepted prefix.
 
 Every `decode_{swa,csa,hca}` entry has a `_tp1` twin: the single-rank form runs
 the layer without the CP gather and the TP publish, and is what the golden
@@ -155,10 +184,11 @@ markov_head        low-rank (256) Markov embedding + full-vocabulary logits
 dspark_markov      lm_head → sequential Markov sampling → confidence head
 ```
 
-- [dspark_proj.py](../../../models/deepseek_v4_flash_dspark/dspark_proj.py)
-  collapses three target layers' hidden states (`dspark_target_layer_ids`) into
-  one drafter hidden row. `main_proj` stays BF16: the W8A8 checkpoint quantizes
-  it only under an FP8 quant method.
+- `dspark_proj`, in
+  [dspark_drafter.py](../../../models/deepseek_v4_flash_dspark/dspark_drafter.py),
+  collapses three target layers' hidden states (`TARGET_LAYER_IDS`, declared by
+  each forward that exposes the tap) into one drafter hidden row. `main_proj` stays BF16: the W8A8 checkpoint quantizes it
+  only under an FP8 quant method.
 - [dspark_attention.py](../../../models/deepseek_v4_flash_dspark/dspark_attention.py)
   runs one anchor-first draft query block of 7 rows per request against the
   paged sliding window. Every draft row sees the trailing window plus the whole
@@ -167,13 +197,18 @@ dspark_markov      lm_head → sequential Markov sampling → confidence head
   emits the 7 drafts sequentially — each step's sampled id feeds the next
   through a rank-256 Markov transition — and a sigmoid confidence head scores
   the block for the acceptance policy.
-- [dspark_prefill.py](../../../models/deepseek_v4_flash_dspark/dspark_prefill.py)
-  is the drafter's prefill entry: prompt-context KV insertion followed by the
-  same seven-query proposal.
+- `dspark_drafter.py --mode prefill` runs the same program over a prompt:
+  prompt-context KV insertion followed by the same seven-query proposal.
+  `--mode decode`, the default, starts from the accepted decode rows instead.
 
-The drafter and the target forward are compiled and validated as separate
-programs; there is no single entry composing a full target-plus-draft serving
-step yet.
+The drafter's query batch is one MoE slab of padded draft blocks
+(`MOE_TOKENS / DECODE_SEQ` requests), not the TP split of the target batch, so
+its shapes do not move with `--tp`; only the DSA-CP group width does.
+
+[decode_fwd_dspark.py](../../../models/deepseek_v4_flash_dspark/decode_fwd_dspark.py)
+composes the whole recurrent step — prepare, target forward, accept, drafter,
+Markov sampler, state commit — into one L2, and runs it end to end without a
+golden.
 
 ## Status
 
@@ -181,12 +216,16 @@ Under development, and not wired into `pypto-serving`. Every executable file
 carries its own Golden Harness fixture; the
 `decode_fwd` / `prefill_fwd` / `decode_layer` / `prefill_layer` compositions and
 the distributed communication oracles are device-only and do not run on a
-simulator.
+simulator. Most kernels are a plain function exposed twice — as the
+`pl.jit.inline` stage the layer and forward kernels compose, and as the `@pl.jit`
+entry its own fixture drives — so the composed and standalone forms cannot
+drift.
 
 ```bash
 python models/deepseek_v4_flash_dspark/decode_layer.py -p a2a3 --tp 2 --ep 2 -d 0,1
 python models/deepseek_v4_flash_dspark/decode_fwd.py -p a2a3 --tp 2 --ep 2 -d 0,1
-python models/deepseek_v4_flash_dspark/dspark_drafter.py -p a2a3 --tp 4 --ep 4 -d 0,1,2,3
+python models/deepseek_v4_flash_dspark/dspark_drafter.py -p a2a3 --tp 2 --ep 2 -d 0,1
+python models/deepseek_v4_flash_dspark/decode_fwd_dspark.py -p a2a3 --tp 2 --ep 2 -d 0,1
 ```
 
 `--tp` and `--ep` are read at import time, because the shapes they derive
@@ -199,7 +238,7 @@ with is rejected rather than silently ignored.
 | --- | --- |
 | Full forward | [decode_fwd.py](../../../models/deepseek_v4_flash_dspark/decode_fwd.py), [prefill_fwd.py](../../../models/deepseek_v4_flash_dspark/prefill_fwd.py) |
 | Layer composition | [decode_layer.py](../../../models/deepseek_v4_flash_dspark/decode_layer.py), [prefill_layer.py](../../../models/deepseek_v4_flash_dspark/prefill_layer.py) |
-| DSpark drafter | [dspark_drafter.py](../../../models/deepseek_v4_flash_dspark/dspark_drafter.py), [dspark_prefill.py](../../../models/deepseek_v4_flash_dspark/dspark_prefill.py), [dspark_proj.py](../../../models/deepseek_v4_flash_dspark/dspark_proj.py), [dspark_attention.py](../../../models/deepseek_v4_flash_dspark/dspark_attention.py), [dspark_context_kv.py](../../../models/deepseek_v4_flash_dspark/dspark_context_kv.py) |
+| DSpark drafter | [dspark_drafter.py](../../../models/deepseek_v4_flash_dspark/dspark_drafter.py), [dspark_attention.py](../../../models/deepseek_v4_flash_dspark/dspark_attention.py), [dspark_context_kv.py](../../../models/deepseek_v4_flash_dspark/dspark_context_kv.py) |
 | DSpark sampling | [dspark_markov.py](../../../models/deepseek_v4_flash_dspark/dspark_markov.py), [markov_head.py](../../../models/deepseek_v4_flash_dspark/markov_head.py) |
 | Decode attention orchestration | [decode_swa.py](../../../models/deepseek_v4_flash_dspark/decode_swa.py), [decode_csa.py](../../../models/deepseek_v4_flash_dspark/decode_csa.py), [decode_hca.py](../../../models/deepseek_v4_flash_dspark/decode_hca.py) |
 | Decode sparse attention | [decode_sparse_attn_swa.py](../../../models/deepseek_v4_flash_dspark/decode_sparse_attn_swa.py), [decode_sparse_attn_csa.py](../../../models/deepseek_v4_flash_dspark/decode_sparse_attn_csa.py), [decode_sparse_attn_hca.py](../../../models/deepseek_v4_flash_dspark/decode_sparse_attn_hca.py) |
@@ -208,7 +247,7 @@ with is rejected rather than silently ignored.
 | Output projection and CP transport | [decode_o_proj.py](../../../models/deepseek_v4_flash_dspark/decode_o_proj.py), [prefill_o_proj.py](../../../models/deepseek_v4_flash_dspark/prefill_o_proj.py), [decode_cp_allgather.py](../../../models/deepseek_v4_flash_dspark/decode_cp_allgather.py), [prefill_cp_token_allgather.py](../../../models/deepseek_v4_flash_dspark/prefill_cp_token_allgather.py) |
 | Shared transforms | [rmsnorm.py](../../../models/deepseek_v4_flash_dspark/rmsnorm.py), [qkv_proj_rope.py](../../../models/deepseek_v4_flash_dspark/qkv_proj_rope.py), [hc_pre.py](../../../models/deepseek_v4_flash_dspark/hc_pre.py), [hc_post.py](../../../models/deepseek_v4_flash_dspark/hc_post.py), [hc_head.py](../../../models/deepseek_v4_flash_dspark/hc_head.py), [rope_interleave.py](../../../models/deepseek_v4_flash_dspark/rope_interleave.py), [lookup_embedding.py](../../../models/deepseek_v4_flash_dspark/lookup_embedding.py) |
 | MoE and output | [moe.py](../../../models/deepseek_v4_flash_dspark/moe.py), [gate.py](../../../models/deepseek_v4_flash_dspark/gate.py), [expert_shared.py](../../../models/deepseek_v4_flash_dspark/expert_shared.py), [expert_routed.py](../../../models/deepseek_v4_flash_dspark/expert_routed.py), [lm_head.py](../../../models/deepseek_v4_flash_dspark/lm_head.py) |
-| Metadata and host helpers | [decode_metadata.py](../../../models/deepseek_v4_flash_dspark/decode_metadata.py), [prefill_metadata.py](../../../models/deepseek_v4_flash_dspark/prefill_metadata.py), [config.py](../../../models/deepseek_v4_flash_dspark/config.py), [utils.py](../../../models/deepseek_v4_flash_dspark/utils.py) |
+| Metadata and host helpers | [decode_prepare.py](../../../models/deepseek_v4_flash_dspark/decode_prepare.py), [prefill_metadata.py](../../../models/deepseek_v4_flash_dspark/prefill_metadata.py), [config.py](../../../models/deepseek_v4_flash_dspark/config.py), [utils.py](../../../models/deepseek_v4_flash_dspark/utils.py) |
 
 `config.py`, `utils.py`, `rope_interleave.py`, and `prefill_o_proj.py` have no
 `__main__` block: they are imported rather than run.

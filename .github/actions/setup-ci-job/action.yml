@@ -8,8 +8,8 @@ description: >-
   a per-job venv + activate.sh, and a from-source build/install of
   pypto + simpler. Simpler's own installer resolves the pinned pto-isa checkout
   (pypto's runtime/pto_isa.pin is the single source of truth), so this action
-  never clones it. The device jobs differ only in that they additionally check the
-  NPU and source CANN's set_env.sh — see the needs-device input.
+  never clones it. The device jobs differ only in that they additionally source
+  CANN's set_env.sh — see the needs-device input.
 
   Unlike pypto (which builds itself), pypto-lib builds against a separate pypto
   clone kept in a per-job ci-cache/pypto-src-<build-namespace> dir (concurrent
@@ -29,6 +29,13 @@ description: >-
     CANN_ROOT              CANN toolkit — device runners only (needs-device)
     PYPTO_QWEN3_MODEL_DIR  model weights — only the serving job reads these
     PYPTO_DSV4_MODEL_DIR
+    PYPTO_DSV4_FLASH_CKPT_DIR     the pinned DeepSeek-V4-Flash checkout and the
+    PYPTO_DSV4_FLASH_WEIGHTS_DIR  cache converted from it — only the daily A5
+                                  end-to-end job reads these; together they are
+                                  about 350 GiB, so they usually sit on a data
+                                  volume rather than beside CI_CACHE_ROOT
+    PYPTO_DSV4_DSPARK_MODEL_DIR   the dspark W8A8 checkpoint — only the serving
+                                  job reads this
 
   The bundle (toolchain: bundle) deliberately has no entry here: its location is
   not a free choice, so there is nothing for a host to declare. The prefix
@@ -37,7 +44,7 @@ description: >-
   elsewhere symlinks /opt/pypto at them.
 
   Beyond those, the host is expected to provide (by name, not by path):
-  task-submit / npu-smi / ccache / git / curl on PATH, and — on the conda path
+  task-submit / ccache / git / curl on PATH, and — on the conda path
   only — a conda env `py310-lib` under CONDA_ROOT. The `.env` makes the
   *locations* portable; these names are the provisioning contract a runner has to
   satisfy to be usable at all.
@@ -94,11 +101,11 @@ inputs:
     required: true
   needs-device:
     description: >-
-      When 'true' the job talks to an NPU: verify a card is visible (npu-smi) and
-      have activate.sh source CANN's set_env.sh, which wires up the Ascend/HCCL
-      host environment. When 'false' (the simulator jobs) both are skipped and
-      CANN_ROOT is not required in the runner config — the simulator needs no
-      driver, no card and no Ascend env.
+      When 'true' the job talks to an NPU: have activate.sh source CANN's
+      set_env.sh, which wires up the Ascend/HCCL host environment. When 'false'
+      (the simulator jobs) CANN setup is skipped and CANN_ROOT is not required in
+      the runner config — the simulator needs no driver, no card and no Ascend
+      env.
     required: false
     default: 'false'
   toolchain:
@@ -110,7 +117,7 @@ inputs:
       the ccache and the uv every bundle job builds and installs with.
 
       The default was 'conda' while the fleet was migrated a label at a time.
-      That is finished — every caller in this repo (sim, a2a3, both serving jobs,
+      That is finished — every caller in this repo (sim, a2a3, the serving jobs,
       and the a5 daily sweep) passes 'bundle' explicitly — so the default
       follows, and a job added without this input lands on the path CI actually
       exercises rather than on one with no coverage that additionally demands
@@ -132,6 +139,17 @@ inputs:
       build step move together.
     required: false
     default: 'false'
+  torch-version:
+    description: >-
+      torch requirement for the venv, as a pip specifier. Defaults to what
+      py310-lib resolved torch>=2.0.0 to, which is the version every job built
+      against before the bundle migration.
+
+      Override it only for a job whose kernels need a newer torch, and only with
+      install-torch-npu false: torch_npu hard-requires its own exact torch, so
+      the two cannot both choose one.
+    required: false
+    default: 'torch==2.6.0'
   build-namespace:
     description: >-
       Per-job-type discriminator for the pypto build tree, which is stored at
@@ -149,11 +167,8 @@ inputs:
     required: true
   pypto-ref:
     description: >-
-      pypto revision to build instead of origin HEAD (a full commit sha).
-      Empty follows HEAD — the default since #1002, so upstream regressions
-      surface here instead of hiding behind a stale pin. A job passes a sha
-      only as a deliberate, commented quarantine of a broken upstream
-      toolchain, and drops it once upstream heals.
+      PyPTO revision to build (a full commit sha). An empty value follows
+      origin HEAD; pass an explicit sha only when a job needs a pinned revision.
     required: false
     default: ''
 
@@ -215,6 +230,9 @@ runs:
           echo "  CI_CACHE_ROOT=/path/to/ci-cache"
           echo "  PYPTO_QWEN3_MODEL_DIR=/path/to/Qwen3-14B"
           echo "  PYPTO_DSV4_MODEL_DIR=/path/to/dsv4-flash-w8a8"
+          echo "  PYPTO_DSV4_FLASH_CKPT_DIR=/path/to/DeepSeek-V4-Flash"
+          echo "  PYPTO_DSV4_FLASH_WEIGHTS_DIR=/path/to/DeepSeek-V4-Flash-ep8-tp2"
+          echo "  PYPTO_DSV4_DSPARK_MODEL_DIR=/path/to/dsv4-flash-dspark-w8a8"
           echo "  CANN_ROOT=/usr/local/Ascend/cann-9.0.0"
           echo "(CANN_ROOT is only needed on device runners; CI_CACHE_ROOT is"
           echo " created if absent. The service reads .env at startup — restart"
@@ -363,10 +381,10 @@ runs:
           clone_pypto() { rm -rf "$PYPTO_SRC"; git clone --depth=1 https://github.com/pto3-dev/pypto.git "$PYPTO_SRC"; }
           retry clone_pypto || exit 1
         fi
-        # An empty pypto-ref follows origin's default branch (HEAD); a pinning
-        # job passes a full commit sha (via this step's env), fetched directly
-        # so cache hit and cache miss land on the same revision. Still
-        # --depth=1: a pin needs one commit, not the history behind it.
+        # pypto-ref is a full commit sha (via this step's env), fetched directly
+        # so cache hit and cache miss land on the same revision; an empty value
+        # follows origin's default branch (HEAD). Still --depth=1: a pin needs
+        # one commit, not the history behind it.
         retry git -C "$PYPTO_SRC" fetch --depth=1 origin "${PYPTO_REF:-HEAD}" || exit 1
         git -C "$PYPTO_SRC" reset --hard FETCH_HEAD
         git -C "$PYPTO_SRC" clean -ffdx
@@ -397,52 +415,6 @@ runs:
           echo "PTO_ISA_COMMIT=$(tr -d '[:space:]' < "$PYPTO_SRC/runtime/pto_isa.pin")"
         } >> "$GITHUB_ENV"
 
-    - name: Check NPU
-      if: ${{ inputs.needs-device == 'true' }}
-      shell: bash
-      # Since the A5 host's driver upgrade its device nodes are
-      # `crw-rw---- HwHiAiUser:HwHiAiUser`, and the CI user is not in that
-      # group. dcmi_init then cannot open the character device, and npu-smi
-      # exits 187 with "dcmi module initialize failed. ret is -8005" — which
-      # reads like a missing DCMI component but is plain permission denial
-      # (npu-smi lists "Failed to open the character device" among its own
-      # candidate causes). task-submit drops privileges into the HwHiAiUser
-      # group, which is how every model run reaches a card in the first place.
-      #
-      # Direct first: on hosts whose nodes are still world-readable it works,
-      # and the check then costs no device lease and no queue wait.
-      run: |
-        rc=0
-        npu-smi info || rc=$?
-        if [ "$rc" -eq 0 ]; then
-          exit 0
-        fi
-        echo "npu-smi failed directly (exit $rc); the device nodes are likely"
-        echo "group-restricted. Retrying through task-submit ..."
-        # The payload ends on `rc=$?; exit $rc` rather than on `npu-smi info`:
-        # with the probe as the bare last command task-submit reports 215 even
-        # though npu-smi returned 0 (reproduced 3/3 on an A5 host). Setting the
-        # status explicitly makes the outer code npu-smi's own — verified to
-        # pass 0, 9 and 127 through unchanged.
-        #
-        # NPUSMI_RC is a sentinel that separates the two ways this can fail.
-        # task-submit leases a real card, so a busy queue makes it give up on
-        # the wait and exit 1 having never run anything — that says nothing
-        # about the NPU and must not fail a diagnostic step. If the sentinel is
-        # present the probe really ran, and its status is authoritative.
-        rc=0
-        out=$(task-submit --device "${DEVICE_ID:-auto}" --timeout 240 --max-time 60 \
-          --run 'npu-smi info; rc=$?; echo "NPUSMI_RC=$rc"; exit $rc' 2>&1) || rc=$?
-        printf '%s\n' "$out"
-        if ! printf '%s' "$out" | grep -q 'NPUSMI_RC='; then
-          echo "::warning::Could not obtain a card from the device queue within"
-          echo "the wait, so the NPU was never probed. Continuing — every model"
-          echo "run goes through task-submit and will fail loudly if no device"
-          echo "is actually available."
-          exit 0
-        fi
-        exit "$rc"
-
     # Namespace the cache by pto-isa commit so a pto-isa bump can never serve
     # stale objects compiled against the old ISA headers (see issue #1139):
     # a different commit hashes to a different key, forcing a real recompile.
@@ -461,8 +433,8 @@ runs:
       working-directory: ${{ inputs.checkout-path }}
       env:
         NEEDS_DEVICE: ${{ inputs.needs-device }}
-        # Part of the runner's provisioning contract, like having task-submit and
-        # npu-smi on PATH: the host is expected to provide a conda env under this
+        # Part of the runner's provisioning contract, like having task-submit on
+        # PATH: the host is expected to provide a conda env under this
         # name. CONDA_ROOT says where conda lives; this says which env to use, and
         # `python -m venv --system-site-packages` below layers the per-job venv on
         # it, so its site-packages are an implicit dependency of every build here.
@@ -699,6 +671,7 @@ runs:
       working-directory: ${{ inputs.checkout-path }}
       env:
         INSTALL_TORCH_NPU: ${{ inputs.install-torch-npu }}
+        TORCH_VERSION: ${{ inputs.torch-version }}
       run: |
         source activate.sh
         # One installer per toolchain, chosen by the bootstrap step that built
@@ -746,12 +719,13 @@ runs:
         # conda this never showed: the base env already carried a torch, which
         # turned out to be the only thing pinning it.
         #
-        # The version is pinned to what py310-lib actually resolved torch>=2.0.0
+        # The default is pinned to what py310-lib actually resolved torch>=2.0.0
         # to, so this migration changes the toolchain and nothing else. Unpinned,
         # pip takes the newest (2.13.0 today). It is also forced from below when
         # install-torch-npu is on: the torch_npu 2.6.0 line requires torch==2.6.0
-        # exactly, and one torch is installed here for every job.
-        TORCH_PIN='torch==2.6.0'
+        # exactly, and one torch is installed here for every job. The
+        # torch-version input overrides it per job; see that input's description.
+        TORCH_PIN="$TORCH_VERSION"
         if ! py_install "$TORCH_PIN" --index-url https://download.pytorch.org/whl/cpu; then
           echo "note: download.pytorch.org unreachable — falling back to PyPI"
           py_install "$TORCH_PIN"
@@ -1292,7 +1266,29 @@ runs:
           python -m venv "$PTOAS_ROOT" --system-site-packages
           "$PTOAS_ROOT/bin/python" -m pip install "$CACHE_WHEEL"
         fi
-        "$PTOAS_ROOT/bin/ptoas" --version
+        # CANN's set_env.sh (sourced by activate.sh on device jobs) prepends its
+        # own site-packages to PYTHONPATH, which outranks ptoas-bin's, so `ptoas`
+        # imports CANN's online-build ptoas and dies on the missing pybind11.
+        # Re-assert ptoas-bin's site right after the job venv's — as the bootstrap
+        # guard already does for the job venv — and rebuild on every source so a
+        # re-prepended CANN entry cannot get back in front.
+        _PYPTO_PTOAS_SITE="$("$PTOAS_ROOT/bin/python" -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')"
+        echo "_PYPTO_PTOAS_SITE=$_PYPTO_PTOAS_SITE" >> activate.sh
+        cat >> activate.sh <<'EOF'
+        _PYPTO_PP=""
+        _PYPTO_IFS="$IFS"; IFS=":"
+        for _p in ${PYTHONPATH:-}; do
+          case "$_p" in ""|"$_PYPTO_SITE"|"$_PYPTO_PTOAS_SITE") continue ;; esac
+          _PYPTO_PP="${_PYPTO_PP:+$_PYPTO_PP:}$_p"
+        done
+        IFS="$_PYPTO_IFS"
+        export PYTHONPATH="$_PYPTO_SITE:$_PYPTO_PTOAS_SITE${_PYPTO_PP:+:$_PYPTO_PP}"
+        EOF
+        ( source activate.sh
+          source activate.sh
+          "$PTOAS_ROOT/bin/ptoas" --version
+          "$PTOAS_ROOT/bin/python" -c 'import os, sys, sysconfig, ptoas; s=os.path.realpath(sysconfig.get_paths()["purelib"]); p=os.path.realpath(ptoas.__file__); sys.exit(0 if p.startswith(s+os.sep) else f"::error::ptoas -> {p} (outside ptoas-bin {s})")'
+        )
 
     - name: Report toolchain versions
       # One grep-able block naming every component a failure has to be

@@ -33,9 +33,9 @@ per-case number, so two runs are comparable only when both quote it.
 
 Requirements: a real device — a `*sim` platform prints
 `effective_us unavailable: no device-domain spans` — and a runtime built
-with `SIMPLER_PROFILING`. A `runtime_dir=` replay has no live
-`CompiledProgram` and skips benchmarking with a `[RUN] benchmark skipped`
-note.
+with `SIMPLER_PROFILING`. A `runtime_dir=` replay benchmarks the replayed
+build, so a hand-edited `.cpp` can be timed without recompiling; only a spec
+with a stepped scalar skips it, with a `[RUN] benchmark skipped` note.
 
 ### Multi-card (L3) output
 
@@ -128,6 +128,13 @@ build_output/<ProgramName>_<ts>/dfx_outputs/
 └── merged_swimlane_<ts>.json   # real device only; open this
 ```
 
+The flag takes a capture **level**, and a bare flag means level 1 — per-task
+AICore timing, which is what reading the L2 schedule needs. Raise it only when
+the question requires it; each level records more and perturbs the timing it
+measures. Gap attribution and early-dispatch proofs need
+`--enable-chip-swimlane 4` — see
+[Capture levels](dependency-and-scheduling.md#capture-levels).
+
 Two viewers work:
 
 - Open `merged_swimlane_<ts>.json` in <https://ui.perfetto.dev/>.
@@ -142,6 +149,104 @@ merged Perfetto view and dependency arrows.
 The trace shows one lane per AICPU / AIC / AIV with task name, duration
 and dependency edges — gaps and stalls are visible directly.
 
+### Timing one stage of a full network — task-timing slots
+
+A swimlane answers "where did every task go". A narrower question comes up
+constantly on a full network: **what does this one stage cost inside the whole
+program?** simpler answers that with *selective task-timing slots* — 16 fixed
+slots into which the Scheduler folds a tagged task's AICPU dispatch→finish
+window, at the same boundaries the swimlane's `finish_time` uses.
+
+| | Task-timing slot | Chip swimlane |
+|---|---|---|
+| Covers | up to 16 tagged tasks | every task |
+| Switch | tagging in the generated orchestration `.cpp` — no env var, no compile gate, works in `SIMPLER_DFX=0` builds | `--enable-chip-swimlane` |
+| Cost on untagged tasks | one cache-hot sentinel compare | per-task records and collector threads |
+| Output | `[STRACE]` spans named `chip.run.runner_run.device_wall.task_slot_<N>` (`clk=dev`, `ts` / `dur` in ns) | merged Perfetto JSON |
+
+Reach for a slot when a whole-network swimlane is too large to read or perturbs
+the schedule being measured, and you already know which stage you care about.
+Reach for the swimlane when the question is *why* that stage is slow.
+
+They are also how a change the benchmark loop distorts gets attributed. An L2
+warm is the standard example: `PYPTO_BENCH` replays the same weights every round,
+so its L2 is already warm and the end-to-end delta is both flattered and diluted
+— see [L2 Prefetch](l2-prefetch.md#the-benchmark-loop-flatters-a-warm).
+
+**PyPTO exposes no DSL surface for the tag**, so the workflow patches the
+generated orchestration C++ and replays it — the same
+[`runtime_dir` loop](debugging.md#3-reuse-a-compile-with-runtime_dir-edit-cpp-pto-and-retest)
+used for any generated-code edit:
+
+1. Compile once (`--compile-only`, or reuse an existing build directory).
+2. Open the orchestration source — `<work_dir>/orchestration/<prog>.cpp` for an
+   L2 program, `<work_dir>/next_levels/<prog>/orchestration/<prog>.cpp` for an
+   L3 one. Every submit block carries a comment naming its scope and kernel,
+   which is how a stage is located:
+
+   ```cpp
+   // Spmd w1_mm_spmd: w1_mm
+   CoreTaskArgs params_t0;
+   params_t0.add_input(ext_recv_x);
+   params_t0.add_output(ext_gate_i32);
+   params_t0.set_task_timing_slot(0);        // <- the tag
+   params_t0.launch_spec.set_block_num(8);
+   rt_submit_aic_task(0, params_t0);
+   ```
+
+3. **Tag one iteration, not all.** A `pl.range` layer loop becomes a real C++
+   `for` whose induction variable keeps the DSL's own name, so an unguarded tag
+   merges all 20 layers into one useless window. Guard it:
+
+   ```cpp
+   if (ordinal == 10) params_t0.set_task_timing_slot(0);
+   ```
+
+4. Replay the patched build. Editing the `.cpp` is the only signal the harness
+   needs — do not delete the sibling `.o` / `.so`:
+
+   ```bash
+   PYPTO_BENCH=1 python models/deepseek_v4_flash_mtp/decode_fwd.py -p a2a3 -d 0,1 --ep 2 \
+       --runtime-dir build_output/<ProgramName>_<ts>
+   ```
+
+5. Read the `[RUN] task slots` block the benchmark prints (below). Without
+   `PYPTO_BENCH` the one correctness dispatch prints its spans to the runtime
+   log instead, at the default `timing` level — pass `PYPTO_RUNTIME_LOG=timing`
+   if the entry raised the threshold, then grep for `task_slot_`. The benchmark
+   captures stderr itself, so under `PYPTO_BENCH` those log lines never appear.
+
+#### Reading the numbers
+
+- **Each slot reduces to `min(dispatch)` / `max(finish)`.** Reusing one slot
+  across several tasks yields a single merged window from the earliest tagged
+  dispatch to the latest tagged finish — which is exactly how a multi-kernel
+  *stage* is measured. Distinct slots keep each task's own window, so tooling
+  can recover `finish(B) − dispatch(A)`. A MIX task's AIC/AIV0/AIV1 subtasks and
+  an SPMD task's blocks all fold into the one tagged slot.
+- **Read finish-to-finish, not span length.** `dispatch` is the *speculative*
+  publication, so under `allow_early_resolve` the windows overlap heavily and a
+  slot's own `dur` is not that stage's cost. Take
+  `(slot_{k+1}.ts + slot_{k+1}.dur) − (slot_k.ts + slot_k.dur)`, which means
+  tagging the preceding stage too — otherwise the first stage has no anchor.
+- **Slots reset every run.** A plain replay therefore yields one sample per
+  slot. Add `PYPTO_BENCH=1` to the replay for a distribution: every measured
+  round reports its slots, and the harness prints one line per rank and slot —
+
+  ```text
+  [RUN]   task slots: ranks=2
+  [RUN]     rank 1872915 task_slot 4: n=100 fin_us=2177.4 dur_us=8.6 dfin_us=713.9
+  [RUN]     rank 1872915 task_slot 5: n=100 fin_us=2599.3 dur_us=7.9 dfin_us=428.1
+  ```
+
+  `fin_us` is the slot's finish from the run's device-clock origin, `dur_us`
+  its own window, and `dfin_us` the per-round finish minus the previous slot's
+  finish — the finish-to-finish stage cost when slots are numbered in stage
+  order. All three are medians; `PYPTO_BENCH_RAW=1` adds each round's `fin_us`.
+- **The patch lives in `build_output/` only.** Recompiling regenerates the
+  orchestration `.cpp` and silently drops every tag — which is also how the
+  instrumentation is removed.
+
 ### What to look for
 
 Look for these shapes on the swimlane that indicate a problem:
@@ -152,7 +257,8 @@ Look for these shapes on the swimlane that indicate a problem:
 | Long tail on a single AIC/AIV | One kernel is too big and serializes | Split it (item 3) |
 | Cube / vector unit utilization low even though kernel is busy | Tile size under-fills the user-visible on-chip buffers | Re-tile against `Mat` / `Acc` for cube or `Vec` for vector work (item 4) |
 | Cube lane busy while vector lane idle (or vice versa) | Vec/cube epilogue is split into separate kernels | Merge into a mixed kernel (item 2c) |
-| Sequential AICPU dispatch trail per region | Region issues one kernel per iteration | Use `pl.spmd` to dispatch a block fan-out once (item 5) |
+| A stage re-reads the same weights every layer, MTE2-bound, with a large unrelated stage in between | The weights are evicted from L2 before the next use | Warm them with `pl.prefetch` (item 5) |
+| Sequential AICPU dispatch trail per region | Region issues one kernel per iteration | Use `pl.spmd` to dispatch a block fan-out once (item 6) |
 
 A gap on this trace is not automatically a scheduling problem: the interval
 before a task splits into producer-FIN detection, ready-but-undispatched
@@ -323,7 +429,62 @@ tile's MTE2 overlaps the current tile's compute (see Part 2 item 2).
 For the complete M/N/K constraint model and empirical sweep method, see
 [Cube Tile Tuning](cube-tile-tuning.md).
 
-#### 5. `pl.spmd` for parallel sub-kernel dispatch
+#### 5. Warm L2 for a weight set the next stage evicts
+
+When a stage re-reads a fixed weight set every layer and something between two
+layers evicts it, an SDMA cache warm (`pl.prefetch`) can hide the reload behind
+compute that is already running. It writes no tensor, so it is free to try and
+free to delete — but a partial or oversized warm costs more than it saves. See
+[L2 Prefetch](l2-prefetch.md).
+
+#### 6. Stream a weight that has no reuse: NZ layout and `CachePolicy.BYPASS`
+
+A weight read once per dispatch and never re-read is *streamed*, not cached, and
+two declarations make that read cheaper. Both are properties of the weight, so
+both belong on the parameter and the fixture that fills it — neither is a
+compiler inference.
+
+| Declaration | What it changes | What it costs |
+| --- | --- | --- |
+| `pl.Tensor[[E, N, K], pl.INT8, pl.NZ]` | the cube loads the weight NZ→NZ instead of reformatting ND on the way into L1, so the contiguous run is one fractal column block rather than one K-tile row | the fixture must write the bytes in fractal order (`utils.pack_nz`) and the golden must read them back (`utils.unpack_nz`) |
+| `pl.set_cache_policy(w, pl.CachePolicy.BYPASS)` at the top of the reading scope | the load is issued against the device's uncached alias, so it does not evict what *does* have reuse | nothing to the kernel; the author asserts nobody writes those bytes while it runs |
+
+The ND penalty is worth seeing concretely. A logical `[E, N, K]` INT8 weight
+sliced by a K tile gives the DMA `K_TILE` contiguous bytes before the next row
+is `K` bytes away — 512 B runs at `K_TILE = 512`. The same weight in NZ order
+gives 16 rows × one C0 line, an 8 KB run, with the column-block stride between
+them. Same bytes, same footprint, 16× the contiguous run.
+
+**Where NZ fits, and where it does not.** pto-isa declares NZ at a fixed rank-5
+shape with one batch slot, so the layout is only addressable when the *stacked*
+axis is a leading one:
+
+- `[E, N, K]` (routed experts) and `[LAYERS * O_GROUPS, O_LORA, O_GROUP_IN]`
+  (`wo_a`, `wo_b`) work as they stand — a per-layer `pl.slice` narrows a leading axis
+  and the trailing matrix stays whole.
+- `[LAYERS * D, Q_LORA]` (`wq_a`, `wq_b`, `wkv`) does not. One layer's
+  rows sit inside *every* fractal column block, so the window is not contiguous
+  and the compiler refuses it by name. Those are declared `[LAYERS, D, C]`
+  instead — a leading stacked axis — which is what makes NZ available to them.
+- Only one leading axis may be narrowed at a time. The leading axes fold into
+  the single batch slot row-major, so a window on an axis that a spanning axis
+  precedes selects a set no contiguous run describes; the compiler refuses it.
+- An NZ tensor is read-only, but it can be flattened whole for an SDMA warm
+  (rule 5): a rank-1 view of every element is the same byte range either way.
+  `wo_a` and `wo_b` are both NZ and both warmed.
+- The trailing extents must be static, rows a multiple of 16, and columns a
+  whole C0 line (32 B); a slice offset must be a provably non-negative multiple
+  of those, which rules out an offset built by subtraction — and a remainder or
+  quotient is only non-negative once its dividend is, since both truncate
+  toward zero on device.
+
+**Measure both separately.** They are independent, and which one pays depends on
+whether the ND load is already at its bandwidth ceiling: at a coarse blocking
+where ND already saturates, NZ can be worth nothing while the bypass still pays,
+and at a finer blocking the order reverses. One `PYPTO_BENCH` run per variant on
+the same frozen inputs settles it.
+
+#### 7. `pl.spmd` for parallel sub-kernel dispatch
 
 `pl.spmd(N)` dispatches `N` blocks of an InCore body in parallel from
 **one** AICPU schedule entry, instead of N successive `pl.parallel +

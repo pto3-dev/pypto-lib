@@ -88,6 +88,7 @@ ROPE_ROW_TILE = IDX_N_HEADS  # one token owns IDX_N_HEADS contiguous q rows + on
 QH_MM_TILE = 64
 WEIGHTS_TAIL_ROW_TILE = 16
 TOPK_LEAF_TILE = 8192
+TOPK_SHORT_LEAF_TILE = 2048
 TOPK_GROUP_TILE = 2
 TOPK_MAX_LEAVES = (INDEXER_MAX_CANDIDATES + TOPK_LEAF_TILE - 1) // TOPK_LEAF_TILE
 TOPK_GROUPS_PER_QUERY = (TOPK_MAX_LEAVES + TOPK_GROUP_TILE - 1) // TOPK_GROUP_TILE
@@ -99,6 +100,7 @@ TOPK_SCORE_WORKERS = 24
 
 # Four pairwise merge levels cover at most 16 roots.
 assert TOPK_GROUPS_PER_QUERY <= 16
+assert TOPK_SHORT_LEAF_TILE >= IDX_TOPK
 
 
 @pl.jit.inline
@@ -146,19 +148,42 @@ def _topk_leaf(
     output_slot: pl.Scalar[pl.INDEX],
 ) -> None:
     logical_begin_i32 = pl.cast(logical_begin, pl.INT32)
-    leaf_index_ramp = pl.tile.arange(0, [1, TOPK_LEAF_TILE], dtype=pl.INT32)
-    leaf_indices = pl.add(leaf_index_ramp, logical_begin_i32)
-    leaf_scores_raw = pl.load(score_arena, [query, logical_begin], [1, TOPK_LEAF_TILE], valid_shape=[1, valid_count])
-    leaf_scores = pl.tile.fillpad(leaf_scores_raw, pad_value=pl.PadValue.min)
-    leaf_floor = pl.tile.full([1, TOPK_LEAF_TILE], dtype=pl.FP32, value=FP32_NEG_INF)
-    leaf_scores = pl.maximum(leaf_scores, leaf_floor)
-    pairs = pl.tile.sort32(leaf_scores, pl.reinterpret_view(leaf_indices, pl.UINT32))
-    pairs = pl.tile.mrgsort(pairs, block_len=64)
-    pairs = pl.tile.mrgsort(pairs, block_len=256)
-    pairs = pl.tile.mrgsort(pairs, block_len=1024)
-    pairs = pl.tile.mrgsort(pairs, block_len=4096)
-    top_pairs = pl.tile.slice(pairs, [1, TOPK_PAIR_WIDTH], [0, 0])
-    pl.store(top_pairs, [output_slot, 0], pair_arena)
+    if valid_count <= IDX_TOPK:
+        short_index_ramp = pl.tile.arange(0, [1, TOPK_SHORT_LEAF_TILE], dtype=pl.INT32)
+        short_indices = pl.add(short_index_ramp, logical_begin_i32)
+        short_scores_raw = pl.load(
+            score_arena,
+            [query, logical_begin],
+            [1, TOPK_SHORT_LEAF_TILE],
+            valid_shape=[1, valid_count],
+        )
+        short_scores = pl.tile.fillpad(short_scores_raw, pad_value=pl.PadValue.min)
+        short_floor = pl.tile.full([1, TOPK_SHORT_LEAF_TILE], dtype=pl.FP32, value=FP32_NEG_INF)
+        short_scores = pl.maximum(short_scores, short_floor)
+        short_pairs = pl.tile.sort32(short_scores, pl.reinterpret_view(short_indices, pl.UINT32))
+        short_pairs = pl.tile.mrgsort(short_pairs, block_len=64)
+        short_pairs = pl.tile.mrgsort(short_pairs, block_len=256)
+        short_top_pairs = pl.tile.slice(short_pairs, [1, TOPK_PAIR_WIDTH], [0, 0])
+        pl.store(short_top_pairs, [output_slot, 0], pair_arena)
+    else:
+        leaf_index_ramp = pl.tile.arange(0, [1, TOPK_LEAF_TILE], dtype=pl.INT32)
+        leaf_indices = pl.add(leaf_index_ramp, logical_begin_i32)
+        leaf_scores_raw = pl.load(
+            score_arena,
+            [query, logical_begin],
+            [1, TOPK_LEAF_TILE],
+            valid_shape=[1, valid_count],
+        )
+        leaf_scores = pl.tile.fillpad(leaf_scores_raw, pad_value=pl.PadValue.min)
+        leaf_floor = pl.tile.full([1, TOPK_LEAF_TILE], dtype=pl.FP32, value=FP32_NEG_INF)
+        leaf_scores = pl.maximum(leaf_scores, leaf_floor)
+        pairs = pl.tile.sort32(leaf_scores, pl.reinterpret_view(leaf_indices, pl.UINT32))
+        pairs = pl.tile.mrgsort(pairs, block_len=64)
+        pairs = pl.tile.mrgsort(pairs, block_len=256)
+        pairs = pl.tile.mrgsort(pairs, block_len=1024)
+        pairs = pl.tile.mrgsort(pairs, block_len=4096)
+        top_pairs = pl.tile.slice(pairs, [1, TOPK_PAIR_WIDTH], [0, 0])
+        pl.store(top_pairs, [output_slot, 0], pair_arena)
 
 
 @pl.jit.incore
@@ -345,9 +370,13 @@ def _prefill_indexer_dense_tile(
     x: pl.Tensor[[T_DYN, D], pl.BF16],
     qr: pl.Tensor[[T_DYN, Q_LORA], pl.INT8],
     qr_scale: pl.Tensor[[T_DYN, 1], pl.FP32],
+    # NOT pl.NZ: o0/tail_o0 are formed via integer division of a flattened
+    # spmd index (qr_n = idx // qr_full_row_blocks), which NZ addressability
+    # cannot prove non-negative (only bare spmd/loop indices and their
+    # sums/products with constants are provable, not a quotient).
     wq_b: pl.Tensor[[Q_LORA, IDX_N_HEADS * IDX_HEAD_DIM], pl.INT8],
     wq_b_scale: pl.Tensor[[IDX_N_HEADS * IDX_HEAD_DIM], pl.FP32],
-    weights_proj: pl.Tensor[[D, IDX_N_HEADS], pl.BF16],
+    weights_proj: pl.Tensor[[D, IDX_N_HEADS], pl.BF16, pl.NZ],
     cos: pl.Tensor[[T_DYN, ROPE_HEAD_DIM // 2], pl.FP32],
     sin: pl.Tensor[[T_DYN, ROPE_HEAD_DIM // 2], pl.FP32],
     hadamard: pl.Tensor[[IDX_HEAD_DIM, IDX_HEAD_DIM], pl.BF16],
@@ -621,9 +650,13 @@ def prefill_indexer(
     query_start_loc: pl.Tensor[[QUERY_START_LOC_DYN], pl.INT32],
     qr: pl.Tensor[[T_DYN, Q_LORA], pl.INT8],
     qr_scale: pl.Tensor[[T_DYN, 1], pl.FP32],
+    # NOT pl.NZ: o0/tail_o0 are formed via integer division of a flattened
+    # spmd index (qr_n = idx // qr_full_row_blocks), which NZ addressability
+    # cannot prove non-negative (only bare spmd/loop indices and their
+    # sums/products with constants are provable, not a quotient).
     wq_b: pl.Tensor[[Q_LORA, IDX_N_HEADS * IDX_HEAD_DIM], pl.INT8],
     wq_b_scale: pl.Tensor[[IDX_N_HEADS * IDX_HEAD_DIM], pl.FP32],
-    weights_proj: pl.Tensor[[D, IDX_N_HEADS], pl.BF16],
+    weights_proj: pl.Tensor[[D, IDX_N_HEADS], pl.BF16, pl.NZ],
     cos: pl.Tensor[[T_DYN, ROPE_HEAD_DIM // 2], pl.FP32],
     sin: pl.Tensor[[T_DYN, ROPE_HEAD_DIM // 2], pl.FP32],
     cmp_freqs_cos: pl.Tensor[[T_DYN, ROPE_HEAD_DIM], pl.BF16],
@@ -678,9 +711,13 @@ def prefill_indexer_query(
     x: pl.Tensor[[Q_T_DYN, D], pl.BF16],
     qr: pl.Tensor[[Q_T_DYN, Q_LORA], pl.INT8],
     qr_scale: pl.Tensor[[Q_T_DYN, 1], pl.FP32],
+    # NOT pl.NZ: o0/tail_o0 are formed via integer division of a flattened
+    # spmd index (qr_n = idx // qr_full_row_blocks), which NZ addressability
+    # cannot prove non-negative (only bare spmd/loop indices and their
+    # sums/products with constants are provable, not a quotient).
     wq_b: pl.Tensor[[Q_LORA, IDX_N_HEADS * IDX_HEAD_DIM], pl.INT8],
     wq_b_scale: pl.Tensor[[IDX_N_HEADS * IDX_HEAD_DIM], pl.FP32],
-    weights_proj: pl.Tensor[[D, IDX_N_HEADS], pl.BF16],
+    weights_proj: pl.Tensor[[D, IDX_N_HEADS], pl.BF16, pl.NZ],
     cos: pl.Tensor[[Q_T_DYN, ROPE_HEAD_DIM // 2], pl.FP32],
     sin: pl.Tensor[[Q_T_DYN, ROPE_HEAD_DIM // 2], pl.FP32],
     hadamard: pl.Tensor[[IDX_HEAD_DIM, IDX_HEAD_DIM], pl.BF16],
@@ -776,7 +813,7 @@ def topk_prefix_contract_error(topk_indices, position_ids, num_tokens=None):
 
 
 def golden_prefill_indexer_core(tensors):
-    from utils import int8_quant_per_row
+    from utils import int8_quant_per_row, unpack_nz
     import torch
 
     token_count = int(tensors["x"].shape[0])
@@ -849,7 +886,7 @@ def golden_prefill_indexer_core(tensors):
             dim=-1,
         )
         q = q.to(torch.bfloat16).float() @ hadamard
-        weights = (tensors["x"][tile_base:tile_end].float() @ tensors["weights_proj"].float()) * WEIGHTS_SCALE
+        weights = (tensors["x"][tile_base:tile_end].float() @ unpack_nz(tensors["weights_proj"]).float()) * WEIGHTS_SCALE
 
         # Per-row INT8 query scores against pre-quantized KV.
         q_i8, q_sc = int8_quant_per_row(q.reshape(tile_rows * IDX_N_HEADS, IDX_HEAD_DIM))
@@ -903,9 +940,13 @@ def prefill_indexer_test(
     query_start_loc: pl.Tensor[[QUERY_START_LOC_DYN], pl.INT32],
     qr: pl.Tensor[[T_DYN, Q_LORA], pl.INT8],
     qr_scale: pl.Tensor[[T_DYN, 1], pl.FP32],
+    # NOT pl.NZ: o0/tail_o0 are formed via integer division of a flattened
+    # spmd index (qr_n = idx // qr_full_row_blocks), which NZ addressability
+    # cannot prove non-negative (only bare spmd/loop indices and their
+    # sums/products with constants are provable, not a quotient).
     wq_b: pl.Tensor[[Q_LORA, IDX_N_HEADS * IDX_HEAD_DIM], pl.INT8],
     wq_b_scale: pl.Tensor[[IDX_N_HEADS * IDX_HEAD_DIM], pl.FP32],
-    weights_proj: pl.Tensor[[D, IDX_N_HEADS], pl.BF16],
+    weights_proj: pl.Tensor[[D, IDX_N_HEADS], pl.BF16, pl.NZ],
     cos: pl.Tensor[[T_DYN, ROPE_HEAD_DIM // 2], pl.FP32],
     sin: pl.Tensor[[T_DYN, ROPE_HEAD_DIM // 2], pl.FP32],
     cmp_freqs_cos: pl.Tensor[[T_DYN, ROPE_HEAD_DIM], pl.BF16],
@@ -1006,7 +1047,7 @@ def gen_shared_weight(shape, dequant_std, chan_cv):
 
 
 def build_tensor_specs(start_pos: int = START_POS, token_count: int = PREFILL_SEQ):
-    from utils import int8_quant_per_row
+    from utils import int8_quant_per_row, pack_nz
     import torch
     from golden import TensorSpec
     from utils import token_local_rope
@@ -1195,7 +1236,7 @@ def build_tensor_specs(start_pos: int = START_POS, token_count: int = PREFILL_SE
         TensorSpec("qr_scale", [token_count, 1], torch.float32, init_value=lambda: qr_scale),
         TensorSpec("wq_b", [Q_LORA, IDX_N_HEADS * IDX_HEAD_DIM], torch.int8, init_value=lambda: wq_b_i8),
         TensorSpec("wq_b_scale", [IDX_N_HEADS * IDX_HEAD_DIM], torch.float32, init_value=lambda: wq_b_scale),
-        TensorSpec("weights_proj", [D, IDX_N_HEADS], torch.bfloat16, init_value=init_weights_proj),
+        TensorSpec("weights_proj", [D, IDX_N_HEADS], torch.bfloat16, init_value=lambda: pack_nz(init_weights_proj().to(torch.bfloat16))),
         TensorSpec("cos", [token_count, ROPE_HEAD_DIM // 2], torch.float32, init_value=init_cos),
         TensorSpec("sin", [token_count, ROPE_HEAD_DIM // 2], torch.float32, init_value=init_sin),
         TensorSpec("cmp_freqs_cos", [token_count, ROPE_HEAD_DIM], torch.bfloat16, init_value=init_cmp_freqs_cos),
@@ -1281,11 +1322,13 @@ if __name__ == "__main__":
         default=PREFILL_SEQ,
         help=f"Physical token length in [1, {PREFILL_MAX_TOKENS}].",
     )
-    parser.add_argument("--enable-chip-swimlane", action="store_true", default=False)
+    parser.add_argument("--enable-chip-swimlane", type=int, nargs="?", const=1, default=0, choices=range(5))
     parser.add_argument("--dump-passes", action="store_true", default=False)
     args = parser.parse_args()
 
     def score_selected_indices(token_id, indices, expected_outputs, inputs):
+        from utils import unpack_nz
+
         qr = inputs["qr"][token_id : token_id + 1]
         qr_scale = inputs["qr_scale"][token_id : token_id + 1].float()
         q_i32 = qr.to(torch.int32) @ inputs["wq_b"].to(torch.int32)
@@ -1301,7 +1344,7 @@ if __name__ == "__main__":
         )
         q = q.to(torch.bfloat16).float() @ inputs["hadamard"].float()
         q_i8, q_scale = int8_quant_per_row(q.reshape(IDX_N_HEADS, IDX_HEAD_DIM))
-        weights = (inputs["x"][token_id].float() @ inputs["weights_proj"].float()) * WEIGHTS_SCALE
+        weights = (inputs["x"][token_id].float() @ unpack_nz(inputs["weights_proj"]).float()) * WEIGHTS_SCALE
 
         logical_rows = indices.to(torch.int64)
         request_id = int(inputs["local_request_ids"][token_id].item())

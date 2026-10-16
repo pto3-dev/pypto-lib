@@ -33,6 +33,7 @@ def markov_head(
     markov_w2: pl.Tensor[[VOCAB_DYN, MARKOV_RANK], pl.BF16],
     logits_bias: pl.Tensor[[T_DYN, VOCAB_DYN], pl.FP32],
     markov_embed: pl.Tensor[[T_DYN, MARKOV_RANK], pl.BF16],
+    token_ids_ready_tid: pl.Scalar[pl.TASK_ID] = None,
 ):
     t_dim = pl.tensor.dim(token_ids, 0)
     t_linear = ((t_dim + T_TILE - 1) // T_TILE) * T_TILE
@@ -40,8 +41,11 @@ def markov_head(
     with pl.spmd(
         t_dim,
         name_hint="markov_embedding",
+        deps=[token_ids_ready_tid],
         allow_early_resolve=True,
     ) as embedding_tid:
+        # Weight reads bypass L2.
+        pl.set_cache_policy(markov_w1, pl.CachePolicy.BYPASS)
         token_idx = pl.tile.get_block_idx()
         token_id = pl.read(token_ids, [token_idx])
         token_row = pl.cast(token_id, target_type=pl.INDEX)
@@ -56,6 +60,8 @@ def markov_head(
         name_hint="markov_logits",
         deps=[embedding_tid],
     ) as logits_tid:
+        # Weight reads bypass L2.
+        pl.set_cache_policy(markov_w2, pl.CachePolicy.BYPASS)
         block = pl.tile.get_block_idx()
         for work_idx in pl.range(block, work_items, SPMD_BLOCKS):
             t0 = (work_idx // (vocab_dim // VOCAB_TILE)) * T_TILE
@@ -86,12 +92,18 @@ def markov_head_test(
     logits_bias.bind_dynamic(0, T_DYN)
     logits_bias.bind_dynamic(1, VOCAB_DYN)
     markov_embed.bind_dynamic(0, T_DYN)
+    ready_token = pl.create_tensor([1], dtype=pl.INT64)
+    with pl.spmd(1, name_hint="markov_head_test_input_ready") as token_ids_ready_tid:
+        block = pl.tile.get_block_idx()
+        first_token = pl.read(token_ids, [block])
+        pl.write(ready_token, [block], first_token)
     logits_bias, markov_embed, _, _ = markov_head(
         token_ids,
         markov_w1,
         markov_w2,
         logits_bias,
         markov_embed,
+        token_ids_ready_tid,
     )
     return logits_bias, markov_embed
 
@@ -140,7 +152,7 @@ if __name__ == "__main__":
     parser.add_argument("-d", "--device", type=int, default=0)
     parser.add_argument("--token-count", type=int, default=DECODE_BATCH // TP)
     parser.add_argument("--vocab-size", type=int, default=TEST_VOCAB_SIZE)
-    parser.add_argument("--enable-chip-swimlane", type=int, nargs="?", const=1, default=0, choices=(0, 1, 2, 4))
+    parser.add_argument("--enable-chip-swimlane", type=int, nargs="?", const=1, default=0, choices=range(5))
     parser.add_argument("--dump-passes", action="store_true", default=False)
     args = parser.parse_args()
 

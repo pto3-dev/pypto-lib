@@ -183,11 +183,19 @@ def _install_pypto_stubs() -> None:
         setattr(language, name, _TypeSpec)
     for name in (
         "BF16",
+        "FP8E4M3FN",
+        "FP8E8M0",
         "FP32",
+        "INDEX",
         "INT8",
         "INT32",
         "INT64",
+        # MX scale layouts, not dtypes: the Flash weight annotations name them,
+        # and an annotation is evaluated at import, before a test can collect.
+        "MX_A_ZZ",
+        "MX_B_NN",
         "TASK_ID",
+        "UINT8",
         "UINT32",
     ):
         setattr(language, name, object())

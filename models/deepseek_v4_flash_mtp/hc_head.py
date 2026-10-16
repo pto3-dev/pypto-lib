@@ -41,13 +41,12 @@ LINEAR_OK = 16
 RMS_OK = 16
 
 
-@pl.jit.inline
-def hc_head(
+def _hc_head(
     x_hc: pl.Tensor[[T_DYN, HC_MULT, D], pl.FP32],
     hc_head_fn: pl.Tensor[[HC_MULT, HC_DIM], pl.FP32],
     hc_head_scale: pl.Tensor[[1], pl.FP32],
     hc_head_base: pl.Tensor[[HC_MULT], pl.FP32],
-    y: pl.Tensor[[T_DYN, D], pl.BF16],
+    y: pl.Out[pl.Tensor[[T_DYN, D], pl.BF16]],
 ):
     t_dim = pl.tensor.dim(x_hc, 0)
     # Rounding the row count up to LINEAR_T_TILE would read whole tiles past the end
@@ -84,6 +83,8 @@ def hc_head(
             name_hint="hc_head_linear",
             deps=[linear_seed_tid],
         ) as _linear_tid:
+            # Weight reads bypass L2.
+            pl.set_cache_policy(hc_head_fn, pl.CachePolicy.BYPASS)
             task = pl.tile.get_block_idx()
             t0 = (task // LINEAR_OK) * LINEAR_T_TILE
             k_base = (task % LINEAR_OK) * (HC_DIM // LINEAR_OK)
@@ -108,6 +109,7 @@ def hc_head(
             name_hint="hc_head_linear_tail",
             deps=[linear_seed_tid],
         ) as _linear_tail_tid:
+            pl.set_cache_policy(hc_head_fn, pl.CachePolicy.BYPASS)
             tail_task = pl.tile.get_block_idx()
             k_base = tail_task * (HC_DIM // LINEAR_OK)
             tail_rows = t_dim - linear_full_rows
@@ -173,16 +175,8 @@ def hc_head(
     return y
 
 
-@pl.jit
-def hc_head_test(
-    x_hc: pl.Tensor[[T, HC_MULT, D], pl.FP32],
-    hc_head_fn: pl.Tensor[[HC_MULT, HC_DIM], pl.FP32],
-    hc_head_scale: pl.Tensor[[1], pl.FP32],
-    hc_head_base: pl.Tensor[[HC_MULT], pl.FP32],
-    y: pl.Out[pl.Tensor[[T, D], pl.BF16]],
-):
-    y = hc_head(x_hc, hc_head_fn, hc_head_scale, hc_head_base, y)
-    return y
+hc_head = pl.jit.inline(_hc_head)
+hc_head_test = pl.jit(_hc_head)
 
 
 def golden_hc_head(tensors):
@@ -261,7 +255,7 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, default=0)
     # Int mode (0=off; 1=timing only, most accurate; 2=timing + dep graph, two runs).
     # `nargs="?"` so a bare `--enable-chip-swimlane` -> mode 1 (int, not bool True).
-    parser.add_argument("--enable-chip-swimlane", type=int, nargs="?", const=1, default=0, choices=(0, 1, 2))
+    parser.add_argument("--enable-chip-swimlane", type=int, nargs="?", const=1, default=0, choices=range(5))
     parser.add_argument("--dump-passes", action="store_true", default=False)
     args = parser.parse_args()
     torch.manual_seed(args.seed)

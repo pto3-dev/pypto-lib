@@ -11,7 +11,7 @@
 import pypto.language as pl
 
 from config import (
-    BLOCK_SIZE,
+    HCA_CMP_STORAGE_BLOCK_SIZE as CMP_STORAGE_BLOCK_SIZE,
     C128_COMPRESSOR_BLOCK_SIZE,
     DECODE_BATCH,
     DECODE_SEQ,
@@ -48,7 +48,7 @@ STATE_LEN = COMPRESS_RATIO
 STATE_STORAGE_LEN = STATE_LEN + DECODE_SEQ
 COMPRESS_STATE_DIM = 2 * OUT_DIM
 MAX_CMP_WRITES = PREFILL_STATE_TILE // COMPRESS_RATIO
-CMP_MAX_BLOCKS = (MAX_SEQ_LEN // COMPRESS_RATIO + BLOCK_SIZE - 1) // BLOCK_SIZE
+CMP_MAX_BLOCKS = (MAX_SEQ_LEN // COMPRESS_RATIO + CMP_STORAGE_BLOCK_SIZE - 1) // CMP_STORAGE_BLOCK_SIZE
 
 # paged compressor state
 HCA_STATE_BLOCK_SIZE = C128_COMPRESSOR_BLOCK_SIZE
@@ -88,7 +88,7 @@ def _prefill_compressor_ratio128_tile(
     norm_w: pl.Tensor[[HEAD_DIM], pl.BF16],
     cmp_freqs_cos: pl.Tensor[[T_DYN, ROPE_HEAD_DIM], pl.BF16],
     cmp_freqs_sin: pl.Tensor[[T_DYN, ROPE_HEAD_DIM], pl.BF16],
-    cmp_kv: pl.InOut[pl.Tensor[[CMP_BLOCK_NUM_DYN, BLOCK_SIZE, 1, HEAD_DIM], pl.BF16]],
+    cmp_kv: pl.InOut[pl.Tensor[[CMP_BLOCK_NUM_DYN, CMP_STORAGE_BLOCK_SIZE, 1, HEAD_DIM], pl.BF16]],
     position_ids: pl.Tensor[[T_DYN], pl.INT32],
     cmp_slot_mapping: pl.Tensor[[T_DYN], pl.INT64],
     state_slot_mapping: pl.Tensor[[T_DYN], pl.INT64],
@@ -107,7 +107,7 @@ def _prefill_compressor_ratio128_tile(
         compress_state,
         [state_block_num * HCA_STATE_BLOCK_SIZE, COMPRESS_STATE_DIM],
     )
-    cmp_kv_flat = pl.reshape(cmp_kv, [cmp_block_num * BLOCK_SIZE, HEAD_DIM])
+    cmp_kv_flat = pl.reshape(cmp_kv, [cmp_block_num * CMP_STORAGE_BLOCK_SIZE, HEAD_DIM])
 
     t_dim = pl.tensor.dim(x, 0)
     x_flat = pl.reshape(x, [t_dim, D])
@@ -243,42 +243,39 @@ def _prefill_compressor_ratio128_tile(
                     value=0.0,
                 )
                 pool_abs = pool_start + pool_state_i
-                pool_state_block = pl.cast(pool_abs // HCA_STATE_BLOCK_SIZE, pl.INDEX)
-                pool_state_intra = pl.cast(pool_abs - pool_state_block * HCA_STATE_BLOCK_SIZE, pl.INDEX)
-                pool_phys_block_raw = pl.read(compress_state_block_table, [pool_state_block])
-                if pool_phys_block_raw >= 0:
-                    pool_phys_block = pl.cast(pool_phys_block_raw, pl.INDEX)
-                    pool_state_row = pool_phys_block * HCA_STATE_BLOCK_SIZE + pool_state_intra
-                    pool_kv_tile[pool_state_i : pool_state_i + 1, 0:HEAD_TILE] = compress_state_flat[
-                        pool_state_row : pool_state_row + 1,
-                        h0 : h0 + HEAD_TILE,
-                    ]
-                    pool_score_tile[pool_state_i : pool_state_i + 1, 0:HEAD_TILE] = compress_state_flat[
-                        pool_state_row : pool_state_row + 1,
-                        OUT_DIM + h0 : OUT_DIM + h0 + HEAD_TILE,
-                    ]
-
-                # Current-tile rows come from projection scratch. Persistent
-                # state remains the source only for history before this tile.
                 pool_source = write_src - pl.cast(write_pos - pool_abs, pl.INDEX)
-                if pool_source >= tile_base:
-                    if pool_source < tile_end:
-                        pool_local = pool_source - tile_base
-                        pool_ape_slot = pl.cast(pool_abs % COMPRESS_RATIO, pl.INDEX)
-                        pool_kv_tile[pool_state_i : pool_state_i + 1, 0:HEAD_TILE] = kv_proj_scratch[
-                            pool_local : pool_local + 1,
+                if pool_source < tile_base or pool_source >= tile_end:
+                    pool_state_block = pl.cast(pool_abs // HCA_STATE_BLOCK_SIZE, pl.INDEX)
+                    pool_state_intra = pl.cast(pool_abs - pool_state_block * HCA_STATE_BLOCK_SIZE, pl.INDEX)
+                    pool_phys_block_raw = pl.read(compress_state_block_table, [pool_state_block])
+                    if pool_phys_block_raw >= 0:
+                        pool_phys_block = pl.cast(pool_phys_block_raw, pl.INDEX)
+                        pool_state_row = pool_phys_block * HCA_STATE_BLOCK_SIZE + pool_state_intra
+                        pool_kv_tile[pool_state_i : pool_state_i + 1, 0:HEAD_TILE] = compress_state_flat[
+                            pool_state_row : pool_state_row + 1,
                             h0 : h0 + HEAD_TILE,
                         ]
-                        pool_score_tile[pool_state_i : pool_state_i + 1, 0:HEAD_TILE] = pl.add(
-                            score_proj_scratch[
-                                pool_local : pool_local + 1,
-                                h0 : h0 + HEAD_TILE,
-                            ],
-                            ape[
-                                pool_ape_slot : pool_ape_slot + 1,
-                                h0 : h0 + HEAD_TILE,
-                            ],
-                        )
+                        pool_score_tile[pool_state_i : pool_state_i + 1, 0:HEAD_TILE] = compress_state_flat[
+                            pool_state_row : pool_state_row + 1,
+                            OUT_DIM + h0 : OUT_DIM + h0 + HEAD_TILE,
+                        ]
+                else:
+                    pool_local = pool_source - tile_base
+                    pool_ape_slot = pl.cast(pool_abs % COMPRESS_RATIO, pl.INDEX)
+                    pool_kv_tile[pool_state_i : pool_state_i + 1, 0:HEAD_TILE] = kv_proj_scratch[
+                        pool_local : pool_local + 1,
+                        h0 : h0 + HEAD_TILE,
+                    ]
+                    pool_score_tile[pool_state_i : pool_state_i + 1, 0:HEAD_TILE] = pl.add(
+                        score_proj_scratch[
+                            pool_local : pool_local + 1,
+                            h0 : h0 + HEAD_TILE,
+                        ],
+                        ape[
+                            pool_ape_slot : pool_ape_slot + 1,
+                            h0 : h0 + HEAD_TILE,
+                        ],
+                    )
             # Vectorized softmax over all STATE_LEN slots: transpose the assembled
             # [STATE_LEN, HEAD_TILE] tile, then row_max/exp/sum/div and the weighted sum.
             pool_score_t = pl.transpose(pool_score_tile, axis1=0, axis2=1)
@@ -407,8 +404,7 @@ def _prefill_compressor_ratio128_tile(
     return cmp_kv, compress_state
 
 
-@pl.jit.inline(auto_scope=False)
-def prefill_compressor_ratio128(
+def _prefill_compressor_ratio128(
     x: pl.Tensor[[T_DYN, D], pl.BF16],
     query_start_loc: pl.Tensor[[QUERY_START_LOC_DYN], pl.INT32],
     compress_state: pl.InOut[
@@ -421,7 +417,7 @@ def prefill_compressor_ratio128(
     norm_w: pl.Tensor[[HEAD_DIM], pl.BF16],
     cmp_freqs_cos: pl.Tensor[[T_DYN, ROPE_HEAD_DIM], pl.BF16],
     cmp_freqs_sin: pl.Tensor[[T_DYN, ROPE_HEAD_DIM], pl.BF16],
-    cmp_kv: pl.InOut[pl.Tensor[[CMP_BLOCK_NUM_DYN, BLOCK_SIZE, 1, HEAD_DIM], pl.BF16]],
+    cmp_kv: pl.InOut[pl.Tensor[[CMP_BLOCK_NUM_DYN, CMP_STORAGE_BLOCK_SIZE, 1, HEAD_DIM], pl.BF16]],
     position_ids: pl.Tensor[[T_DYN], pl.INT32],
     cmp_slot_mapping: pl.Tensor[[T_DYN], pl.INT64],
     state_slot_mapping: pl.Tensor[[T_DYN], pl.INT64],
@@ -430,6 +426,16 @@ def prefill_compressor_ratio128(
 
     Each request slice delimited by ``query_start_loc`` must use consecutive positions.
     """
+    x.bind_dynamic(0, T_DYN)
+    query_start_loc.bind_dynamic(0, QUERY_START_LOC_DYN)
+    compress_state.bind_dynamic(0, STATE_BLOCK_NUM_DYN)
+    compress_state_block_table.bind_dynamic(0, REQUESTS_DYN)
+    cmp_kv.bind_dynamic(0, CMP_BLOCK_NUM_DYN)
+    cmp_freqs_cos.bind_dynamic(0, T_DYN)
+    cmp_freqs_sin.bind_dynamic(0, T_DYN)
+    position_ids.bind_dynamic(0, T_DYN)
+    cmp_slot_mapping.bind_dynamic(0, T_DYN)
+    state_slot_mapping.bind_dynamic(0, T_DYN)
     request_count = pl.tensor.dim(query_start_loc, 0) - 1
     rope_dup_idx_template = pl.create_tensor([HCA_C128_RMS_TILE, ROPE_HEAD_DIM], dtype=pl.INT32)
     rope_swap_idx_template = pl.create_tensor([HCA_C128_RMS_TILE, ROPE_HEAD_DIM], dtype=pl.INT32)
@@ -492,52 +498,8 @@ def prefill_compressor_ratio128(
     return cmp_kv, compress_state
 
 
-@pl.jit
-def prefill_compressor_ratio128_test(
-    x: pl.Tensor[[T_DYN, D], pl.BF16],
-    query_start_loc: pl.Tensor[[QUERY_START_LOC_DYN], pl.INT32],
-    compress_state: pl.InOut[
-        pl.Tensor[[STATE_BLOCK_NUM_DYN, HCA_STATE_BLOCK_SIZE, COMPRESS_STATE_DIM], pl.FP32]
-    ],
-    compress_state_block_table: pl.Tensor[[REQUESTS_DYN, HCA_STATE_MAX_BLOCKS], pl.INT32],
-    wkv: pl.Tensor[[OUT_DIM, D], pl.BF16],
-    wgate: pl.Tensor[[OUT_DIM, D], pl.BF16],
-    ape: pl.Tensor[[COMPRESS_RATIO, OUT_DIM], pl.FP32],
-    norm_w: pl.Tensor[[HEAD_DIM], pl.BF16],
-    cmp_freqs_cos: pl.Tensor[[T_DYN, ROPE_HEAD_DIM], pl.BF16],
-    cmp_freqs_sin: pl.Tensor[[T_DYN, ROPE_HEAD_DIM], pl.BF16],
-    cmp_kv: pl.InOut[pl.Tensor[[CMP_BLOCK_NUM_DYN, BLOCK_SIZE, 1, HEAD_DIM], pl.BF16]],
-    position_ids: pl.Tensor[[T_DYN], pl.INT32],
-    cmp_slot_mapping: pl.Tensor[[T_DYN], pl.INT64],
-    state_slot_mapping: pl.Tensor[[T_DYN], pl.INT64],
-):
-    x.bind_dynamic(0, T_DYN)
-    query_start_loc.bind_dynamic(0, QUERY_START_LOC_DYN)
-    compress_state.bind_dynamic(0, STATE_BLOCK_NUM_DYN)
-    compress_state_block_table.bind_dynamic(0, REQUESTS_DYN)
-    cmp_kv.bind_dynamic(0, CMP_BLOCK_NUM_DYN)
-    cmp_freqs_cos.bind_dynamic(0, T_DYN)
-    cmp_freqs_sin.bind_dynamic(0, T_DYN)
-    position_ids.bind_dynamic(0, T_DYN)
-    cmp_slot_mapping.bind_dynamic(0, T_DYN)
-    state_slot_mapping.bind_dynamic(0, T_DYN)
-
-    return prefill_compressor_ratio128(
-        x,
-        query_start_loc,
-        compress_state,
-        compress_state_block_table,
-        wkv,
-        wgate,
-        ape,
-        norm_w,
-        cmp_freqs_cos,
-        cmp_freqs_sin,
-        cmp_kv,
-        position_ids,
-        cmp_slot_mapping,
-        state_slot_mapping,
-    )
+prefill_compressor_ratio128 = pl.jit.inline(auto_scope=False)(_prefill_compressor_ratio128)
+prefill_compressor_ratio128_test = pl.jit(auto_scope=False)(_prefill_compressor_ratio128)
 
 
 def golden_prefill_compressor_ratio128(tensors):
@@ -553,7 +515,7 @@ def golden_prefill_compressor_ratio128(tensors):
     kv_state_flat = compress_state_flat[:, :OUT_DIM]
     score_state_flat = compress_state_flat[:, OUT_DIM:]
     state_block_table = tensors["compress_state_block_table"][0]
-    cmp_kv_flat = tensors["cmp_kv"].view(CMP_MAX_BLOCKS * BLOCK_SIZE, HEAD_DIM)
+    cmp_kv_flat = tensors["cmp_kv"].view(CMP_MAX_BLOCKS * CMP_STORAGE_BLOCK_SIZE, HEAD_DIM)
 
     def state_row(abs_pos):
         if abs_pos < 0 or abs_pos >= MAX_SEQ_LEN:
@@ -663,7 +625,7 @@ def build_tensor_specs(start_pos: int = START_POS, token_count: int = PREFILL_SE
         return 0.0982 + 0.0539 * torch.randn(HEAD_DIM)
 
     def init_cmp_kv():
-        return torch.zeros(CMP_MAX_BLOCKS, BLOCK_SIZE, 1, HEAD_DIM, dtype=torch.bfloat16)
+        return torch.zeros(CMP_MAX_BLOCKS, CMP_STORAGE_BLOCK_SIZE, 1, HEAD_DIM, dtype=torch.bfloat16)
 
     def init_position_ids():
         return torch.arange(start_pos, start_pos + token_count, dtype=torch.int32)
@@ -724,7 +686,7 @@ def build_tensor_specs(start_pos: int = START_POS, token_count: int = PREFILL_SE
         TensorSpec("cmp_freqs_sin", [token_count, ROPE_HEAD_DIM], torch.bfloat16, init_value=init_cmp_freqs_sin),
         TensorSpec(
             "cmp_kv",
-            [CMP_MAX_BLOCKS, BLOCK_SIZE, 1, HEAD_DIM],
+            [CMP_MAX_BLOCKS, CMP_STORAGE_BLOCK_SIZE, 1, HEAD_DIM],
             torch.bfloat16,
             init_value=init_cmp_kv,
         ),
@@ -765,7 +727,7 @@ if __name__ == "__main__":
         default=PREFILL_SEQ,
         help="Physical token rows, up to 8192.",
     )
-    parser.add_argument("--enable-chip-swimlane", action="store_true", default=False)
+    parser.add_argument("--enable-chip-swimlane", type=int, nargs="?", const=1, default=0, choices=range(5))
     parser.add_argument("--dump-passes", action="store_true", default=False)
     args = parser.parse_args()
 

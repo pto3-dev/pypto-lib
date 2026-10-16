@@ -324,6 +324,7 @@ def _prepare_inputs(
     data_dir: Path | None,
     work_dir: Path,
     save_data: bool = True,
+    require_outputs: bool = True,
 ) -> tuple[dict[str, torch.Tensor], dict[str, ScalarSpec]]:
     """Build the dispatch buffers and effective scalars for the runtime stage.
 
@@ -336,6 +337,9 @@ def _prepare_inputs(
     The returned tensors are the buffers the device is handed, and nothing
     writes to them before :func:`_dispatch` — :func:`_compute_golden` runs
     first and clones what it needs — so no separate pristine copy is kept.
+
+    Set *require_outputs* False to replay the inputs alone: only ``in/`` has to
+    be present, for a *data_dir* captured from a program with no golden.
 
     Raises ``ValueError`` on missing files or scalar dtype mismatch.
     """
@@ -353,9 +357,12 @@ def _prepare_inputs(
             _save_tensors(in_dir, {s.name: s.value for s in scalar_specs})
         return tensors, scalar_specs_eff
 
-    required: list[tuple[str, str]] = []
-    for spec in (*tensor_specs, *scalar_specs):
-        required.extend(_required_files(spec))
+    required = [
+        (subdir, name)
+        for spec in (*tensor_specs, *scalar_specs)
+        for subdir, name in _required_files(spec)
+        if require_outputs or subdir == "in"
+    ]
     _require_files(data_dir, required)
     print(f"[RUN]   cache hit: {data_dir / 'in'}", flush=True)
 
@@ -449,9 +456,8 @@ def _is_l3(compiled: Any) -> bool:
 
 
 # Default benchmark loop sizes shared by L2 and L3, overridable per run via
-# PYPTO_BENCH_ROUNDS / PYPTO_BENCH_WARMUP (see :func:`_bench_loop_sizes`). Daily
-# CI pins the perf baseline by leaving both unset. L3 differs only in its
-# aggregation: each round contributes the fastest valid rank's Effective time.
+# PYPTO_BENCH_ROUNDS / PYPTO_BENCH_WARMUP (see :func:`_bench_loop_sizes`).
+# Performance callers pin these explicitly; correctness CI disables benchmarking.
 _BENCH_ROUNDS_DEFAULT = 100
 _BENCH_WARMUP_DEFAULT = 5
 
@@ -465,7 +471,7 @@ def _bench_enabled() -> bool:
     """True when ``PYPTO_BENCH`` is set truthy.
 
     Benchmarking is entirely env-driven so no model file needs a ``--benchmark``
-    flag and ``run`` needs no extra parameters: daily CI's a2a3 job sets
+    flag and ``run`` needs no extra parameters. Performance callers set
     ``PYPTO_BENCH=1`` and every ``run`` call then times the kernel over
     :func:`_bench_loop_sizes` rounds (warmup discarded).
     """
@@ -504,7 +510,7 @@ def _bench_loop_sizes() -> tuple[int, int]:
     handful of rounds is usually enough. Both are read per run (not cached), so
     a sweep can vary them between :func:`run` calls in one process.
 
-    Daily CI sets neither, so its numbers stay comparable across runs. Warmup is
+    Performance comparisons must use the same explicit loop sizes. Warmup is
     allowed to be 0; rounds must be at least 1.
     """
     return (
@@ -624,16 +630,73 @@ def _report_bench(stats: Any, compiled: Any, *, l3: bool, resident: bool) -> Non
     Four blocks: the ``effective_us`` headline, L3's per-rank table, the opt-in
     raw dump, and L3's context line. The headline goes first and is the only
     line spelling the metric out; every breakdown line says ``eff_us``, so one
-    glance down a 60-line multi-card dump finds the headline number. Daily CI
-    matches that line's full ``(N rounds) min=... mean=...`` shape, so the
-    spelling is a reader affordance, not a constraint on these lines.
+    glance down a 60-line multi-card dump finds the headline number. Structured
+    performance consumers use the returned benchmark data rather than this text.
     """
     _report_effective(stats)
     if l3:
         _report_l3_per_rank(stats)
     _report_raw_samples(stats)
+    _report_task_slots(stats)
     if l3:
         _report_l3_detail(stats, compiled, resident=resident)
+
+
+_TASK_SLOT_RE = re.compile(r"\.task_slot_(\d+)$")
+
+
+def _report_task_slots(stats: Any) -> None:
+    """Print per-rank task-timing slot windows captured during the benchmark.
+
+    No-op unless the orchestration tags tasks with ``set_task_timing_slot``.
+    Per slot: ``fin_us`` is the slot's finish (``ts + dur``) from the run's
+    device-clock origin, ``dur_us`` its own dispatch-to-finish window, and
+    ``dfin_us`` the per-round finish minus the previous tagged slot's finish.
+    Repeated spans of one slot in a dispatch merge into one
+    ``min(ts)``..``max(ts + dur)`` window, and ``dfin_us`` pairs only the
+    dispatches that carry both slots. Each is the median over measured
+    dispatches; ``PYPTO_BENCH_RAW`` adds the per-dispatch ``fin_us`` lists.
+    """
+    by_pid: dict[int, dict[int, dict[int, tuple[float, float]]]] = {}
+    for iv in sorted(stats.invocations or [], key=lambda i: (i.pid, i.inv)):
+        windows: dict[int, tuple[float, float]] = {}
+        for span in iv.spans:
+            m = _TASK_SLOT_RE.search(span.name)
+            if m and span.is_device:
+                slot = int(m.group(1))
+                start, fin = span.ts, span.ts + span.dur
+                if slot in windows:
+                    start = min(start, windows[slot][0])
+                    fin = max(fin, windows[slot][1])
+                windows[slot] = (start, fin)
+        for slot, (start, fin) in windows.items():
+            rank = by_pid.setdefault(iv.pid, {})
+            rank.setdefault(slot, {})[iv.inv] = (fin / 1000.0, (fin - start) / 1000.0)
+    if not by_pid:
+        return
+    print(f"[RUN]   task slots: ranks={len(by_pid)}", flush=True)
+    for pid in sorted(by_pid):
+        slots = by_pid[pid]
+        prev = None
+        for slot in sorted(slots):
+            fins = [fin for fin, _ in slots[slot].values()]
+            durs = [dur for _, dur in slots[slot].values()]
+            line = (
+                f"[RUN]     rank {pid} task_slot {slot}: n={len(fins)} "
+                f"fin_us={statistics.median(fins):.1f} dur_us={statistics.median(durs):.1f}"
+            )
+            if prev is not None:
+                deltas = [
+                    fin - slots[prev][inv][0]
+                    for inv, (fin, _) in slots[slot].items()
+                    if inv in slots[prev]
+                ]
+                if deltas:
+                    line += f" dfin_us={statistics.median(deltas):.1f}"
+            print(line, flush=True)
+            if _bench_raw_enabled():
+                print(f"[RUN]       raw fin_us={[round(f, 1) for f in fins]}", flush=True)
+            prev = slot
 
 
 def _eff_summary(samples: Any) -> tuple[int, str] | None:
@@ -655,8 +718,8 @@ def _eff_summary(samples: Any) -> tuple[int, str] | None:
 def _report_effective(stats: Any) -> None:
     """Print the max-rank ``effective_us (...)`` summary.
 
-    Daily CI consumes this line for both L2 and L3. For L3 it is the per-round
-    max across ranks (slowest rank bounds the round); the flatten fallback pools
+    For L3 it is the per-round max across ranks (slowest rank bounds the round);
+    the flatten fallback pools
     every rank's per-dispatch samples into the same window.
 
     The Effective window is the framework's post-graph-build execution window
@@ -1443,6 +1506,8 @@ def _run_pipeline(
         cfg = _normalize_config(config)
         _validate_unique_spec_names(specs)
         _validate_stepped_swimlane(scalar_specs, cfg)
+        if data_dir is not None and not data_dir.is_dir():
+            raise ValueError(f"golden_data is not a directory: {data_dir}")
         if prologue is not None:
             compile_state = prologue(scalar_specs, data_dir)
     except ValueError as e:
@@ -1476,35 +1541,50 @@ def _run_pipeline(
         print(f"[RUN] PASS ({total:.2f}s)", flush=True)
         return RunResult(passed=True, execution_time=total, work_dir=work_dir)
 
+    # A data_dir saved by a program with no golden_fn holds in/ but no out/.
+    # Replaying it reuses the inputs; there is simply nothing to validate.
+    inputs_only_replay = (
+        data_dir is not None
+        and golden_fn is None
+        and not (data_dir / "out").is_dir()
+    )
+    if inputs_only_replay:
+        print("[RUN]   golden_data has no out/: reusing inputs only", flush=True)
+
     try:
         with _Stage("generate inputs"):
             tensors, scalar_specs_eff = _prepare_inputs(
                 specs, tensor_specs, scalar_specs, data_dir, work_dir, save_data,
+                require_outputs=not inputs_only_replay,
             )
     except ValueError as e:
         return _fail(str(e))
 
     golden_outputs: dict[str, torch.Tensor] | None = None
-    if golden_fn is not None or golden_data is not None:
+    if not inputs_only_replay and (golden_fn is not None or golden_data is not None):
         golden_outputs = _compute_golden(
             specs, tensor_specs, scalar_specs_eff, tensors,
             work_dir, data_dir, golden_fn, save_data,
         )
 
     benchmark_enabled = _bench_enabled()
-    if benchmark_enabled and runtime_dir is not None:
+    stepped = sorted(n for n, s in scalar_specs_eff.items() if s.has_benchmark_step)
+    if benchmark_enabled and runtime_dir is not None and stepped:
         print(
-            "[RUN]   benchmark skipped: runtime_dir replay is correctness-only",
+            "[RUN]   benchmark skipped: runtime_dir replay cannot prove stepped "
+            f"scalar(s) {stepped} reach the kernel; recompile to benchmark",
             flush=True,
         )
         benchmark_enabled = False
 
     def _pass(bench: Any) -> RunResult:
         total = time.time() - start
-        skip_note = (
-            ", validation skipped: no golden_fn or golden_data"
-            if golden_outputs is None else ""
-        )
+        if inputs_only_replay:
+            skip_note = ", validation skipped: golden_data has no out/"
+        elif golden_outputs is None:
+            skip_note = ", validation skipped: no golden_fn or golden_data"
+        else:
+            skip_note = ""
         print(f"[RUN] PASS ({total:.2f}s{skip_note})", flush=True)
         return RunResult(
             passed=True, execution_time=total, work_dir=work_dir, bench=bench,
@@ -1540,9 +1620,9 @@ def _run_pipeline(
             return _fail(str(e))
 
     # Benchmark (L2 via _run_benchmark, non-resident L3 via _run_benchmark_l3).
-    # Runs only after the correctness dispatch has been validated. A runtime-dir
-    # replay is correctness-only even when an L3 object was reconstructed from
-    # metadata. Entirely env-gated via PYPTO_BENCH=1 (daily CI).
+    # Runs only after the correctness dispatch has been validated, for a fresh
+    # compile and a runtime-dir replay alike. Entirely env-gated via
+    # PYPTO_BENCH=1 (opt-in performance measurement).
     bench = None
     if benchmark_enabled:
         rounds, warmup = _bench_loop_sizes()
@@ -1657,7 +1737,8 @@ def run(
             *golden_data* is set; if neither is given, validation is skipped.
         golden_data: Directory with ``in/{name}.pt`` and ``out/{name}.pt``;
             loads inputs and expected outputs (read-only). Takes precedence
-            over *golden_fn*.
+            over *golden_fn*. With *golden_fn* None, a directory without
+            ``out/`` replays the inputs alone and validation is skipped.
         config: Every setting for both phases, in one dict of
             :class:`pypto.runtime.RunConfig` keyword arguments — ``platform``,
             ``device_id``, ``enable_chip_swimlane``, ``dump_passes``,
@@ -1677,9 +1758,8 @@ def run(
         compile_only: Stop after code generation; skip execute and validate.
         runtime_dir: Pre-compiled ``build_output/`` directory to reuse. Skips
             compile and invalidates cached ``.so``/``.bin`` so cpp edits
-            rebuild; the compile-side config is ignored, *compile_only* is
-            rejected, and ``PYPTO_BENCH`` is skipped because replay is
-            correctness-only.
+            rebuild; the compile-side config is ignored and *compile_only* is
+            rejected. ``PYPTO_BENCH`` benchmarks the replayed build.
         save_data: When True, persist generated inputs to
             ``{work_dir}/data/in/`` and golden outputs to
             ``{work_dir}/data/out/`` for later replay via *golden_data*.

@@ -1,0 +1,1602 @@
+# Copyright (c) PyPTO Contributors.
+# This program is free software, you can redistribute it and/or modify it under the terms and conditions of
+# CANN Open Software License Agreement Version 2.0 (the "License").
+# Please refer to the License for details. You may not use this file except in compliance with the License.
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
+# INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+# See LICENSE in the root of the software repository for the full text of the License.
+# -----------------------------------------------------------------------------------------------------------
+# ci: devices=2
+"""DSpark-style expert-parallel MoE with immediate routed-output scatter."""
+
+import math
+
+import pypto.language as pl
+import pypto.language.distributed as pld
+from pypto.ir import DistributedConfig
+# Packed MXFP4/MXFP8 validation requires the A5 device backend.
+import torch
+
+
+from config import FLASH as M
+
+from config import MOE_TOKENS, N_LOCAL_EXPERTS, MOE_RECV_MAX, EP_SIZE
+from config import LOCAL_T_DYN, ROUTE_T_DYN, TP_SIZE, SUPPORTED_EP_SIZES, SUPPORTED_TP_SIZES
+
+
+if EP_SIZE % TP_SIZE:
+    raise ValueError(f"EP{EP_SIZE} must be divisible by TP{TP_SIZE}")
+
+
+# model config
+D = M.hidden_size
+HC_MULT = M.hc_mult
+HC_DIM = M.hc_dim
+MIX_HC = M.mix_hc
+N_EXPERTS = M.n_routed_experts
+TOPK = M.num_experts_per_tok
+MOE_INTER = M.moe_intermediate_size
+MX_GROUP = M.weight_block_size[0]
+
+
+RECV_MAX = MOE_RECV_MAX
+SKIP_SHARED_TEST = "--skip-shared" in __import__("sys").argv
+SKIP_TRANSPORT_TEST = "--skip-transport" in __import__("sys").argv
+
+from gate import gate_normalized as npu_gate
+from expert_shared import expert_shared
+from expert_routed import (
+    MX_PACKED_LANE_COLS,
+    MX_W1_PACKED_ROWS,
+    MX_W2_PACKED_ROWS,
+    MX_W3_PACKED_ROWS,
+    expert_routed_scatter,
+)
+from hc_mixes import golden_mhc_mixes, mhc_mixes
+from hc_pre import golden_mhc_pre, mhc_pre
+from hc_post import golden_mhc_post, mhc_post_after
+from rmsnorm import golden_rms_norm_tiled, rms_norm_tiled
+
+
+# EP transport layout
+AUX_WIDTH = 8
+ROUTE_WIDTH = 8
+T = MOE_TOKENS
+N_RANKS = EP_SIZE
+N_LOCAL = N_LOCAL_EXPERTS
+K_SCALE = D // MX_GROUP
+MAX_PER_SRC = T
+AUX_W = 0
+AUX_PAD = AUX_WIDTH
+IDX_PAD = ROUTE_WIDTH
+SIGNAL_PAD = 128  # 512-byte padded monotonic counter lane
+SCALE_COPY_TILE = 256
+SCALE_PACK_TMP = ((64 + K_SCALE + 31) // 32) * 32
+RECV_TILE = 16
+SCALE_PACK_TILES = (RECV_MAX + RECV_TILE - 1) // RECV_TILE
+
+
+@pl.jit.inline
+def dispatch(
+    indices: pl.Tensor[[T, TOPK], pl.INT32],
+    x_norm_mx: pl.Tensor[[T, D], pl.FP8E4M3FN],
+    x_norm_scale: pl.Tensor[[1, T * K_SCALE], pl.FP8E8M0],
+    weights: pl.Tensor[[T, TOPK], pl.FP32],
+    recv_x_out: pl.Tensor[[N_LOCAL, RECV_MAX, D], pl.FP8E4M3FN],
+    recv_scale_out: pl.Tensor[[1, N_LOCAL * RECV_MAX * K_SCALE], pl.FP8E8M0],
+    recv_weight_out: pl.Tensor[[N_LOCAL, RECV_MAX], pl.FP32],
+    recv_route_out: pl.Tensor[[N_LOCAL, RECV_MAX], pl.INT32],
+    recv_count_out: pl.Tensor[[N_LOCAL, 1], pl.INT32],
+    recv_meta_local: pl.Tensor[[N_RANKS, N_LOCAL], pl.INT32],
+    recv_meta: pld.DistributedTensor[[N_RANKS, N_LOCAL], pl.INT32],
+    recv_x: pld.DistributedTensor[[N_LOCAL * RECV_MAX, D], pl.INT8],
+    recv_scale: pld.DistributedTensor[[N_LOCAL * RECV_MAX, K_SCALE], pl.UINT8],
+    recv_weights: pld.DistributedTensor[[N_LOCAL * RECV_MAX, AUX_PAD], pl.FP32],
+    recv_routes: pld.DistributedTensor[[N_LOCAL * RECV_MAX, IDX_PAD], pl.INT32],
+    arrived: pld.DistributedTensor[[N_RANKS, SIGNAL_PAD], pl.INT32],
+    data_arrived: pld.DistributedTensor[[N_RANKS, N_LOCAL, SIGNAL_PAD], pl.INT32],
+    num_tokens: pl.Scalar[pl.INT32],
+    my_rank: pl.Scalar[pl.INT32],
+    moe_epoch: pl.Scalar[pl.INT32],
+):
+    # Flat 2-D view kept outside the scope so it stays a tensor view, not a tile.
+    recv_x_out_flat = pl.reshape(recv_x_out, [N_LOCAL * RECV_MAX, D])
+    # ``quant_mx`` stores MX_A_ZZ bytes physically as
+    # [1, M/16, G/2, 16, 2].  Dispatch needs one logical token's scales, so
+    # read that backing through its physical ND view instead of scalar-reading
+    # an MX-layout tensor (which is intentionally unsupported).
+    x_norm_mx_raw = pl.create_tensor([T, D], dtype=pl.INT8)
+    with pl.spmd(T, name_hint="dispatch_fp8_raw_copy"):
+        copy_row = pl.tile.get_block_idx()
+        raw_row = pl.load(x_norm_mx, [copy_row, 0], [1, D])
+        raw_row_i8 = pl.reinterpret_view(raw_row, pl.INT8)
+        x_norm_mx_raw = pl.store(
+            raw_row_i8,
+            [copy_row, 0],
+            x_norm_mx_raw,
+        )
+
+    x_norm_scale_raw = pl.create_tensor([1, T * K_SCALE], dtype=pl.UINT8)
+    with pl.spmd((T * K_SCALE) // SCALE_COPY_TILE, name_hint="dispatch_e8m0_raw_copy"):
+        scale_copy_offset = pl.tile.get_block_idx() * SCALE_COPY_TILE
+        raw_scale = pl.load(x_norm_scale, [0, scale_copy_offset], [1, SCALE_COPY_TILE])
+        raw_scale_u8 = pl.reinterpret_view(raw_scale, pl.UINT8)
+        x_norm_scale_raw = pl.store(raw_scale_u8, [0, scale_copy_offset], x_norm_scale_raw)
+    x_norm_scale_physical = pl.tensor.view(
+        x_norm_scale_raw,
+        [1, T // 16, K_SCALE // 2, 16, 2],
+        layout=pl.ND,
+    )
+
+    # This ABI has no consumed window argument, so this only publishes an explicit
+    # start task for the current dispatch round that the later stage, metadata and
+    # payload phases depend on; epoch handling in the caller owns the window lifetime.
+    with pl.at(level=pl.Level.CORE_GROUP, name_hint="moe_reuse_wait") as _reuse_tid:
+        _indices_anchor = pl.read(indices, [0, 0])
+
+    # Stage the logical MX scale rows in ND order. The dispatch producers move
+    # them with tensor.put because a full (MAX_PER_SRC, K_SCALE) tile exceeds UB.
+    scale_src = pl.create_tensor([T, K_SCALE], dtype=pl.UINT8, manual_dep=True)
+
+    with pl.at(level=pl.Level.CORE_GROUP, name_hint="dispatch_stage", deps=[_reuse_tid]) as _stage_tid:
+        active_tokens = pl.cast(num_tokens, pl.INDEX)
+        if active_tokens < 0:
+            active_tokens = pl.cast(0, pl.INDEX)
+        if active_tokens > T:
+            active_tokens = pl.cast(T, pl.INDEX)
+        for t in pl.range(active_tokens):
+            for group in pl.range(K_SCALE):
+                scale = pl.read(
+                    x_norm_scale_physical,
+                    [0, t // 16, group // 2, t % 16, group % 2],
+                )
+                pl.write(scale_src, [t, group], scale)
+
+    # Publish route counts independently from the registration-only peer wait.
+    with pl.at(
+        level=pl.Level.CORE_GROUP,
+        name_hint="dispatch_meta_publish",
+        deps=[_reuse_tid],
+        allow_early_resolve=True,
+    ) as _meta_push_tid:
+        active_tokens = pl.cast(num_tokens, pl.INDEX)
+        if active_tokens < 0:
+            active_tokens = pl.cast(0, pl.INDEX)
+        if active_tokens > T:
+            active_tokens = pl.cast(T, pl.INDEX)
+
+        # Count how many routes land in each (dst, loc_e) lane (no payload move).
+        cursor = pl.array.create(N_RANKS * N_LOCAL, pl.INT32)
+        for d in pl.range(N_RANKS):
+            for e in pl.range(N_LOCAL):
+                cursor[d * N_LOCAL + e] = 0
+        indices_tile = pl.tile.load(
+            indices,
+            [0, 0],
+            [T, IDX_PAD],
+            valid_shape=[T, TOPK],
+        )
+        for t in pl.range(active_tokens):
+            for k in pl.range(TOPK):
+                eid = pl.tile.read(indices_tile, [t, k])
+                dst = eid // N_LOCAL
+                loc_e = eid - dst * N_LOCAL
+                cursor[dst * N_LOCAL + loc_e] = cursor[dst * N_LOCAL + loc_e] + 1
+
+        meta_tile = pl.tile.full([1, N_LOCAL], dtype=pl.INT32, value=0)
+        for dst in pl.range(N_RANKS):
+            for e in pl.range(N_LOCAL):
+                pl.tile.write(meta_tile, [0, e], cursor[dst * N_LOCAL + e])
+            pld.tile.remote_store(
+                meta_tile, target=recv_meta, peer=dst, offsets=[my_rank, 0]
+            )
+            if dst != my_rank:
+                pld.system.notify(
+                    target=arrived, peer=dst, offsets=[my_rank, 0],
+                    value=1, op=pld.NotifyOp.AtomicAdd,
+                )
+
+    with pl.at(level=pl.Level.CORE_GROUP, name_hint="dispatch_meta_wait") as _meta_wait_tid:
+        for src in pl.range(N_RANKS):
+            if src != my_rank:
+                pld.system.defer_wait(
+                    signal=arrived, offsets=[src, 0],
+                    expected=moe_epoch, cmp=pld.WaitCmp.Ge,
+                )
+
+    with pl.at(
+        level=pl.Level.CORE_GROUP,
+        name_hint="dispatch_meta_finalize",
+        deps=[_meta_push_tid, _meta_wait_tid],
+        allow_early_resolve=True,
+    ) as _meta_tid:
+        for e in pl.range(N_LOCAL):
+            acc = pl.const(0, pl.INT32)
+            for src in pl.range(N_RANKS):
+                count = pl.read(recv_meta, [src, e])
+                pl.write(recv_meta_local, [src, e], count)
+                acc = acc + count
+            pl.write(recv_count_out, [e, 0], acc)
+
+    # One producer owns one (destination, local expert) lane. Aux and route rows
+    # are accumulated in UB and published once; x and scale retain v4.1's
+    # physical MXFP8 representation and are pushed directly from GM.
+    with pl.spmd(
+        N_RANKS * N_LOCAL,
+        name_hint="dispatch_push",
+        deps=[_reuse_tid, _stage_tid],
+        allow_early_resolve=False,
+    ) as _push_tid:
+        push_block = pl.tile.get_block_idx()
+        dst = push_block // N_LOCAL
+        loc_e = push_block - dst * N_LOCAL
+        active_tokens = pl.cast(num_tokens, pl.INDEX)
+        if active_tokens < 0:
+            active_tokens = pl.cast(0, pl.INDEX)
+        if active_tokens > T:
+            active_tokens = pl.cast(T, pl.INDEX)
+
+        e_lane_base = loc_e * RECV_MAX + my_rank * MAX_PER_SRC
+        indices_tile = pl.tile.load(
+            indices,
+            [0, 0],
+            [T, IDX_PAD],
+            valid_shape=[T, TOPK],
+        )
+        weights_tile = pl.tile.load(
+            weights,
+            [0, 0],
+            [T, AUX_PAD],
+            valid_shape=[T, TOPK],
+        )
+        aux_lane = pl.tile.full(
+            [MAX_PER_SRC, AUX_PAD],
+            dtype=pl.FP32,
+            value=0.0,
+        )
+        route_lane = pl.tile.full(
+            [MAX_PER_SRC, IDX_PAD],
+            dtype=pl.INT32,
+            value=0,
+        )
+        slot_ctr = pl.array.create(1, pl.INT32)
+        slot_ctr[0] = 0
+
+        for t in pl.range(active_tokens):
+            for k in pl.range(TOPK):
+                eid = pl.tile.read(indices_tile, [t, k])
+                route_dst = eid // N_LOCAL
+                route_local_e = eid - route_dst * N_LOCAL
+                if route_local_e == loc_e:
+                    if route_dst == dst:
+                        slot = slot_ctr[0]
+                        slot_ctr[0] = slot + 1
+                        row = e_lane_base + slot
+                        pld.tensor.put(
+                            dst=recv_x,
+                            peer=dst,
+                            src=x_norm_mx_raw,
+                            dst_offsets=[row, 0],
+                            src_offsets=[t, 0],
+                            shape=[1, D],
+                        )
+                        pld.tensor.put(
+                            dst=recv_scale,
+                            peer=dst,
+                            src=scale_src,
+                            dst_offsets=[row, 0],
+                            src_offsets=[t, 0],
+                            shape=[1, K_SCALE],
+                        )
+                        route_index = pl.cast(t * TOPK + k, pl.INT32)
+                        route_weight = pl.tile.read(weights_tile, [t, k])
+                        pl.tile.write(aux_lane, [slot, AUX_W], route_weight)
+                        pl.tile.write(route_lane, [slot, 0], route_index)
+
+        pld.tile.remote_store(
+            aux_lane,
+            target=recv_weights,
+            peer=dst,
+            offsets=[e_lane_base, 0],
+        )
+        pld.tile.remote_store(
+            route_lane,
+            target=recv_routes,
+            peer=dst,
+            offsets=[e_lane_base, 0],
+        )
+    # Publish one epoch only after every local payload store completes.
+    with pl.at(
+        level=pl.Level.CORE_GROUP,
+        name_hint="dispatch_publish_epoch",
+        deps=[_push_tid],
+        allow_early_resolve=False,
+    ) as _publish_tid:
+        for dst in pl.range(N_RANKS):
+            if dst != my_rank:
+                pld.system.notify(
+                    target=data_arrived, peer=dst, offsets=[my_rank, 0, 0],
+                    value=moe_epoch, op=pld.NotifyOp.Set,
+                )
+
+    with pl.at(
+        level=pl.Level.CORE_GROUP,
+        name_hint="dispatch_wait",
+        deps=[_publish_tid],
+    ) as _wait_tid:
+        for src in pl.range(N_RANKS):
+            if src != my_rank:
+                pld.system.defer_wait(
+                    signal=data_arrived,
+                    offsets=[src, 0, 0],
+                    expected=moe_epoch,
+                    cmp=pld.WaitCmp.Ge,
+                )
+
+    # Gather lanes into compact per-expert buffers. One task owns one aligned
+    # row tile, so scalar metadata writes never share a 64-byte cache line.
+    recv_scale_nd = pl.create_tensor(
+        [N_LOCAL * RECV_MAX, K_SCALE], dtype=pl.FP8E8M0, manual_dep=True
+    )
+    gather_tids = pl.array.create(N_LOCAL, pl.TASK_ID)
+    for e in pl.parallel(N_LOCAL):
+        gather_tile_tids = pl.array.create(SCALE_PACK_TILES, pl.TASK_ID)
+        for tile in pl.range(SCALE_PACK_TILES):
+            gather_tile_tids[tile] = pl.system.task_dummy(deps=[])
+        expert_rows = pl.cast(pl.read(recv_count_out, [e, 0]), pl.INDEX)
+        expert_tiles = (expert_rows + RECV_TILE - 1) // RECV_TILE
+        for tile in pl.parallel(expert_tiles):
+            tile_row = tile * RECV_TILE
+            tile_end = pl.min(tile_row + RECV_TILE, expert_rows)
+            with pl.at(
+                level=pl.Level.CORE_GROUP,
+                name_hint="dispatch_gather",
+                deps=[_wait_tid, _push_tid, _meta_tid],
+                allow_early_resolve=False,
+            ) as gather_tile_tid:
+                e_base_row = e * RECV_MAX
+                source_begin = pl.cast(0, pl.INDEX)
+                for src in pl.range(N_RANKS):
+                    source_rows = pl.cast(
+                        pl.read(recv_meta_local, [src, e]),
+                        pl.INDEX,
+                    )
+                    source_end = source_begin + source_rows
+                    src_base_row = e_base_row + src * MAX_PER_SRC
+                    gather_begin = pl.max(tile_row, source_begin)
+                    gather_end = pl.min(tile_end, source_end)
+                    for out_col in pl.range(gather_begin, gather_end):
+                        in_row = src_base_row + out_col - source_begin
+                        out_row = e_base_row + out_col
+                        recv_x_raw = pl.load(recv_x, [in_row, 0], [1, D])
+                        recv_x_mx = pl.reinterpret_view(recv_x_raw, pl.FP8E4M3FN)
+                        recv_x_out_flat = pl.store(
+                            recv_x_mx,
+                            [out_row, 0],
+                            recv_x_out_flat,
+                        )
+                        recv_scale_raw = pl.load(
+                            recv_scale,
+                            [in_row, 0],
+                            [1, K_SCALE],
+                        )
+                        recv_scale_mx = pl.reinterpret_view(
+                            recv_scale_raw,
+                            pl.FP8E8M0,
+                        )
+                        recv_scale_nd = pl.store(
+                            recv_scale_mx,
+                            [out_row, 0],
+                            recv_scale_nd,
+                        )
+                        pl.write(
+                            recv_weight_out,
+                            [e, out_col],
+                            pl.read(recv_weights, [in_row, AUX_W]),
+                        )
+                        pl.write(
+                            recv_route_out,
+                            [e, out_col],
+                            pl.read(recv_routes, [in_row, 0]),
+                        )
+                    source_begin = source_end
+            gather_tile_tids[tile] = gather_tile_tid
+        gather_tids[e] = pl.system.task_dummy(deps=[gather_tile_tids])
+    _gather_tid = pl.system.task_dummy(
+        deps=[gather_tids[e] for e in range(N_LOCAL)]
+    )
+
+    with pl.spmd(
+        N_LOCAL * SCALE_PACK_TILES,
+        name_hint="dispatch_scale_pack",
+        deps=[_gather_tid],
+    ) as _scale_pack_tid:
+        block_idx = pl.tile.get_block_idx()
+        local_e = block_idx // SCALE_PACK_TILES
+        tile_idx = block_idx % SCALE_PACK_TILES
+        e_rows = pl.read(recv_count_out, [local_e, 0])
+        if tile_idx * RECV_TILE < e_rows:
+            flat_t0 = local_e * RECV_MAX + tile_idx * RECV_TILE
+            scale_nd = pl.load(recv_scale_nd, [flat_t0, 0], [RECV_TILE, K_SCALE])
+            scale_raw = pl.reinterpret_view(scale_nd, pl.UINT8)
+            tmp = pl.create_tile([1, SCALE_PACK_TMP], dtype=pl.UINT8)
+            scale_zz_raw = pl.tmov_x2zz(
+                scale_raw,
+                tmp,
+                group_axis=1,
+                dst_rows=RECV_TILE,
+                dst_cols=K_SCALE,
+            )
+            scale_zz = pl.reinterpret_view(scale_zz_raw, pl.FP8E8M0)
+            recv_scale_out = pl.store(
+                pl.reshape(scale_zz, [1, RECV_TILE * K_SCALE]),
+                [0, flat_t0 * K_SCALE],
+                recv_scale_out,
+            )
+    return _scale_pack_tid
+
+
+@pl.jit.inline
+def combine_scattered(
+    shared_output: pl.Tensor[[T, D], pl.BF16],
+    ffn_out: pl.Tensor[[T, D], pl.BF16],
+    routed_output: pld.DistributedTensor[[T * TOPK, D], pl.BF16],
+    combine_arrived: pld.DistributedTensor[[N_RANKS, N_LOCAL, SIGNAL_PAD], pl.INT32],
+    output_ready: pl.Scalar[pl.TASK_ID],
+    scatter_done: pl.Scalar[pl.TASK_ID],
+    num_tokens: pl.Scalar[pl.INT32],
+    my_rank: pl.Scalar[pl.INT32],
+    moe_epoch: pl.Scalar[pl.INT32],
+):
+    with pl.at(
+        level=pl.Level.CORE_GROUP,
+        name_hint="combine_notify",
+        deps=[scatter_done],
+        allow_early_resolve=False,
+    ) as notify_tid:
+        for peer in pl.range(N_RANKS):
+            if peer != my_rank:
+                pld.system.notify(
+                    target=combine_arrived, peer=peer, offsets=[my_rank, 0, 0],
+                    value=moe_epoch, op=pld.NotifyOp.Set,
+                )
+
+    with pl.at(
+        level=pl.Level.CORE_GROUP,
+        name_hint="combine_wait",
+        deps=[notify_tid],
+    ) as _cwait_tid:
+        for src in pl.range(N_RANKS):
+            if src != my_rank:
+                pld.system.defer_wait(
+                    signal=combine_arrived,
+                    offsets=[src, 0, 0],
+                    expected=moe_epoch,
+                    cmp=pld.WaitCmp.Ge,
+                )
+
+    # The notify fan-out starts only after every local scatter. Waiting for the
+    # accumulated peer epochs closes both local and remote routed-output writes.
+    # Accumulate the shared-expert and TOP-K routed results for every local token.
+    with pl.spmd(
+        T,
+        name_hint="combine_reduce",
+        deps=[_cwait_tid, output_ready],
+    ) as _reduce_tid:
+        t = pl.tile.get_block_idx()
+        if t < num_tokens:
+            acc = pl.cast(pl.load(shared_output, [t, 0], [1, D]), target_type=pl.FP32)
+            for k in pl.range(TOPK):
+                acc = pl.add(acc, pl.cast(pl.load(routed_output, [t * TOPK + k, 0], [1, D]), target_type=pl.FP32))
+            ffn_out = pl.store(pl.cast(acc, target_type=pl.BF16, mode="rint"), [t, 0], ffn_out)
+    # No consumed window is declared, so no recycle signal is published.
+    return _reduce_tid
+
+
+def _gen_routed_mx_weights_fixture(n_experts, dequant_std, seed_base=0):
+    """Generate the packed FP4 device ABI used by the routed kernel."""
+    from expert_routed import (
+        gen_routed_mxfp4_weights,
+    )
+    return gen_routed_mxfp4_weights(n_experts, dequant_std, seed_base)
+
+
+@pl.jit.inline(auto_scope=False)
+def _moe_core(
+    x_normed: pl.Tensor[[LOCAL_T_DYN, D], pl.BF16],
+    gate_weight: pl.Tensor[[N_EXPERTS, D], pl.FP32],
+    correction_bias: pl.Tensor[[N_EXPERTS], pl.FP32],
+    # Device ABI: checkpoint [expert,out,in] FP4 weights stay packed in HBM and
+    # are expanded to the matmul FP8 staging layout through the on-device LUT.
+    routed_w1: pl.Tensor[[N_LOCAL_EXPERTS, MX_W1_PACKED_ROWS, MX_PACKED_LANE_COLS], pl.UINT8],
+    routed_w1_scale: pl.Tensor[[N_LOCAL_EXPERTS * (D // MX_GROUP), MOE_INTER], pl.FP8E8M0, pl.MX_B_NN],
+    routed_w2: pl.Tensor[[N_LOCAL_EXPERTS, MX_W2_PACKED_ROWS, MX_PACKED_LANE_COLS], pl.UINT8],
+    routed_w2_scale: pl.Tensor[[N_LOCAL_EXPERTS * (MOE_INTER // MX_GROUP), D], pl.FP8E8M0, pl.MX_B_NN],
+    routed_w3: pl.Tensor[[N_LOCAL_EXPERTS, MX_W3_PACKED_ROWS, MX_PACKED_LANE_COLS], pl.UINT8],
+    routed_w3_scale: pl.Tensor[[N_LOCAL_EXPERTS * (D // MX_GROUP), MOE_INTER], pl.FP8E8M0, pl.MX_B_NN],
+    mxfp4_pair_lut: pl.Tensor[[2, 256], pl.INT16],
+    shared_w1: pl.Tensor[[D, MOE_INTER], pl.FP8E4M3FN],
+    shared_w1_scale: pl.Tensor[[D // MX_GROUP, MOE_INTER], pl.FP8E8M0, pl.MX_B_NN],
+    shared_w2: pl.Tensor[[MOE_INTER, D], pl.FP8E4M3FN],
+    shared_w2_scale: pl.Tensor[[MOE_INTER // MX_GROUP, D], pl.FP8E8M0, pl.MX_B_NN],
+    shared_w3: pl.Tensor[[D, MOE_INTER], pl.FP8E4M3FN],
+    shared_w3_scale: pl.Tensor[[D // MX_GROUP, MOE_INTER], pl.FP8E8M0, pl.MX_B_NN],
+    recv_meta: pld.DistributedTensor[[EP_SIZE, N_LOCAL_EXPERTS], pl.INT32],
+    recv_x: pld.DistributedTensor[[N_LOCAL_EXPERTS * RECV_MAX, D], pl.INT8],
+    recv_scale: pld.DistributedTensor[[N_LOCAL_EXPERTS * RECV_MAX, D // MX_GROUP], pl.UINT8],
+    recv_weights: pld.DistributedTensor[[N_LOCAL_EXPERTS * RECV_MAX, AUX_WIDTH], pl.FP32],
+    recv_routes: pld.DistributedTensor[[N_LOCAL_EXPERTS * RECV_MAX, ROUTE_WIDTH], pl.INT32],
+    arrived: pld.DistributedTensor[[EP_SIZE, SIGNAL_PAD], pl.INT32],
+    data_arrived: pld.DistributedTensor[
+        [EP_SIZE, N_LOCAL_EXPERTS, SIGNAL_PAD], pl.INT32
+    ],
+    routed_output: pld.DistributedTensor[[ROUTE_T_DYN, D], pl.BF16],
+    combine_arrived: pld.DistributedTensor[
+        [EP_SIZE, N_LOCAL_EXPERTS, SIGNAL_PAD], pl.INT32
+    ],
+    output: pl.Tensor[[LOCAL_T_DYN, D], pl.BF16],
+    num_tokens: pl.Scalar[pl.INT32],
+    ep_rank: pl.Scalar[pl.INT32],
+    moe_epoch: pl.Scalar[pl.INT32],
+):
+    t = MOE_TOKENS
+    with pl.spmd(t, name_hint="moe_output_zero") as _output_zero_tid:
+        zero_t = pl.tile.get_block_idx()
+        zero_row = pl.tile.full([1, D], dtype=pl.BF16, value=0.0)
+        output = pl.store(zero_row, [zero_t, 0], output)
+
+    x_norm_mx = pl.create_tensor([t, D], dtype=pl.FP8E4M3FN)
+    x_norm_scale = pl.create_tensor(
+        [1, t * (D // MX_GROUP)], dtype=pl.FP8E8M0
+    )
+    indices = pl.create_tensor([t, TOPK], dtype=pl.INT32)
+    weights = pl.create_tensor([t, TOPK], dtype=pl.FP32)
+    npu_gate(x_normed, gate_weight, correction_bias, num_tokens,
+             x_norm_mx, x_norm_scale, indices, weights)
+
+    shared_output = pl.create_tensor([t, D], dtype=pl.BF16)
+    if SKIP_SHARED_TEST:
+        with pl.spmd(t, name_hint="shared_zero"):
+            shared_t = pl.tile.get_block_idx()
+            zero_row = pl.tile.full([1, D], dtype=pl.BF16, value=0.0)
+            shared_output = pl.store(zero_row, [shared_t, 0], shared_output)
+    else:
+        expert_shared(x_norm_mx, x_norm_scale, shared_w1, shared_w1_scale,
+                      shared_w3, shared_w3_scale, shared_w2, shared_w2_scale,
+                      shared_output)
+
+    if SKIP_TRANSPORT_TEST:
+        with pl.spmd(t, name_hint="moe_skip_transport_output", deps=[_output_zero_tid]) as output_ready:
+            out_t = pl.tile.get_block_idx()
+            if out_t < num_tokens:
+                out_row = pl.load(shared_output, [out_t, 0], [1, D])
+                output = pl.store(out_row, [out_t, 0], output)
+    else:
+        recv_x_local = pl.create_tensor([N_LOCAL_EXPERTS, RECV_MAX, D], dtype=pl.FP8E4M3FN)
+        # The transport side needs contiguous ND backing; expert_routed then creates its
+        # static MX_A_ZZ view over that same backing.
+        recv_scale_local_backing = pl.create_tensor(
+            [1, N_LOCAL_EXPERTS * RECV_MAX * (D // MX_GROUP)],
+            dtype=pl.FP8E8M0,
+        )
+        recv_weight_local = pl.create_tensor([N_LOCAL_EXPERTS, RECV_MAX], dtype=pl.FP32)
+        recv_route_local = pl.create_tensor([N_LOCAL_EXPERTS, RECV_MAX], dtype=pl.INT32)
+        recv_count_local = pl.create_tensor([N_LOCAL_EXPERTS, 1], dtype=pl.INT32)
+        recv_meta_local = pl.create_tensor([EP_SIZE, N_LOCAL_EXPERTS], dtype=pl.INT32)
+        input_ready = dispatch(
+            indices, x_norm_mx, x_norm_scale, weights,
+            recv_x_local, recv_scale_local_backing,
+            recv_weight_local, recv_route_local, recv_count_local, recv_meta_local,
+            recv_meta, recv_x, recv_scale, recv_weights, recv_routes,
+            arrived, data_arrived, num_tokens, ep_rank, moe_epoch,
+        )
+
+        scatter_done = expert_routed_scatter(
+            recv_x_local, recv_scale_local_backing,
+            recv_weight_local, recv_count_local,
+            routed_w1, routed_w1_scale, routed_w3, routed_w3_scale,
+            routed_w2, routed_w2_scale, mxfp4_pair_lut,
+            recv_route_local,
+            recv_meta_local,
+            routed_output,
+            input_ready,
+        )
+        output_ready = combine_scattered(
+            shared_output,
+            output,
+            routed_output,
+            combine_arrived,
+            _output_zero_tid,
+            scatter_done,
+            num_tokens,
+            ep_rank,
+            moe_epoch,
+        )
+    # All ranks finish reading this round before any rank reuses its windows.
+    with pl.at(level=pl.Level.CORE_GROUP, name_hint="moe_round_release", deps=[output_ready]) as released:
+        for peer in pl.range(EP_SIZE):
+            if peer != ep_rank:
+                pld.system.notify(
+                    target=combine_arrived, peer=peer, offsets=[ep_rank, 1, 0],
+                    value=1, op=pld.NotifyOp.AtomicAdd,
+                )
+    with pl.at(level=pl.Level.CORE_GROUP, name_hint="moe_round_released", deps=[released]) as round_ready:
+        for peer in pl.range(EP_SIZE):
+            if peer != ep_rank:
+                pld.system.defer_wait(
+                    signal=combine_arrived, offsets=[peer, 1, 0],
+                    expected=moe_epoch, cmp=pld.WaitCmp.Ge,
+                )
+    return round_ready
+
+
+@pl.jit.inline(auto_scope=False)
+def moe(
+    x_hc: pl.Tensor[[LOCAL_T_DYN, HC_MULT, D], pl.FP32],
+    pre_mix: pl.Tensor[[LOCAL_T_DYN, HC_MULT], pl.FP32],
+    hc_ffn_fn: pl.Tensor[[MIX_HC, HC_DIM], pl.FP32],
+    hc_ffn_scale: pl.Tensor[[3], pl.FP32],
+    hc_ffn_base: pl.Tensor[[MIX_HC], pl.FP32],
+    norm_weight: pl.Tensor[[D], pl.BF16],
+    gate_weight: pl.Tensor[[N_EXPERTS, D], pl.FP32],
+    correction_bias: pl.Tensor[[N_EXPERTS], pl.FP32],
+    routed_w1: pl.Tensor[[N_LOCAL_EXPERTS, MX_W1_PACKED_ROWS, MX_PACKED_LANE_COLS], pl.UINT8],
+    routed_w1_scale: pl.Tensor[
+        [N_LOCAL_EXPERTS * (D // MX_GROUP), MOE_INTER],
+        pl.FP8E8M0,
+        pl.MX_B_NN,
+    ],
+    routed_w2: pl.Tensor[[N_LOCAL_EXPERTS, MX_W2_PACKED_ROWS, MX_PACKED_LANE_COLS], pl.UINT8],
+    routed_w2_scale: pl.Tensor[
+        [N_LOCAL_EXPERTS * (MOE_INTER // MX_GROUP), D],
+        pl.FP8E8M0,
+        pl.MX_B_NN,
+    ],
+    routed_w3: pl.Tensor[[N_LOCAL_EXPERTS, MX_W3_PACKED_ROWS, MX_PACKED_LANE_COLS], pl.UINT8],
+    routed_w3_scale: pl.Tensor[
+        [N_LOCAL_EXPERTS * (D // MX_GROUP), MOE_INTER],
+        pl.FP8E8M0,
+        pl.MX_B_NN,
+    ],
+    mxfp4_pair_lut: pl.Tensor[[2, 256], pl.INT16],
+    shared_w1: pl.Tensor[[D, MOE_INTER], pl.FP8E4M3FN],
+    shared_w1_scale: pl.Tensor[
+        [D // MX_GROUP, MOE_INTER], pl.FP8E8M0, pl.MX_B_NN
+    ],
+    shared_w2: pl.Tensor[[MOE_INTER, D], pl.FP8E4M3FN],
+    shared_w2_scale: pl.Tensor[
+        [MOE_INTER // MX_GROUP, D], pl.FP8E8M0, pl.MX_B_NN
+    ],
+    shared_w3: pl.Tensor[[D, MOE_INTER], pl.FP8E4M3FN],
+    shared_w3_scale: pl.Tensor[
+        [D // MX_GROUP, MOE_INTER], pl.FP8E8M0, pl.MX_B_NN
+    ],
+    next_pre_mix: pl.Out[pl.Tensor[[LOCAL_T_DYN, HC_MULT], pl.FP32]],
+    x_mixed: pl.Out[pl.Tensor[[LOCAL_T_DYN, D], pl.BF16]],
+    x_next: pl.Out[pl.Tensor[[LOCAL_T_DYN, HC_MULT, D], pl.FP32]],
+    recv_meta: pld.DistributedTensor[[EP_SIZE, N_LOCAL_EXPERTS], pl.INT32],
+    recv_x: pld.DistributedTensor[[N_LOCAL_EXPERTS * RECV_MAX, D], pl.INT8],
+    recv_scale: pld.DistributedTensor[
+        [N_LOCAL_EXPERTS * RECV_MAX, D // MX_GROUP], pl.UINT8
+    ],
+    recv_weights: pld.DistributedTensor[
+        [N_LOCAL_EXPERTS * RECV_MAX, AUX_WIDTH], pl.FP32
+    ],
+    recv_routes: pld.DistributedTensor[
+        [N_LOCAL_EXPERTS * RECV_MAX, ROUTE_WIDTH], pl.INT32
+    ],
+    arrived: pld.DistributedTensor[[EP_SIZE, SIGNAL_PAD], pl.INT32],
+    data_arrived: pld.DistributedTensor[
+        [EP_SIZE, N_LOCAL_EXPERTS, SIGNAL_PAD], pl.INT32
+    ],
+    routed_output: pld.DistributedTensor[[ROUTE_T_DYN, D], pl.BF16],
+    combine_arrived: pld.DistributedTensor[
+        [EP_SIZE, N_LOCAL_EXPERTS, SIGNAL_PAD], pl.INT32
+    ],
+    num_tokens: pl.Scalar[pl.INT32],
+    ep_rank: pl.Scalar[pl.INT32],
+    moe_epoch: pl.Scalar[pl.INT32],
+) -> pl.Tensor[[LOCAL_T_DYN, HC_MULT, D], pl.FP32]:
+    """Run delayed mHC pre-mix, MoE, and residual expansion.
+
+    The input pre_mix is produced by the preceding mHC sublayer. This
+    sublayer's coefficient generation is returned as next_pre_mix for the
+    following sublayer.
+    """
+    t = MOE_TOKENS
+    post_mix = pl.create_tensor([t, HC_MULT], dtype=pl.FP32)
+    residual_mix = pl.create_tensor(
+        [t, HC_MULT, HC_MULT], dtype=pl.FP32
+    )
+    ffn_input = pl.create_tensor([t, D], dtype=pl.BF16)
+    mixes_ready = mhc_mixes(
+        x_hc, hc_ffn_fn, hc_ffn_scale, hc_ffn_base,
+        next_pre_mix, post_mix, residual_mix,
+    )
+    mhc_pre(x_hc, pre_mix, x_mixed)
+    norm_tokens = pl.tensor.dim(x_mixed, 0)
+    for norm_block in pl.spmd((norm_tokens + 7) // 8, name_hint="rms_norm"):
+        rms_norm_tiled(x_mixed, norm_weight, ffn_input, norm_block, norm_tokens)
+
+    # Keep the transport windows and routed result alive through combine.
+    with pl.scope():
+        # combine writes every local active row, and _moe_core zero-initialises
+        # the whole buffer as its first action, so padded rows reach mhc_post
+        # as the pure residual expansion.
+        #
+        # This must stay a pl.create_tensor(): pl.full() produces a fill value
+        # with no inferable tensor metadata, and the specializer resolves
+        # combine's `ffn_out` parameter through this definition.  Swapping in
+        # pl.full() fails to compile with
+        #   "missing inferred tensor metadata for parameter 'ffn_out' of 'combine'"
+        sublayer = pl.create_tensor([t, D], dtype=pl.BF16)
+        sublayer_ready = _moe_core(
+            ffn_input, gate_weight, correction_bias,
+            routed_w1, routed_w1_scale, routed_w2, routed_w2_scale,
+            routed_w3, routed_w3_scale, mxfp4_pair_lut, shared_w1, shared_w1_scale,
+            shared_w2, shared_w2_scale, shared_w3, shared_w3_scale,
+            recv_meta, recv_x, recv_scale, recv_weights,
+            recv_routes, arrived, data_arrived, routed_output,
+            combine_arrived, sublayer,
+            num_tokens, ep_rank, moe_epoch,
+        )
+        mhc_post_after(sublayer, x_hc, post_mix, residual_mix, x_next, sublayer_ready, mixes_ready)
+    return x_next
+
+
+@pl.jit
+def moe_test(
+    x_hc: pl.Tensor[[LOCAL_T_DYN, HC_MULT, D], pl.FP32],
+    pre_mix: pl.Tensor[[LOCAL_T_DYN, HC_MULT], pl.FP32],
+    hc_ffn_fn: pl.Tensor[[MIX_HC, HC_DIM], pl.FP32],
+    hc_ffn_scale: pl.Tensor[[3], pl.FP32],
+    hc_ffn_base: pl.Tensor[[MIX_HC], pl.FP32],
+    norm_weight: pl.Tensor[[D], pl.BF16],
+    gate_weight: pl.Tensor[[N_EXPERTS, D], pl.FP32],
+    correction_bias: pl.Tensor[[N_EXPERTS], pl.FP32],
+    routed_w1: pl.Tensor[[N_LOCAL_EXPERTS, MX_W1_PACKED_ROWS, MX_PACKED_LANE_COLS], pl.UINT8],
+    routed_w1_scale: pl.Tensor[
+        [N_LOCAL_EXPERTS * (D // MX_GROUP), MOE_INTER],
+        pl.FP8E8M0,
+        pl.MX_B_NN,
+    ],
+    routed_w2: pl.Tensor[[N_LOCAL_EXPERTS, MX_W2_PACKED_ROWS, MX_PACKED_LANE_COLS], pl.UINT8],
+    routed_w2_scale: pl.Tensor[
+        [N_LOCAL_EXPERTS * (MOE_INTER // MX_GROUP), D],
+        pl.FP8E8M0,
+        pl.MX_B_NN,
+    ],
+    routed_w3: pl.Tensor[[N_LOCAL_EXPERTS, MX_W3_PACKED_ROWS, MX_PACKED_LANE_COLS], pl.UINT8],
+    routed_w3_scale: pl.Tensor[
+        [N_LOCAL_EXPERTS * (D // MX_GROUP), MOE_INTER],
+        pl.FP8E8M0,
+        pl.MX_B_NN,
+    ],
+    mxfp4_pair_lut: pl.Tensor[[2, 256], pl.INT16],
+    shared_w1: pl.Tensor[[D, MOE_INTER], pl.FP8E4M3FN],
+    shared_w1_scale: pl.Tensor[
+        [D // MX_GROUP, MOE_INTER], pl.FP8E8M0, pl.MX_B_NN
+    ],
+    shared_w2: pl.Tensor[[MOE_INTER, D], pl.FP8E4M3FN],
+    shared_w2_scale: pl.Tensor[
+        [MOE_INTER // MX_GROUP, D], pl.FP8E8M0, pl.MX_B_NN
+    ],
+    shared_w3: pl.Tensor[[D, MOE_INTER], pl.FP8E4M3FN],
+    shared_w3_scale: pl.Tensor[
+        [D // MX_GROUP, MOE_INTER], pl.FP8E8M0, pl.MX_B_NN
+    ],
+    next_pre_mix: pl.Out[pl.Tensor[[LOCAL_T_DYN, HC_MULT], pl.FP32]],
+    x_mixed: pl.Out[pl.Tensor[[LOCAL_T_DYN, D], pl.BF16]],
+    x_next: pl.Out[pl.Tensor[[LOCAL_T_DYN, HC_MULT, D], pl.FP32]],
+    recv_meta: pld.DistributedTensor[[EP_SIZE, N_LOCAL_EXPERTS], pl.INT32],
+    recv_x: pld.DistributedTensor[[N_LOCAL_EXPERTS * RECV_MAX, D], pl.INT8],
+    recv_scale: pld.DistributedTensor[
+        [N_LOCAL_EXPERTS * RECV_MAX, D // MX_GROUP], pl.UINT8
+    ],
+    recv_weights: pld.DistributedTensor[
+        [N_LOCAL_EXPERTS * RECV_MAX, AUX_WIDTH], pl.FP32
+    ],
+    recv_routes: pld.DistributedTensor[
+        [N_LOCAL_EXPERTS * RECV_MAX, ROUTE_WIDTH], pl.INT32
+    ],
+    arrived: pld.DistributedTensor[[EP_SIZE, SIGNAL_PAD], pl.INT32],
+    data_arrived: pld.DistributedTensor[
+        [EP_SIZE, N_LOCAL_EXPERTS, SIGNAL_PAD], pl.INT32
+    ],
+    routed_output: pld.DistributedTensor[[ROUTE_T_DYN, D], pl.BF16],
+    combine_arrived: pld.DistributedTensor[
+        [EP_SIZE, N_LOCAL_EXPERTS, SIGNAL_PAD], pl.INT32
+    ],
+    num_tokens: pl.Tensor[[EP_SIZE], pl.INT32],
+    ep_rank: pl.Scalar[pl.INT32],
+    moe_epoch: pl.Scalar[pl.INT32],
+) -> pl.Tensor[[LOCAL_T_DYN, HC_MULT, D], pl.FP32]:
+    x_hc.bind_dynamic(0, LOCAL_T_DYN)
+    pre_mix.bind_dynamic(0, LOCAL_T_DYN)
+    next_pre_mix.bind_dynamic(0, LOCAL_T_DYN)
+    x_mixed.bind_dynamic(0, LOCAL_T_DYN)
+    x_next.bind_dynamic(0, LOCAL_T_DYN)
+    local_num_tokens = pl.read(num_tokens, [ep_rank])
+    return moe(
+        x_hc, pre_mix, hc_ffn_fn, hc_ffn_scale, hc_ffn_base,
+        norm_weight, gate_weight, correction_bias,
+        routed_w1, routed_w1_scale, routed_w2, routed_w2_scale,
+        routed_w3, routed_w3_scale, mxfp4_pair_lut, shared_w1, shared_w1_scale,
+        shared_w2, shared_w2_scale, shared_w3, shared_w3_scale,
+        next_pre_mix, x_mixed, x_next,
+        recv_meta, recv_x, recv_scale, recv_weights, recv_routes,
+        arrived, data_arrived, routed_output, combine_arrived,
+        local_num_tokens, ep_rank, moe_epoch,
+    )
+
+
+@pl.jit.host
+def l3_moe(
+    x_hc: pl.Tensor[[EP_SIZE, MOE_TOKENS, HC_MULT, D], pl.FP32],
+    pre_mix: pl.Tensor[[EP_SIZE, MOE_TOKENS, HC_MULT], pl.FP32],
+    hc_ffn_fn: pl.Tensor[[EP_SIZE, MIX_HC, HC_DIM], pl.FP32],
+    hc_ffn_scale: pl.Tensor[[EP_SIZE, 3], pl.FP32],
+    hc_ffn_base: pl.Tensor[[EP_SIZE, MIX_HC], pl.FP32],
+    norm_weight: pl.Tensor[[EP_SIZE, D], pl.BF16],
+    gate_weight: pl.Tensor[[EP_SIZE, N_EXPERTS, D], pl.FP32],
+    correction_bias: pl.Tensor[[EP_SIZE, N_EXPERTS], pl.FP32],
+    routed_w1: pl.Tensor[
+        [EP_SIZE, N_LOCAL_EXPERTS, MX_W1_PACKED_ROWS, MX_PACKED_LANE_COLS],
+        pl.UINT8,
+    ],
+    routed_w1_scale: pl.Tensor[
+        [EP_SIZE, N_LOCAL_EXPERTS * (D // MX_GROUP), MOE_INTER],
+        pl.FP8E8M0,
+    ],
+    routed_w2: pl.Tensor[
+        [EP_SIZE, N_LOCAL_EXPERTS, MX_W2_PACKED_ROWS, MX_PACKED_LANE_COLS],
+        pl.UINT8,
+    ],
+    routed_w2_scale: pl.Tensor[
+        [EP_SIZE, N_LOCAL_EXPERTS * (MOE_INTER // MX_GROUP), D],
+        pl.FP8E8M0,
+    ],
+    routed_w3: pl.Tensor[
+        [EP_SIZE, N_LOCAL_EXPERTS, MX_W3_PACKED_ROWS, MX_PACKED_LANE_COLS],
+        pl.UINT8,
+    ],
+    routed_w3_scale: pl.Tensor[
+        [EP_SIZE, N_LOCAL_EXPERTS * (D // MX_GROUP), MOE_INTER],
+        pl.FP8E8M0,
+    ],
+    mxfp4_pair_lut: pl.Tensor[[EP_SIZE, 2, 256], pl.INT16],
+    shared_w1: pl.Tensor[[EP_SIZE, D, MOE_INTER], pl.FP8E4M3FN],
+    shared_w1_scale: pl.Tensor[
+        [EP_SIZE, D // MX_GROUP, MOE_INTER], pl.FP8E8M0
+    ],
+    shared_w2: pl.Tensor[[EP_SIZE, MOE_INTER, D], pl.FP8E4M3FN],
+    shared_w2_scale: pl.Tensor[
+        [EP_SIZE, MOE_INTER // MX_GROUP, D], pl.FP8E8M0
+    ],
+    shared_w3: pl.Tensor[[EP_SIZE, D, MOE_INTER], pl.FP8E4M3FN],
+    shared_w3_scale: pl.Tensor[
+        [EP_SIZE, D // MX_GROUP, MOE_INTER], pl.FP8E8M0
+    ],
+    next_pre_mix: pl.Out[
+        pl.Tensor[[EP_SIZE, MOE_TOKENS, HC_MULT], pl.FP32]
+    ],
+    x_mixed: pl.Out[
+        pl.Tensor[[EP_SIZE, MOE_TOKENS, D], pl.BF16]
+    ],
+    x_next: pl.Out[
+        pl.Tensor[[EP_SIZE, MOE_TOKENS, HC_MULT, D], pl.FP32]
+    ],
+    num_tokens: pl.Tensor[[EP_SIZE], pl.INT32],
+    moe_epoch: pl.Scalar[pl.INT32],
+):
+    """EP host driver for the mHC-wrapped Flash MoE block."""
+    recv_meta_buf = pld.alloc_window_buffer(
+        [EP_SIZE, N_LOCAL_EXPERTS], dtype=pl.INT32
+    )
+    recv_x_buf = pld.alloc_window_buffer(
+        [N_LOCAL_EXPERTS * RECV_MAX, D], dtype=pl.INT8
+    )
+    recv_scale_buf = pld.alloc_window_buffer(
+        [N_LOCAL_EXPERTS * RECV_MAX, D // MX_GROUP], dtype=pl.UINT8
+    )
+    recv_weights_buf = pld.alloc_window_buffer(
+        [N_LOCAL_EXPERTS * RECV_MAX, AUX_WIDTH], dtype=pl.FP32
+    )
+    recv_routes_buf = pld.alloc_window_buffer(
+        [N_LOCAL_EXPERTS * RECV_MAX, ROUTE_WIDTH], dtype=pl.INT32
+    )
+    arrived_buf = pld.alloc_window_buffer(
+        [EP_SIZE, SIGNAL_PAD], dtype=pl.INT32
+    )
+    data_arrived_buf = pld.alloc_window_buffer(
+        [EP_SIZE, N_LOCAL_EXPERTS, SIGNAL_PAD], dtype=pl.INT32
+    )
+    routed_output_buf = pld.alloc_window_buffer(
+        [MOE_TOKENS * TOPK, D], dtype=pl.BF16
+    )
+    combine_arrived_buf = pld.alloc_window_buffer(
+        [EP_SIZE, N_LOCAL_EXPERTS, SIGNAL_PAD], dtype=pl.INT32
+    )
+
+    for r in pl.range(pld.world_size()):
+        recv_meta = pld.window(
+            recv_meta_buf, [EP_SIZE, N_LOCAL_EXPERTS], dtype=pl.INT32
+        )
+        recv_x = pld.window(
+            recv_x_buf, [N_LOCAL_EXPERTS * RECV_MAX, D], dtype=pl.INT8
+        )
+        recv_scale = pld.window(
+            recv_scale_buf,
+            [N_LOCAL_EXPERTS * RECV_MAX, D // MX_GROUP],
+            dtype=pl.UINT8,
+        )
+        recv_weights = pld.window(
+            recv_weights_buf,
+            [N_LOCAL_EXPERTS * RECV_MAX, AUX_WIDTH],
+            dtype=pl.FP32,
+        )
+        recv_routes = pld.window(
+            recv_routes_buf,
+            [N_LOCAL_EXPERTS * RECV_MAX, ROUTE_WIDTH],
+            dtype=pl.INT32,
+        )
+        arrived = pld.window(
+            arrived_buf, [EP_SIZE, SIGNAL_PAD], dtype=pl.INT32
+        )
+        data_arrived = pld.window(
+            data_arrived_buf,
+            [EP_SIZE, N_LOCAL_EXPERTS, SIGNAL_PAD],
+            dtype=pl.INT32,
+        )
+        routed_output = pld.window(
+            routed_output_buf, [MOE_TOKENS * TOPK, D], dtype=pl.BF16
+        )
+        combine_arrived = pld.window(
+            combine_arrived_buf,
+            [EP_SIZE, N_LOCAL_EXPERTS, SIGNAL_PAD],
+            dtype=pl.INT32,
+        )
+        # The rank takes these scales as MX_B_NN; a bare slice is ND, so annotate it.
+        routed_w1_scale_r: pl.Tensor[
+            [N_LOCAL_EXPERTS * (D // MX_GROUP), MOE_INTER], pl.FP8E8M0, pl.MX_B_NN
+        ] = routed_w1_scale[r]
+        routed_w2_scale_r: pl.Tensor[
+            [N_LOCAL_EXPERTS * (MOE_INTER // MX_GROUP), D], pl.FP8E8M0, pl.MX_B_NN
+        ] = routed_w2_scale[r]
+        routed_w3_scale_r: pl.Tensor[
+            [N_LOCAL_EXPERTS * (D // MX_GROUP), MOE_INTER], pl.FP8E8M0, pl.MX_B_NN
+        ] = routed_w3_scale[r]
+        shared_w1_scale_r: pl.Tensor[[D // MX_GROUP, MOE_INTER], pl.FP8E8M0, pl.MX_B_NN] = shared_w1_scale[r]
+        shared_w2_scale_r: pl.Tensor[[MOE_INTER // MX_GROUP, D], pl.FP8E8M0, pl.MX_B_NN] = shared_w2_scale[r]
+        shared_w3_scale_r: pl.Tensor[[D // MX_GROUP, MOE_INTER], pl.FP8E8M0, pl.MX_B_NN] = shared_w3_scale[r]
+        moe_test(
+            x_hc[r], pre_mix[r], hc_ffn_fn[r], hc_ffn_scale[r], hc_ffn_base[r],
+            norm_weight[r], gate_weight[r], correction_bias[r],
+            routed_w1[r], routed_w1_scale_r, routed_w2[r], routed_w2_scale_r,
+            routed_w3[r], routed_w3_scale_r, mxfp4_pair_lut[r], shared_w1[r], shared_w1_scale_r,
+            shared_w2[r], shared_w2_scale_r, shared_w3[r], shared_w3_scale_r,
+            next_pre_mix[r], x_mixed[r], x_next[r],
+            recv_meta, recv_x, recv_scale, recv_weights, recv_routes,
+            arrived, data_arrived, routed_output, combine_arrived,
+            num_tokens, r, moe_epoch, device=r,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Full mHC+MoE validation harness
+# ---------------------------------------------------------------------------
+
+
+def _fp8_dtype():
+    return torch.float8_e4m3fn
+
+
+def _e8m0_dtype():
+    return getattr(torch, "float8_e8m0fnu", torch.uint8)
+
+
+def _normalise_num_tokens(value):
+    """Return validated local-token counts for every EP source rank.
+
+    The public L3 ABI carries one count per EP rank.  Accepting a scalar here
+    keeps the command-line fixture backward compatible by broadcasting it to
+    every rank, while the tensor ABI still represents ragged and empty shards.
+    """
+    counts = torch.as_tensor(value, dtype=torch.int32).reshape(-1)
+    if counts.numel() == 1:
+        counts = counts.repeat(EP_SIZE)
+    if counts.numel() != EP_SIZE:
+        raise ValueError(
+            f"num_tokens must be a scalar or contain {EP_SIZE} counts, "
+            f"got shape {tuple(counts.shape)}"
+        )
+    if bool((counts < 0).any()) or bool((counts > MOE_TOKENS).any()):
+        raise ValueError(
+            f"num_tokens values must be in [0, {MOE_TOKENS}], "
+            f"got {counts.tolist()}"
+        )
+    return counts.contiguous()
+
+
+def _route_bias() -> torch.Tensor:
+    # The selected ids are spread across the global expert id space so dispatch
+    # and combine exercise cross-rank traffic.  The bias offset dominates the
+    # O(1) score, which keeps top-k off the boundary where an FP32
+    # reduction-order difference could swap an expert and change the output.
+    selected = (torch.arange(TOPK, dtype=torch.int64) * max(1, N_EXPERTS // TOPK))
+    selected = torch.remainder(selected, N_EXPERTS)
+    bias = torch.full((N_EXPERTS,), -1.0, dtype=torch.float32)
+    bias[selected] = 4.0
+    return bias
+
+
+def _build_moe_tensor_specs(num_tokens: int = MOE_TOKENS):
+    import torch
+
+    from golden.spec import ScalarSpec, TensorSpec
+    from expert_routed import (
+        ROUTED_DEQUANT_STD,
+    )
+    from quant import (
+        build_mxfp4_pair_lut,
+        gen_mxfp8_weight_kn_v41,
+    )
+
+    counts = _normalise_num_tokens(num_tokens)
+    torch.manual_seed(41)
+
+    x = (torch.randn(EP_SIZE, MOE_TOKENS, D) * 0.25).to(torch.bfloat16)
+    norm_weight = torch.ones(EP_SIZE, D, dtype=torch.bfloat16)
+    gate_weight = (torch.randn(N_EXPERTS, D) / D ** 0.5)
+    gate_weight = gate_weight.unsqueeze(0).expand(EP_SIZE, -1, -1).contiguous()
+    correction_bias = _route_bias().unsqueeze(0).expand(EP_SIZE, -1).contiguous()
+
+    routed_w1_shape = (EP_SIZE, N_LOCAL_EXPERTS, MX_W1_PACKED_ROWS, MX_PACKED_LANE_COLS)
+    routed_w1_scale_shape = (EP_SIZE, N_LOCAL_EXPERTS * (D // MX_GROUP), MOE_INTER)
+    routed_w2_shape = (EP_SIZE, N_LOCAL_EXPERTS, MX_W2_PACKED_ROWS, MX_PACKED_LANE_COLS)
+    routed_w2_scale_shape = (EP_SIZE, N_LOCAL_EXPERTS * (MOE_INTER // MX_GROUP), D)
+    routed_w3_shape = routed_w1_shape
+    routed_w3_scale_shape = routed_w1_scale_shape
+
+    # Real routed shards at deployment magnitudes: checkpoint MXFP4
+    # [expert, out, in] weights follow the packed device ABI, and every rank
+    # draws its own seed.
+    routed_w1_list, routed_w1_scale_list = [], []
+    routed_w3_list, routed_w3_scale_list = [], []
+    routed_w2_list, routed_w2_scale_list = [], []
+    for rank in range(EP_SIZE):
+        rw1, rw1_s, rw3, rw3_s, rw2, rw2_s = _gen_routed_mx_weights_fixture(
+            N_LOCAL_EXPERTS, ROUTED_DEQUANT_STD, seed_base=rank * N_LOCAL_EXPERTS * 3
+        )
+        routed_w1_list.append(rw1)
+        routed_w1_scale_list.append(rw1_s)
+        routed_w3_list.append(rw3)
+        routed_w3_scale_list.append(rw3_s)
+        routed_w2_list.append(rw2)
+        routed_w2_scale_list.append(rw2_s)
+    routed_w1 = torch.stack(routed_w1_list)
+    mxfp4_pair_lut = build_mxfp4_pair_lut().unsqueeze(0).expand(EP_SIZE, -1, -1).contiguous()
+    routed_w1_scale = torch.stack(routed_w1_scale_list)
+    routed_w3 = torch.stack(routed_w3_list)
+    routed_w3_scale = torch.stack(routed_w3_scale_list)
+    routed_w2 = torch.stack(routed_w2_list)
+    routed_w2_scale = torch.stack(routed_w2_scale_list)
+
+    shared_std = {"w1": 1.71e-2, "w2": 1.68e-2, "w3": 1.70e-2}
+    sw1, sw1_s = gen_mxfp8_weight_kn_v41(MOE_INTER, D, shared_std["w1"], chan_cv=0.50, seed=101)
+    sw3, sw3_s = gen_mxfp8_weight_kn_v41(MOE_INTER, D, shared_std["w3"], chan_cv=0.50, seed=102)
+    sw2, sw2_s = gen_mxfp8_weight_kn_v41(D, MOE_INTER, shared_std["w2"], chan_cv=0.33, seed=103)
+    shared_w1 = sw1.unsqueeze(0).expand(EP_SIZE, -1, -1).contiguous()
+    shared_w1_scale = sw1_s.unsqueeze(0).expand(EP_SIZE, -1, -1).contiguous()
+    shared_w3 = sw3.unsqueeze(0).expand(EP_SIZE, -1, -1).contiguous()
+    shared_w3_scale = sw3_s.unsqueeze(0).expand(EP_SIZE, -1, -1).contiguous()
+    shared_w2 = sw2.unsqueeze(0).expand(EP_SIZE, -1, -1).contiguous()
+    shared_w2_scale = sw2_s.unsqueeze(0).expand(EP_SIZE, -1, -1).contiguous()
+
+    fp8 = _fp8_dtype()
+    e8m0 = _e8m0_dtype()
+    specs = [
+        TensorSpec("x", [EP_SIZE, MOE_TOKENS, D], torch.bfloat16, init_value=lambda: x),
+        TensorSpec("norm_weight", [EP_SIZE, D], torch.bfloat16, init_value=lambda: norm_weight),
+        TensorSpec("gate_weight", [EP_SIZE, N_EXPERTS, D], torch.float32, init_value=lambda: gate_weight),
+        TensorSpec("correction_bias", [EP_SIZE, N_EXPERTS], torch.float32, init_value=lambda: correction_bias),
+        TensorSpec("routed_w1", list(routed_w1_shape), torch.uint8, init_value=lambda: routed_w1),
+        TensorSpec("routed_w1_scale", list(routed_w1_scale_shape), e8m0, init_value=lambda: routed_w1_scale),
+        TensorSpec("routed_w2", list(routed_w2_shape), torch.uint8, init_value=lambda: routed_w2),
+        TensorSpec("routed_w2_scale", list(routed_w2_scale_shape), e8m0, init_value=lambda: routed_w2_scale),
+        TensorSpec("routed_w3", list(routed_w3_shape), torch.uint8, init_value=lambda: routed_w3),
+        TensorSpec("routed_w3_scale", list(routed_w3_scale_shape), e8m0, init_value=lambda: routed_w3_scale),
+        TensorSpec(
+            "mxfp4_pair_lut", [EP_SIZE, 2, 256], torch.int16,
+            init_value=lambda: mxfp4_pair_lut,
+        ),
+        TensorSpec("shared_w1", [EP_SIZE, D, MOE_INTER], fp8, init_value=lambda: shared_w1),
+        TensorSpec("shared_w1_scale", [EP_SIZE, D // MX_GROUP, MOE_INTER], e8m0, init_value=lambda: shared_w1_scale),
+        TensorSpec("shared_w2", [EP_SIZE, MOE_INTER, D], fp8, init_value=lambda: shared_w2),
+        TensorSpec("shared_w2_scale", [EP_SIZE, MOE_INTER // MX_GROUP, D], e8m0, init_value=lambda: shared_w2_scale),
+        TensorSpec("shared_w3", [EP_SIZE, D, MOE_INTER], fp8, init_value=lambda: shared_w3),
+        TensorSpec("shared_w3_scale", [EP_SIZE, D // MX_GROUP, MOE_INTER], e8m0, init_value=lambda: shared_w3_scale),
+        TensorSpec("output", [EP_SIZE, MOE_TOKENS, D], torch.bfloat16),
+        TensorSpec("num_tokens", [EP_SIZE], torch.int32,
+                   init_value=lambda: counts),
+        ScalarSpec("moe_epoch", torch.int32, 1, compile_runtime=True, benchmark_step=1),
+    ]
+
+    for spec in specs:
+        if spec.name not in {"x", "output", "num_tokens", "moe_epoch"}:
+            spec.resident = "stacked"
+    return specs
+
+
+def build_tensor_specs(num_tokens: int = MOE_TOKENS):
+    """Build the default mHC+MoE integration fixture."""
+    import torch
+    from golden.spec import TensorSpec
+
+    base_specs = _build_moe_tensor_specs(num_tokens)
+    common_specs = [
+        spec for spec in base_specs
+        if spec.name not in {"x", "output", "num_tokens", "moe_epoch"}
+    ]
+    runtime_specs = [
+        spec for spec in base_specs
+        if spec.name in {"num_tokens", "moe_epoch"}
+    ]
+
+    generator = torch.Generator().manual_seed(3)
+    magnitudes = (0.5 + torch.arange(MOE_TOKENS) % 4).reshape(1, -1, 1, 1)
+    # The coefficient RMS path must observe distinct token scales. The residual
+    # stream stores BF16 model values in FP32 so mHC post performs one rounding.
+    x_hc = (torch.randn(
+        EP_SIZE, MOE_TOKENS, HC_MULT, D, generator=generator
+    ) * magnitudes).bfloat16().float()
+    pre_mix = torch.sigmoid(torch.randn(
+        EP_SIZE, MOE_TOKENS, HC_MULT, generator=generator
+    )) + M.hc_eps
+    hc_ffn_fn = torch.randn(
+        MIX_HC, HC_DIM, generator=generator
+    ) / math.sqrt(HC_DIM)
+    hc_ffn_scale = torch.randn(3, generator=generator)
+    hc_ffn_base = torch.randn(MIX_HC, generator=generator)
+    hc_ffn_fn = hc_ffn_fn.unsqueeze(0).expand(
+        EP_SIZE, -1, -1
+    ).contiguous()
+    hc_ffn_scale = hc_ffn_scale.unsqueeze(0).expand(
+        EP_SIZE, -1
+    ).contiguous()
+    hc_ffn_base = hc_ffn_base.unsqueeze(0).expand(
+        EP_SIZE, -1
+    ).contiguous()
+
+    mhc_specs = [
+        TensorSpec(
+            "x_hc", [EP_SIZE, MOE_TOKENS, HC_MULT, D],
+            torch.float32, init_value=lambda: x_hc,
+        ),
+        TensorSpec(
+            "pre_mix", [EP_SIZE, MOE_TOKENS, HC_MULT],
+            torch.float32, init_value=lambda: pre_mix,
+        ),
+        TensorSpec(
+            "hc_ffn_fn", [EP_SIZE, MIX_HC, HC_DIM],
+            torch.float32, init_value=lambda: hc_ffn_fn,
+        ),
+        TensorSpec(
+            "hc_ffn_scale", [EP_SIZE, 3],
+            torch.float32, init_value=lambda: hc_ffn_scale,
+        ),
+        TensorSpec(
+            "hc_ffn_base", [EP_SIZE, MIX_HC],
+            torch.float32, init_value=lambda: hc_ffn_base,
+        ),
+    ]
+    next_pre_mix_spec = TensorSpec(
+        "next_pre_mix", [EP_SIZE, MOE_TOKENS, HC_MULT], torch.float32
+    )
+    x_mixed_spec = TensorSpec(
+        "x_mixed", [EP_SIZE, MOE_TOKENS, D], torch.bfloat16
+    )
+    x_next_spec = TensorSpec(
+        "x_next", [EP_SIZE, MOE_TOKENS, HC_MULT, D], torch.float32
+    )
+    # Match l3_moe's ABI: mHC inputs, MoE weights/route inputs, outputs,
+    # then runtime scalars.
+    output_specs = [next_pre_mix_spec, x_mixed_spec, x_next_spec]
+    specs = mhc_specs + common_specs + output_specs + runtime_specs
+    for spec in specs:
+        if spec.name in {
+            "hc_ffn_fn", "hc_ffn_scale", "hc_ffn_base",
+        }:
+            spec.resident = "stacked"
+    return specs
+
+
+def _golden_moe_core(tensors):
+    import torch
+
+    from gate import golden_gate_normalized_core
+    from expert_shared import golden_expert_shared
+    from expert_routed import golden_expert_routed
+    from quant import pack_mx_a_scale, unpack_mx_a_scale
+
+    counts = _normalise_num_tokens(tensors.get("num_tokens", MOE_TOKENS))
+    fp8 = _fp8_dtype()
+    e8m0 = _e8m0_dtype()
+
+    all_indices = []
+    all_weights = []
+    all_x_mx = []
+    all_scale_packed = []
+    all_scale_logical = []
+    all_shared = []
+
+    dummy_tid2eid = torch.zeros(M.vocab_size, TOPK, dtype=torch.int32)
+    dummy_input_ids = torch.zeros(MOE_TOKENS, dtype=torch.int64)
+
+    for src in range(EP_SIZE):
+        active = int(counts[src])
+        x_norm_mx = torch.zeros(MOE_TOKENS, D, dtype=torch.uint8).view(fp8)
+        x_norm_scale = torch.zeros(1, MOE_TOKENS * (D // MX_GROUP), dtype=torch.uint8).view(e8m0)
+        indices = torch.zeros(MOE_TOKENS, TOPK, dtype=torch.int32)
+        weights = torch.zeros(MOE_TOKENS, TOPK, dtype=torch.float32)
+        golden_gate_normalized_core({
+            "x_normed": golden_rms_norm_tiled(
+                tensors["x"][src], tensors["norm_weight"][src]
+            ),
+            "gate_w": tensors["gate_weight"][src],
+            "gate_bias": tensors["correction_bias"][src],
+            "layer_id": 0,
+            "num_tokens": active,
+            "tid2eid": dummy_tid2eid,
+            "input_ids": dummy_input_ids,
+            "x_norm_mx": x_norm_mx,
+            "x_norm_scale": x_norm_scale,
+            "indices": indices,
+            "weights": weights,
+        })
+        shared = torch.zeros(MOE_TOKENS, D, dtype=torch.bfloat16)
+        if not SKIP_SHARED_TEST:
+            golden_expert_shared({
+                "x_local": x_norm_mx,
+                "x_local_scale": x_norm_scale,
+                "shared_w1": tensors["shared_w1"][src],
+                "shared_w1_scale": tensors["shared_w1_scale"][src],
+                "shared_w3": tensors["shared_w3"][src],
+                "shared_w3_scale": tensors["shared_w3_scale"][src],
+                "shared_w2": tensors["shared_w2"][src],
+                "shared_w2_scale": tensors["shared_w2_scale"][src],
+                "sh": shared,
+            })
+        all_indices.append(indices)
+        all_weights.append(weights)
+        all_x_mx.append(x_norm_mx)
+        scale_bytes = x_norm_scale.view(torch.uint8).reshape(MOE_TOKENS, D // MX_GROUP)
+        all_scale_logical.append(unpack_mx_a_scale(scale_bytes))
+        all_scale_packed.append(x_norm_scale)
+        all_shared.append(shared)
+
+    if SKIP_TRANSPORT_TEST:
+        output = torch.zeros(EP_SIZE, MOE_TOKENS, D, dtype=torch.bfloat16)
+        for src in range(EP_SIZE):
+            for t in range(int(counts[src])):
+                output[src, t] = all_shared[src][t]
+        tensors["output"][:] = output
+        return
+
+    send_counts = torch.zeros(EP_SIZE, EP_SIZE, N_LOCAL_EXPERTS, dtype=torch.int32)
+    for src in range(EP_SIZE):
+        for t in range(int(counts[src])):
+            for k in range(TOPK):
+                eid = int(all_indices[src][t, k].item())
+                dst, local_e = divmod(eid, N_LOCAL_EXPERTS)
+                send_counts[src, dst, local_e] += 1
+
+    dst_recv_y = []
+    for dst in range(EP_SIZE):
+        recv_x = torch.zeros(N_LOCAL_EXPERTS, RECV_MAX, D, dtype=torch.uint8).view(fp8)
+        recv_scale_logical = torch.zeros(N_LOCAL_EXPERTS * RECV_MAX, D // MX_GROUP, dtype=torch.uint8)
+        recv_weights = torch.zeros(N_LOCAL_EXPERTS, RECV_MAX, dtype=torch.float32)
+        recv_count = torch.zeros(N_LOCAL_EXPERTS, 1, dtype=torch.int32)
+        slot_offsets = torch.zeros(EP_SIZE, N_LOCAL_EXPERTS, dtype=torch.int32)
+        running = torch.zeros(N_LOCAL_EXPERTS, dtype=torch.int32)
+        for src in range(EP_SIZE):
+            slot_offsets[src] = running.clone()
+            running = running + send_counts[src, dst]
+        recv_count[:, 0] = running
+
+        for src in range(EP_SIZE):
+            cursors = torch.zeros(N_LOCAL_EXPERTS, dtype=torch.int32)
+            for t in range(int(counts[src])):
+                for k in range(TOPK):
+                    eid = int(all_indices[src][t, k].item())
+                    route_dst, local_e = divmod(eid, N_LOCAL_EXPERTS)
+                    if route_dst != dst:
+                        continue
+                    slot = int(slot_offsets[src, local_e].item() + cursors[local_e].item())
+                    cursors[local_e] += 1
+                    recv_x[local_e, slot] = all_x_mx[src][t]
+                    recv_scale_logical[local_e * RECV_MAX + slot] = all_scale_logical[src][t]
+                    recv_weights[local_e, slot] = all_weights[src][t, k]
+
+        recv_y = torch.zeros(N_LOCAL_EXPERTS, RECV_MAX, D, dtype=torch.bfloat16)
+        golden_expert_routed({
+            "recv_x": recv_x,
+            "recv_mx_scale": pack_mx_a_scale(recv_scale_logical).view(e8m0),
+            "recv_weights": recv_weights,
+            "recv_expert_count": recv_count,
+            "routed_w1_packed": tensors["routed_w1"][dst],
+            "routed_w1_scale": tensors["routed_w1_scale"][dst],
+            "routed_w3_packed": tensors["routed_w3"][dst],
+            "routed_w3_scale": tensors["routed_w3_scale"][dst],
+            "routed_w2_packed": tensors["routed_w2"][dst],
+            "routed_w2_scale": tensors["routed_w2_scale"][dst],
+            "mxfp4_pair_lut": tensors["mxfp4_pair_lut"][dst],
+            "recv_y": recv_y,
+        })
+        dst_recv_y.append(recv_y)
+
+    output = torch.zeros(EP_SIZE, MOE_TOKENS, D, dtype=torch.bfloat16)
+    for src in range(EP_SIZE):
+        routed = torch.zeros(MOE_TOKENS * TOPK, D, dtype=torch.bfloat16)
+        cursors = {}
+        for t in range(int(counts[src])):
+            for k in range(TOPK):
+                eid = int(all_indices[src][t, k].item())
+                dst, local_e = divmod(eid, N_LOCAL_EXPERTS)
+                src_off = int(send_counts[:src, dst, local_e].sum().item())
+                cursor = cursors.get((dst, local_e), 0)
+                cursors[(dst, local_e)] = cursor + 1
+                routed[t * TOPK + k] = dst_recv_y[dst][local_e, src_off + cursor]
+        for t in range(int(counts[src])):
+            acc = all_shared[src][t].float()
+            for k in range(TOPK):
+                acc = acc + routed[t * TOPK + k].float()
+            output[src, t] = acc.to(torch.bfloat16)
+
+    tensors["output"][:] = output
+
+
+def golden_moe(tensors):
+    """Compose the validated mHC references around the MoE reference."""
+    import torch
+
+    x_hc = tensors["x_hc"]
+    next_pre_mix = torch.zeros(
+        EP_SIZE, MOE_TOKENS, HC_MULT, dtype=torch.float32
+    )
+    post_mix = torch.zeros_like(next_pre_mix)
+    residual_mix = torch.zeros(
+        EP_SIZE, MOE_TOKENS, HC_MULT, HC_MULT, dtype=torch.float32
+    )
+    x_mixed = torch.zeros(
+        EP_SIZE, MOE_TOKENS, D, dtype=torch.bfloat16
+    )
+    for rank in range(EP_SIZE):
+        pre, post, residual = golden_mhc_mixes(
+            x_hc[rank],
+            tensors["hc_ffn_fn"][rank],
+            tensors["hc_ffn_scale"][rank],
+            tensors["hc_ffn_base"][rank],
+        )
+        next_pre_mix[rank] = pre
+        post_mix[rank] = post
+        residual_mix[rank] = residual
+        x_mixed[rank] = golden_mhc_pre(
+            x_hc[rank], tensors["pre_mix"][rank]
+        )
+
+    tensors["next_pre_mix"][:] = next_pre_mix
+    tensors["x_mixed"][:] = x_mixed
+
+    # Reuse the MoE reference exactly; only its input/output tensors change.
+    # This keeps the composition test from growing a second transport
+    # reference that could drift from the validated one.
+    moe_tensors = dict(tensors)
+    moe_tensors["x"] = x_mixed
+    sublayer = torch.zeros(
+        EP_SIZE, MOE_TOKENS, D, dtype=torch.bfloat16
+    )
+    moe_tensors["output"] = sublayer
+    _golden_moe_core(moe_tensors)
+
+    x_next = torch.zeros(
+        EP_SIZE, MOE_TOKENS, HC_MULT, D, dtype=torch.float32
+    )
+    for rank in range(EP_SIZE):
+        x_next[rank] = golden_mhc_post(
+            sublayer[rank], x_hc[rank],
+            post_mix[rank], residual_mix[rank],
+        )
+    tensors["x_next"][:] = x_next
+
+
+def _local_mhc_compare(num_tokens):
+    """Compare the complete local-token output for every EP rank.
+
+    The output is defined for the whole fixed-capacity buffer: active rows
+    contain the shared-plus-routed result, while padded rows contain the
+    deterministic mHC residual produced after the MoE sublayer's zero fill.
+    Each rank's active prefix gets its own error budget so sparse shards cannot
+    hide a bad routed row inside the fixed-capacity buffer.  Each padded row is
+    checked independently to keep inactive-row writes covered.
+    """
+    from golden.validation import ratio_reldiff
+
+    counts = _normalise_num_tokens(num_tokens)
+    base_compare = ratio_reldiff(diff_thd=3e-3, pct_thd=0.02)
+    max_abs_diff = 0.25
+
+    def compare_region(actual, expected, **kwargs):
+        ok, message = base_compare(actual, expected, **kwargs)
+        if not ok:
+            return False, message
+        actual_f = actual.float()
+        expected_f = expected.float()
+        abs_diff = (actual_f - expected_f).abs()
+        worst_flat = int(abs_diff.flatten().argmax().item())
+        worst_abs = float(abs_diff.flatten()[worst_flat].item())
+        if worst_abs > max_abs_diff:
+            actual_value = float(actual_f.flatten()[worst_flat].item())
+            expected_value = float(expected_f.flatten()[worst_flat].item())
+            return False, (
+                f"    worst absolute diff={worst_abs:.6g} at flat index "
+                f"{worst_flat}: actual={actual_value:.8g}, "
+                f"expected={expected_value:.8g}; exceeds "
+                f"max_abs_diff={max_abs_diff:.6g}"
+            )
+        return True, ""
+
+    def compare(actual, expected, **kwargs):
+        if actual.shape != expected.shape:
+            return False, (
+                f"    output shape mismatch: actual={tuple(actual.shape)} "
+                f"expected={tuple(expected.shape)}"
+            )
+        # Validate the runtime count tensor as part of the comparator contract;
+        # the values determine which prefixes the golden routed path populated.
+        inputs = kwargs.get("inputs", {})
+        if "num_tokens" in inputs:
+            try:
+                runtime_counts = _normalise_num_tokens(inputs["num_tokens"])
+            except (TypeError, ValueError) as exc:
+                return False, f"    invalid num_tokens: {exc}"
+            if not torch.equal(runtime_counts, counts):
+                return False, (
+                    "    num_tokens changed between fixture and comparator: "
+                    f"expected={counts.tolist()} actual={runtime_counts.tolist()}"
+                )
+        for rank, active in enumerate(counts.tolist()):
+            if active:
+                ok, message = compare_region(
+                    actual[rank:rank + 1, :active],
+                    expected[rank:rank + 1, :active],
+                    **kwargs,
+                )
+                if not ok:
+                    return False, (
+                        f"    rank {rank} active rows [:{active}] left the "
+                        f"MoE budget\n{message}"
+                    )
+            for row in range(active, MOE_TOKENS):
+                ok, message = compare_region(
+                    actual[rank:rank + 1, row:row + 1],
+                    expected[rank:rank + 1, row:row + 1],
+                    **kwargs,
+                )
+                if not ok:
+                    return False, (
+                        f"    rank {rank} padded row {row} left the "
+                        f"padding budget\n{message}"
+                    )
+        return True, ""
+
+    compare.__name__ = f"local_mhc_compare(num_tokens={counts.tolist()})"
+    return compare
+
+
+def validate(argv=None):
+    """Validate the complete mHC and MoE block against its golden reference."""
+    import argparse
+
+
+    from golden import ratio_allclose
+    from golden.runner import run
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-p", "--platform", default="a5", choices=["a2a3", "a2a3sim", "a5", "a5sim"])
+    parser.add_argument("--ep", type=int, default=EP_SIZE, choices=list(SUPPORTED_EP_SIZES))
+    parser.add_argument("--tp", type=int, default=TP_SIZE, choices=list(SUPPORTED_TP_SIZES))
+    parser.add_argument("-d", "--device", type=str, default=",".join(str(i) for i in range(EP_SIZE)))
+    parser.add_argument("--num-tokens", type=int, default=MOE_TOKENS)
+    parser.add_argument(
+        "--num-tokens-per-rank", type=str, default=None,
+        help="comma-separated local counts (overrides --num-tokens)",
+    )
+    parser.add_argument("--moe-epoch", type=int, default=1)
+    parser.add_argument("--compile-only", action="store_true")
+    parser.add_argument("--runtime-dir", type=str, default=None)
+    parser.add_argument("--save-data", action="store_true", default=False)
+    parser.add_argument("--golden-data", type=str, default=None)
+    parser.add_argument("--enable-dep-gen", action="store_true")
+    parser.add_argument("--enable-chip-swimlane", type=int, nargs="?", const=1, default=0, choices=range(5))
+    parser.add_argument("--dump-passes", action="store_true", default=False)
+    parser.add_argument("--log-level", type=str, default=None)
+    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--skip-shared", action="store_true", help="diagnostic only: zero shared expert output and still run gate/dispatch/routed/combine")
+    parser.add_argument("--skip-transport", action="store_true", help="diagnostic only: bypass dispatch/routed/combine and write shared output on local rows")
+    args = parser.parse_args(argv)
+
+    torch.manual_seed(args.seed)
+    device_ids = [int(d) for d in args.device.split(",") if d != ""]
+    if len(device_ids) != EP_SIZE:
+        raise SystemExit(f"need exactly {EP_SIZE} device ids for EP{EP_SIZE}, got {device_ids}")
+    if args.ep != EP_SIZE or args.tp != TP_SIZE:
+        raise SystemExit(
+            "--ep/--tp are parsed by config.py before argparse; run the module "
+            "with the desired values, for example `python models/deepseek_v4_1_flash/moe.py --ep 8 --tp 2 ...`"
+        )
+
+    # The public validation entry is the complete mHC+MoE block.  The plain
+    # MoE kernel remains an internal subroutine of ``moe`` and is not exposed
+    # as a second standalone runner.
+    entry = l3_moe
+    if args.num_tokens_per_rank is None:
+        count_value = args.num_tokens
+    else:
+        try:
+            count_value = [int(value) for value in args.num_tokens_per_rank.split(",")]
+        except ValueError as exc:
+            raise SystemExit(
+                "--num-tokens-per-rank must be comma-separated integers"
+            ) from exc
+    try:
+        counts = _normalise_num_tokens(count_value)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+    specs = build_tensor_specs(counts)
+    golden_fn = golden_moe
+    compare_fn = {
+        "next_pre_mix": ratio_allclose(atol=2.5e-5, rtol=5e-3),
+        "x_mixed": ratio_allclose(atol=1e-4, rtol=1.0 / 128),
+        "x_next": _local_mhc_compare(counts),
+    }
+
+    result = run(
+        fn=entry,
+        specs=specs,
+        golden_fn=golden_fn,
+        golden_data=args.golden_data,
+        save_data=args.save_data,
+        compile_only=args.compile_only,
+        runtime_dir=args.runtime_dir,
+        config=dict(
+            dump_passes=args.dump_passes,
+            distributed_config=DistributedConfig(
+                device_ids=device_ids,
+                num_sub_workers=0,
+            ),
+            platform=args.platform,
+            enable_dep_gen=args.enable_dep_gen,
+            enable_chip_swimlane=args.enable_chip_swimlane,
+            # The complete mHC+MoE block keeps dispatch buffers, FP8 routed
+            # staging, shared matmul, and distributed windows live together.
+            # The packed routed path exceeded the previous 1 GiB ring on A5.
+            ring_heap=1073741824,
+            log_level=args.log_level,
+        ),
+        rtol=1e-3,
+        atol=1e-3,
+        compare_fn=compare_fn,
+    )
+    return result
+
+
+def main():
+    """Run local validation and return a failing exit status on precision errors."""
+    result = validate()
+    if not result.passed:
+        raise SystemExit(result.error or 1)
+
+
+if __name__ == "__main__":
+    main()

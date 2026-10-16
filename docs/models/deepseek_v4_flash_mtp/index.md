@@ -18,7 +18,7 @@ that every kernel imports as a bare sibling module.
 | --- | --- |
 | Speculative decoding | MTP = 1 — one draft token verified against the previous one, so a decode step carries `S = 2` token rows per request |
 | Decode batch per card | 4 requests → 8 token rows per step (`DECODE_BATCH`, `DECODE_SEQ`) |
-| Decode context length | up to 16,384 positions, paged in 128-token pages (`max_position_embeddings`, `BLOCK_SIZE`) |
+| Context length | up to 1,048,576 positions, paged in 128-token pages (`max_position_embeddings`, `BLOCK_SIZE`); decode attention takes token-local RoPE rows and runtime-width block tables, so its work scales with the visible context rather than the ceiling |
 | Prefill shape | one request per rank partition, each with up to 8,192 active tokens per dispatch; the program walks the dynamic extent in 128-token tiles (`PREFILL_BATCH`, `PREFILL_SEQ`) |
 | Platform | Ascend A2/A3, single node |
 | Expert parallelism | `--ep 2/4/8`; the deployment point is EP 8, and each rank holds `256 / ep` routed experts |
@@ -145,12 +145,21 @@ decode_csa   hc_pre → rmsnorm → qkv_proj_rope
 
 ### MoE stage
 
-[moe.py](../../../models/deepseek_v4_flash_mtp/moe.py) is one distributed
-single-layer program that `decode_fwd`, `prefill_fwd`, the layer harnesses, and
-the MTP entries all call. `gate` is RMSNorm + router + top-k + normalize and
-also produces the per-token INT8 view; `dispatch` and `combine` are the EP
-collectives (per-source lanes with folded notifies); `expert_shared` and
-`expert_routed` are the two FFN paths.
+The MoE stage has two independent distributed single-layer programs. Both
+compose `hc_pre`, `gate`, `expert_shared`, and `hc_post`; `gate` is RMSNorm +
+router + top-k + normalize and also produces the per-token INT8 view. Each file
+applies the `--ep` config override on import and carries its own standalone
+two-rank test, fixtures, and golden.
+
+- [decode_moe.py](../../../models/deepseek_v4_flash_mtp/decode_moe.py) holds
+  `moe`, called by `decode_fwd`, `decode_layer`, and `decode_mtp`. Its
+  `dispatch` and `combine` are the EP collectives (per-source lanes with folded
+  notifies) around `expert_routed`.
+- [prefill_moe.py](../../../models/deepseek_v4_flash_mtp/prefill_moe.py) holds
+  `make_prefill_moe`, specialized per token capacity by `prefill_fwd` and
+  `prefill_mtp`. It exchanges counts first, packs received rows expert-major,
+  runs 16-row-aligned grouped routed experts, and returns them through a
+  reverse exchange.
 
 ### Output stage
 
@@ -167,17 +176,19 @@ mtp_projection   e_proj(enorm(hidden)) + h_proj(hnorm(prev_hidden))
 decode_mtp       lookup_embedding → mtp_projection → decode_swa → moe
                  → hc_head → rmsnorm → lm_head
 decode_fwd_mtp   decode_fwd → verify_and_pack_mtp_tokens → decode_mtp
-prefill_mtp      mtp_projection → prefill_swa → moe → hc_head → rmsnorm → lm_head
+prefill_mtp      mtp_projection → prefill_swa → prefill_moe → hc_head → rmsnorm → lm_head
 ```
 
 `decode_fwd_mtp` holds the persistent MTP serving state inline: it loads each
 request's previous tail/draft, checks the draft against the main-model sample,
-packs the committed window, and commits the result back to the same slot. It
-also owns the device-side preamble for both halves: metadata lowering and input
-packing before the main layers, embedding lookup and MTP hidden packing before
-the draft layer. `decode_fwd` and `decode_mtp` therefore cover the model body
-alone and take the preamble's results as inputs, which their fixtures build in
-torch. `decode_prepare` lowers the packed input
+packs the committed window, and commits the result back to the same slot. Each
+half carries its own device-side preamble: `decode_fwd` lowers the paged-cache
+metadata and packs the embedded input, `decode_mtp` gathers its SWA rope rows.
+`decode_fwd_mtp` adds only what sits between them — the draft embedding lookup,
+the MTP hidden packing, and the draft window's SWA metadata. Both halves are
+plain functions exposed twice, as a `pl.jit.inline` body for this composition
+and as an `l2_` kernel for their standalone entries, so the composed and
+standalone forms cannot drift. `decode_prepare` lowers the packed input
 IDs and the paged-cache metadata on device; `utils` is its host-side torch
 counterpart used by the test fixtures.
 
@@ -201,7 +212,7 @@ serving-level residency and lowering — with the limit measured at each step.
 | Decode compressors and indexer | [decode_compressor_ratio4.py](../../../models/deepseek_v4_flash_mtp/decode_compressor_ratio4.py), [decode_compressor_ratio128.py](../../../models/deepseek_v4_flash_mtp/decode_compressor_ratio128.py), [decode_indexer.py](../../../models/deepseek_v4_flash_mtp/decode_indexer.py), [decode_indexer_compressor.py](../../../models/deepseek_v4_flash_mtp/decode_indexer_compressor.py) |
 | Prefill attention and cache | [prefill_swa.py](../../../models/deepseek_v4_flash_mtp/prefill_swa.py), [prefill_csa.py](../../../models/deepseek_v4_flash_mtp/prefill_csa.py), [prefill_hca.py](../../../models/deepseek_v4_flash_mtp/prefill_hca.py), [prefill_sparse_attn.py](../../../models/deepseek_v4_flash_mtp/prefill_sparse_attn.py), [prefill_compressor_ratio4.py](../../../models/deepseek_v4_flash_mtp/prefill_compressor_ratio4.py), [prefill_compressor_ratio128.py](../../../models/deepseek_v4_flash_mtp/prefill_compressor_ratio128.py), [prefill_indexer.py](../../../models/deepseek_v4_flash_mtp/prefill_indexer.py), [prefill_indexer_compressor.py](../../../models/deepseek_v4_flash_mtp/prefill_indexer_compressor.py) |
 | Shared transforms | [rmsnorm.py](../../../models/deepseek_v4_flash_mtp/rmsnorm.py), [qkv_proj_rope.py](../../../models/deepseek_v4_flash_mtp/qkv_proj_rope.py), [hc_pre.py](../../../models/deepseek_v4_flash_mtp/hc_pre.py), [hc_post.py](../../../models/deepseek_v4_flash_mtp/hc_post.py), [hc_head.py](../../../models/deepseek_v4_flash_mtp/hc_head.py), [rope_interleave.py](../../../models/deepseek_v4_flash_mtp/rope_interleave.py), [lookup_embedding.py](../../../models/deepseek_v4_flash_mtp/lookup_embedding.py) |
-| MoE and output | [moe.py](../../../models/deepseek_v4_flash_mtp/moe.py), [gate.py](../../../models/deepseek_v4_flash_mtp/gate.py), [expert_shared.py](../../../models/deepseek_v4_flash_mtp/expert_shared.py), [expert_routed.py](../../../models/deepseek_v4_flash_mtp/expert_routed.py), [lm_head.py](../../../models/deepseek_v4_flash_mtp/lm_head.py) |
+| MoE and output | [decode_moe.py](../../../models/deepseek_v4_flash_mtp/decode_moe.py), [prefill_moe.py](../../../models/deepseek_v4_flash_mtp/prefill_moe.py), [gate.py](../../../models/deepseek_v4_flash_mtp/gate.py), [expert_shared.py](../../../models/deepseek_v4_flash_mtp/expert_shared.py), [expert_routed.py](../../../models/deepseek_v4_flash_mtp/expert_routed.py), [lm_head.py](../../../models/deepseek_v4_flash_mtp/lm_head.py) |
 | Metadata and host helpers | [decode_prepare.py](../../../models/deepseek_v4_flash_mtp/decode_prepare.py), [config.py](../../../models/deepseek_v4_flash_mtp/config.py), [utils.py](../../../models/deepseek_v4_flash_mtp/utils.py) |
 
 `config.py`, `utils.py`, `rope_interleave.py`, and `decode_prepare.py` have

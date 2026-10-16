@@ -13,6 +13,7 @@ import pypto.language as pl
 
 from config import (
     BLOCK_SIZE,
+    HCA_CMP_STORAGE_BLOCK_SIZE as CMP_STORAGE_BLOCK_SIZE,
     DECODE_BATCH,
     FLASH as M,
     HCA_STATE_PHYSICAL_BLOCKS,
@@ -48,9 +49,7 @@ from prefill_cp_token_allgather import (
     prefill_cp_token_allgather_step,
 )
 from prefill_o_proj import (
-    O_PROJ_LOCAL_COLS,
     O_PROJ_LOCAL_GROUPS,
-    O_PROJ_SCRATCH_COLS,
     O_PROJ_SCRATCH_D,
     O_PROJ_SCRATCH_GROUPS,
     O_PROJ_SCRATCH_INPUT,
@@ -92,6 +91,10 @@ HEADS_PER_GROUP = H // O_GROUPS
 O_GROUP_IN = HEADS_PER_GROUP * HEAD_DIM
 
 COMPRESS_RATIO = 128
+HCA_SWA_ROW_TILE = 8
+HCA_QUERY_SLICE_TILE = 8
+HCA_CACHE_READY_TILE = 64
+HCA_CACHE_WRITE_TILE = 64
 MAIN_OUT_DIM = HEAD_DIM
 MAIN_COMPRESS_STATE_DIM = 2 * MAIN_OUT_DIM
 START_POS = 0
@@ -99,15 +102,14 @@ START_POS = 0
 # paged KV cache
 SPARSE_ORI_MAX_BLOCKS = (MAX_SEQ_LEN + BLOCK_SIZE - 1) // BLOCK_SIZE
 SPARSE_ORI_BLOCK_NUM = KV_ORI_BLOCK_NUM
-SPARSE_CMP_MAX_BLOCKS = (MAX_SEQ_LEN // COMPRESS_RATIO + BLOCK_SIZE - 1) // BLOCK_SIZE
+SPARSE_CMP_MAX_BLOCKS = (MAX_SEQ_LEN // COMPRESS_RATIO + CMP_STORAGE_BLOCK_SIZE - 1) // CMP_STORAGE_BLOCK_SIZE
 SPARSE_CMP_BLOCK_NUM = SPARSE_CMP_MAX_BLOCKS
 HCA_ORI_BLOCK_NUM = SPARSE_ORI_BLOCK_NUM
 HCA_CMP_BLOCK_NUM = SPARSE_CMP_BLOCK_NUM
 
 
 
-@pl.jit.inline
-def prefill_attention_hca(
+def _prefill_attention_hca(
     x_hc: pl.Tensor[[T_DYN, HC_MULT, D], pl.FP32],
     query_start_loc: pl.Tensor[[QUERY_START_LOC_DYN], pl.INT32],
     local_request_ids: pl.Tensor[[T_DYN], pl.INT32],
@@ -115,8 +117,8 @@ def prefill_attention_hca(
     hc_attn_scale: pl.Tensor[[3], pl.FP32],
     hc_attn_base: pl.Tensor[[MIX_HC], pl.FP32],
     attn_norm_w: pl.Tensor[[D], pl.BF16],
-    wq_a: pl.Tensor[[D, Q_LORA], pl.BF16],
-    wq_b: pl.Tensor[[Q_LORA, H * HEAD_DIM], pl.INT8],
+    wq_a: pl.Tensor[[D, Q_LORA], pl.BF16, pl.NZ],
+    wq_b: pl.Tensor[[Q_LORA, H * HEAD_DIM], pl.INT8, pl.NZ],
     wq_b_scale: pl.Tensor[[H * HEAD_DIM], pl.FP32],
     wkv: pl.Tensor[[D, HEAD_DIM], pl.BF16],
     gamma_cq: pl.Tensor[[Q_LORA], pl.BF16],
@@ -129,22 +131,42 @@ def prefill_attention_hca(
     cmp_wgate: pl.Tensor[[MAIN_OUT_DIM, D], pl.BF16],
     cmp_ape: pl.Tensor[[COMPRESS_RATIO, MAIN_OUT_DIM], pl.FP32],
     cmp_norm_w: pl.Tensor[[HEAD_DIM], pl.BF16],
-    compress_state: pl.Tensor[[STATE_BLOCK_NUM_DYN, HCA_STATE_BLOCK_SIZE, MAIN_COMPRESS_STATE_DIM], pl.FP32],
+    compress_state: pl.InOut[
+        pl.Tensor[[STATE_BLOCK_NUM_DYN, HCA_STATE_BLOCK_SIZE, MAIN_COMPRESS_STATE_DIM], pl.FP32]
+    ],
     compress_state_block_table: pl.Tensor[[REQUESTS_DYN, HCA_STATE_MAX_BLOCKS], pl.INT32],
-    kv_cache: pl.Tensor[[ORI_BLOCK_NUM_DYN, BLOCK_SIZE, 1, HEAD_DIM], pl.BF16],
+    kv_cache: pl.InOut[pl.Tensor[[ORI_BLOCK_NUM_DYN, BLOCK_SIZE, 1, HEAD_DIM], pl.BF16]],
     ori_slot_mapping: pl.Tensor[[T_DYN], pl.INT64],
     ori_block_table: pl.Tensor[[REQUESTS_DYN, SPARSE_ORI_MAX_BLOCKS], pl.INT32],
-    cmp_kv: pl.Tensor[[CMP_BLOCK_NUM_DYN, BLOCK_SIZE, 1, HEAD_DIM], pl.BF16],
+    cmp_kv: pl.InOut[pl.Tensor[[CMP_BLOCK_NUM_DYN, CMP_STORAGE_BLOCK_SIZE, 1, HEAD_DIM], pl.BF16]],
     cmp_block_table: pl.Tensor[[REQUESTS_DYN, SPARSE_CMP_MAX_BLOCKS], pl.INT32],
     position_ids: pl.Tensor[[T_DYN], pl.INT32],
     cmp_slot_mapping: pl.Tensor[[T_DYN], pl.INT64],
     state_slot_mapping: pl.Tensor[[T_DYN], pl.INT64],
     attn_sink: pl.Tensor[[H], pl.FP32],
     wo_a: pl.Tensor[[O_GROUPS, O_LORA, O_GROUP_IN], pl.BF16],
-    wo_b: pl.Tensor[[D, O_GROUPS * O_LORA], pl.INT8],
+    wo_b: pl.Tensor[[O_GROUPS, D, O_LORA], pl.INT8],
     wo_b_scale: pl.Tensor[[D], pl.FP32],
-    x_out: pl.Tensor[[T_DYN, HC_MULT, D], pl.FP32],
+    x_out: pl.Out[pl.Tensor[[T_DYN, HC_MULT, D], pl.FP32]],
 ):
+    x_hc.bind_dynamic(0, T_DYN)
+    query_start_loc.bind_dynamic(0, QUERY_START_LOC_DYN)
+    local_request_ids.bind_dynamic(0, T_DYN)
+    compress_state.bind_dynamic(0, STATE_BLOCK_NUM_DYN)
+    compress_state_block_table.bind_dynamic(0, REQUESTS_DYN)
+    kv_cache.bind_dynamic(0, ORI_BLOCK_NUM_DYN)
+    ori_slot_mapping.bind_dynamic(0, T_DYN)
+    cmp_kv.bind_dynamic(0, CMP_BLOCK_NUM_DYN)
+    ori_block_table.bind_dynamic(0, REQUESTS_DYN)
+    cmp_block_table.bind_dynamic(0, REQUESTS_DYN)
+    freqs_cos.bind_dynamic(0, T_DYN)
+    freqs_sin.bind_dynamic(0, T_DYN)
+    cmp_freqs_cos.bind_dynamic(0, T_DYN)
+    cmp_freqs_sin.bind_dynamic(0, T_DYN)
+    position_ids.bind_dynamic(0, T_DYN)
+    cmp_slot_mapping.bind_dynamic(0, T_DYN)
+    state_slot_mapping.bind_dynamic(0, T_DYN)
+    x_out.bind_dynamic(0, T_DYN)
     t_dim = pl.tensor.dim(x_hc, 0)
     x_mixed = pl.create_tensor([t_dim, D], dtype=pl.BF16)
     post = pl.create_tensor([t_dim, HC_MULT], dtype=pl.FP32)
@@ -225,7 +247,7 @@ def prefill_attention_hca(
             swa_indices[idx_t : idx_t + 1, 0:WIN] = swa_row
 
     # Streaming-attention input publication fence.
-    cmp_cache_rows = pl.tensor.dim(cmp_kv, 0) * BLOCK_SIZE
+    cmp_cache_rows = pl.tensor.dim(cmp_kv, 0) * CMP_STORAGE_BLOCK_SIZE
     state_rows = pl.tensor.dim(compress_state, 0) * HCA_STATE_BLOCK_SIZE
     cmp_cache_flat = pl.reshape(cmp_kv, [cmp_cache_rows, HEAD_DIM])
     compress_state_flat = pl.reshape(compress_state, [state_rows, MAIN_COMPRESS_STATE_DIM])
@@ -294,105 +316,8 @@ def prefill_attention_hca(
     return x_out
 
 
-@pl.jit
-def prefill_attention_hca_test(
-    x_hc: pl.Tensor[[T_DYN, HC_MULT, D], pl.FP32],
-    query_start_loc: pl.Tensor[[QUERY_START_LOC_DYN], pl.INT32],
-    local_request_ids: pl.Tensor[[T_DYN], pl.INT32],
-    hc_attn_fn: pl.Tensor[[MIX_HC, HC_DIM], pl.FP32],
-    hc_attn_scale: pl.Tensor[[3], pl.FP32],
-    hc_attn_base: pl.Tensor[[MIX_HC], pl.FP32],
-    attn_norm_w: pl.Tensor[[D], pl.BF16],
-    wq_a: pl.Tensor[[D, Q_LORA], pl.BF16],
-    wq_b: pl.Tensor[[Q_LORA, H * HEAD_DIM], pl.INT8],
-    wq_b_scale: pl.Tensor[[H * HEAD_DIM], pl.FP32],
-    wkv: pl.Tensor[[D, HEAD_DIM], pl.BF16],
-    gamma_cq: pl.Tensor[[Q_LORA], pl.BF16],
-    gamma_ckv: pl.Tensor[[HEAD_DIM], pl.BF16],
-    freqs_cos: pl.Tensor[[T_DYN, ROPE_HEAD_DIM], pl.BF16],
-    freqs_sin: pl.Tensor[[T_DYN, ROPE_HEAD_DIM], pl.BF16],
-    cmp_freqs_cos: pl.Tensor[[T_DYN, ROPE_HEAD_DIM], pl.BF16],
-    cmp_freqs_sin: pl.Tensor[[T_DYN, ROPE_HEAD_DIM], pl.BF16],
-    cmp_wkv: pl.Tensor[[MAIN_OUT_DIM, D], pl.BF16],
-    cmp_wgate: pl.Tensor[[MAIN_OUT_DIM, D], pl.BF16],
-    cmp_ape: pl.Tensor[[COMPRESS_RATIO, MAIN_OUT_DIM], pl.FP32],
-    cmp_norm_w: pl.Tensor[[HEAD_DIM], pl.BF16],
-    compress_state: pl.InOut[
-        pl.Tensor[[STATE_BLOCK_NUM_DYN, HCA_STATE_BLOCK_SIZE, MAIN_COMPRESS_STATE_DIM], pl.FP32]
-    ],
-    compress_state_block_table: pl.Tensor[[REQUESTS_DYN, HCA_STATE_MAX_BLOCKS], pl.INT32],
-    kv_cache: pl.InOut[pl.Tensor[[ORI_BLOCK_NUM_DYN, BLOCK_SIZE, 1, HEAD_DIM], pl.BF16]],
-    ori_slot_mapping: pl.Tensor[[T_DYN], pl.INT64],
-    ori_block_table: pl.Tensor[[REQUESTS_DYN, SPARSE_ORI_MAX_BLOCKS], pl.INT32],
-    cmp_kv: pl.InOut[pl.Tensor[[CMP_BLOCK_NUM_DYN, BLOCK_SIZE, 1, HEAD_DIM], pl.BF16]],
-    cmp_block_table: pl.Tensor[[REQUESTS_DYN, SPARSE_CMP_MAX_BLOCKS], pl.INT32],
-    position_ids: pl.Tensor[[T_DYN], pl.INT32],
-    cmp_slot_mapping: pl.Tensor[[T_DYN], pl.INT64],
-    state_slot_mapping: pl.Tensor[[T_DYN], pl.INT64],
-    attn_sink: pl.Tensor[[H], pl.FP32],
-    wo_a: pl.Tensor[[O_GROUPS, O_LORA, O_GROUP_IN], pl.BF16],
-    wo_b: pl.Tensor[[D, O_GROUPS * O_LORA], pl.INT8],
-    wo_b_scale: pl.Tensor[[D], pl.FP32],
-    x_out: pl.Out[pl.Tensor[[T_DYN, HC_MULT, D], pl.FP32]],
-):
-    x_hc.bind_dynamic(0, T_DYN)
-    query_start_loc.bind_dynamic(0, QUERY_START_LOC_DYN)
-    local_request_ids.bind_dynamic(0, T_DYN)
-    compress_state.bind_dynamic(0, STATE_BLOCK_NUM_DYN)
-    compress_state_block_table.bind_dynamic(0, REQUESTS_DYN)
-    kv_cache.bind_dynamic(0, ORI_BLOCK_NUM_DYN)
-    ori_slot_mapping.bind_dynamic(0, T_DYN)
-    cmp_kv.bind_dynamic(0, CMP_BLOCK_NUM_DYN)
-    ori_block_table.bind_dynamic(0, REQUESTS_DYN)
-    cmp_block_table.bind_dynamic(0, REQUESTS_DYN)
-    freqs_cos.bind_dynamic(0, T_DYN)
-    freqs_sin.bind_dynamic(0, T_DYN)
-    cmp_freqs_cos.bind_dynamic(0, T_DYN)
-    cmp_freqs_sin.bind_dynamic(0, T_DYN)
-    position_ids.bind_dynamic(0, T_DYN)
-    cmp_slot_mapping.bind_dynamic(0, T_DYN)
-    state_slot_mapping.bind_dynamic(0, T_DYN)
-    x_out.bind_dynamic(0, T_DYN)
-
-    prefill_attention_hca(
-        x_hc,
-        query_start_loc,
-        local_request_ids,
-        hc_attn_fn,
-        hc_attn_scale,
-        hc_attn_base,
-        attn_norm_w,
-        wq_a,
-        wq_b,
-        wq_b_scale,
-        wkv,
-        gamma_cq,
-        gamma_ckv,
-        freqs_cos,
-        freqs_sin,
-        cmp_freqs_cos,
-        cmp_freqs_sin,
-        cmp_wkv,
-        cmp_wgate,
-        cmp_ape,
-        cmp_norm_w,
-        compress_state,
-        compress_state_block_table,
-        kv_cache,
-        ori_slot_mapping,
-        ori_block_table,
-        cmp_kv,
-        cmp_block_table,
-        position_ids,
-        cmp_slot_mapping,
-        state_slot_mapping,
-        attn_sink,
-        wo_a,
-        wo_b,
-        wo_b_scale,
-        x_out,
-    )
-    return x_out
+prefill_attention_hca = pl.jit.inline(_prefill_attention_hca)
+prefill_attention_hca_test = pl.jit(_prefill_attention_hca)
 
 
 def _quant_w_per_output_channel(w):
@@ -493,9 +418,9 @@ def golden_prefill_attention_hca(tensors):
         request_ids = tensors["local_request_ids"]
         active = request_ids >= 0
         max_position = int(pos[active].max().item()) if active.any() else -1
-        max_visible_cmp = min((max_position + 1) // COMPRESS_RATIO, SPARSE_CMP_MAX_BLOCKS * BLOCK_SIZE)
+        max_visible_cmp = min((max_position + 1) // COMPRESS_RATIO, SPARSE_CMP_MAX_BLOCKS * CMP_STORAGE_BLOCK_SIZE)
         cmp_idx = torch.full((token_count, max(1, max_visible_cmp)), -1, dtype=torch.int32)
-        cmp_cap = SPARSE_CMP_MAX_BLOCKS * BLOCK_SIZE
+        cmp_cap = SPARSE_CMP_MAX_BLOCKS * CMP_STORAGE_BLOCK_SIZE
         for t in range(token_count):
             request_id = int(request_ids[t].item())
             if request_id < 0:
@@ -549,7 +474,7 @@ def golden_prefill_attention_hca(tensors):
 def build_tensor_specs(start_pos: int = START_POS, token_count: int = PREFILL_SEQ):
     import torch
     from golden import TensorSpec
-    from utils import block_table, cache_row_from_table, quant_w_per_channel, token_local_rope
+    from utils import block_table, cache_row_from_table, pack_nz, quant_w_per_channel, token_local_rope
 
     # Single-request geometry: the physical token dimension is q_len.
     context_len = start_pos
@@ -750,14 +675,14 @@ def build_tensor_specs(start_pos: int = START_POS, token_count: int = PREFILL_SE
         return table.unsqueeze(0)
 
     def init_cmp_kv():
-        cache = torch.zeros(HCA_CMP_BLOCK_NUM, BLOCK_SIZE, 1, HEAD_DIM)
-        cache_flat = cache.view(HCA_CMP_BLOCK_NUM * BLOCK_SIZE, HEAD_DIM)
+        cache = torch.zeros(HCA_CMP_BLOCK_NUM, CMP_STORAGE_BLOCK_SIZE, 1, HEAD_DIM)
+        cache_flat = cache.view(HCA_CMP_BLOCK_NUM * CMP_STORAGE_BLOCK_SIZE, HEAD_DIM)
         table = init_cmp_block_table()[0]
         completed = context_len // COMPRESS_RATIO
         if completed > 0:
             prefix_cmp = ((torch.rand(completed, HEAD_DIM) - 0.5) * 0.1).to(torch.bfloat16)
             for cmp_slot in range(completed):
-                row = cache_row_from_table(table, cmp_slot)
+                row = cache_row_from_table(table, cmp_slot, block_size=CMP_STORAGE_BLOCK_SIZE)
                 if row >= 0:
                     cache_flat[row] = prefix_cmp[cmp_slot]
         return cache
@@ -776,7 +701,7 @@ def build_tensor_specs(start_pos: int = START_POS, token_count: int = PREFILL_SE
         table = init_cmp_block_table()[0]
         records = cmp_write_records()
         for token_id, cmp_slot in records:
-            out[token_id] = cache_row_from_table(table, cmp_slot)
+            out[token_id] = cache_row_from_table(table, cmp_slot, block_size=CMP_STORAGE_BLOCK_SIZE)
         return out
 
     def init_state_slot_mapping():
@@ -799,6 +724,10 @@ def build_tensor_specs(start_pos: int = START_POS, token_count: int = PREFILL_SE
     wq_b_i8, wq_b_scale = _quant_w_per_output_channel(wq_b_bf16)
     wo_b_bf16 = init_wo_b().to(torch.bfloat16)
     wo_b_i8, wo_b_scale = quant_w_per_channel(wo_b_bf16)
+    # wo_b's group axis is the sole NZ leading/batch axis, matching wo_a's own
+    # [GROUPS, ...] convention: fold the flat [D, GROUPS*O_LORA] quant result
+    # into [GROUPS, D, O_LORA] before packing each group's fractal blocks.
+    wo_b_i8_groups = wo_b_i8.reshape(D, O_GROUPS, O_LORA).permute(1, 0, 2).contiguous()
 
     return [
         TensorSpec("x_hc", [token_count, HC_MULT, D], torch.float32, init_value=init_x_hc),
@@ -808,8 +737,8 @@ def build_tensor_specs(start_pos: int = START_POS, token_count: int = PREFILL_SE
         TensorSpec("hc_attn_scale", [3], torch.float32, init_value=init_hc_attn_scale),
         TensorSpec("hc_attn_base", [MIX_HC], torch.float32, init_value=init_hc_attn_base),
         TensorSpec("attn_norm_w", [D], torch.bfloat16, init_value=init_attn_norm_w),
-        TensorSpec("wq_a", [D, Q_LORA], torch.bfloat16, init_value=init_wq_a),
-        TensorSpec("wq_b", [Q_LORA, H * HEAD_DIM], torch.int8, init_value=lambda: wq_b_i8),
+        TensorSpec("wq_a", [D, Q_LORA], torch.bfloat16, init_value=lambda: pack_nz(init_wq_a().to(torch.bfloat16))),
+        TensorSpec("wq_b", [Q_LORA, H * HEAD_DIM], torch.int8, init_value=lambda: pack_nz(wq_b_i8)),
         TensorSpec("wq_b_scale", [H * HEAD_DIM], torch.float32, init_value=lambda: wq_b_scale),
         TensorSpec("wkv", [D, HEAD_DIM], torch.bfloat16, init_value=init_wkv),
         TensorSpec("gamma_cq", [Q_LORA], torch.bfloat16, init_value=init_gamma_cq),
@@ -844,7 +773,7 @@ def build_tensor_specs(start_pos: int = START_POS, token_count: int = PREFILL_SE
         TensorSpec("ori_block_table", [1, SPARSE_ORI_MAX_BLOCKS], torch.int32, init_value=init_ori_block_table),
         TensorSpec(
             "cmp_kv",
-            [HCA_CMP_BLOCK_NUM, BLOCK_SIZE, 1, HEAD_DIM],
+            [HCA_CMP_BLOCK_NUM, CMP_STORAGE_BLOCK_SIZE, 1, HEAD_DIM],
             torch.bfloat16,
             init_value=init_cmp_kv,
         ),
@@ -854,7 +783,7 @@ def build_tensor_specs(start_pos: int = START_POS, token_count: int = PREFILL_SE
         TensorSpec("state_slot_mapping", [token_count], torch.int64, init_value=init_state_slot_mapping),
         TensorSpec("attn_sink", [H], torch.float32, init_value=init_attn_sink),
         TensorSpec("wo_a", [O_GROUPS, O_LORA, O_GROUP_IN], torch.bfloat16, init_value=init_wo_a),
-        TensorSpec("wo_b", [D, O_GROUPS * O_LORA], torch.int8, init_value=lambda: wo_b_i8),
+        TensorSpec("wo_b", [O_GROUPS, D, O_LORA], torch.int8, init_value=lambda: wo_b_i8_groups),
         TensorSpec("wo_b_scale", [D], torch.float32, init_value=lambda: wo_b_scale),
         TensorSpec("x_out", [token_count, HC_MULT, D], torch.float32),
     ]
@@ -866,8 +795,8 @@ def prefill_attention_hca_cp_core(
     x_normed_full: pl.Tensor[[CP_KV_T_DYN, D], pl.BF16],
     query_start_loc: pl.Tensor[[QUERY_START_LOC_DYN], pl.INT32],
     local_request_ids: pl.Tensor[[CP_Q_T_DYN], pl.INT32],
-    wq_a: pl.Tensor[[D, Q_LORA], pl.BF16],
-    wq_b: pl.Tensor[[Q_LORA, H * HEAD_DIM], pl.INT8],
+    wq_a: pl.Tensor[[D, Q_LORA], pl.BF16, pl.NZ],
+    wq_b: pl.Tensor[[Q_LORA, H * HEAD_DIM], pl.INT8, pl.NZ],
     wq_b_scale: pl.Tensor[[H * HEAD_DIM], pl.FP32],
     wkv: pl.Tensor[[D, HEAD_DIM], pl.BF16],
     gamma_cq: pl.Tensor[[Q_LORA], pl.BF16],
@@ -887,7 +816,7 @@ def prefill_attention_hca_cp_core(
     kv_cache: pl.Tensor[[ORI_BLOCK_NUM_DYN, BLOCK_SIZE, 1, HEAD_DIM], pl.BF16],
     ori_slot_mapping_full: pl.Tensor[[CP_KV_T_DYN], pl.INT64],
     ori_block_table: pl.Tensor[[REQUESTS_DYN, SPARSE_ORI_MAX_BLOCKS], pl.INT32],
-    cmp_kv: pl.Tensor[[CMP_BLOCK_NUM_DYN, BLOCK_SIZE, 1, HEAD_DIM], pl.BF16],
+    cmp_kv: pl.Tensor[[CMP_BLOCK_NUM_DYN, CMP_STORAGE_BLOCK_SIZE, 1, HEAD_DIM], pl.BF16],
     cmp_block_table: pl.Tensor[[REQUESTS_DYN, SPARSE_CMP_MAX_BLOCKS], pl.INT32],
     position_ids_local: pl.Tensor[[CP_Q_T_DYN], pl.INT32],
     position_ids_full: pl.Tensor[[CP_KV_T_DYN], pl.INT32],
@@ -895,7 +824,7 @@ def prefill_attention_hca_cp_core(
     state_slot_mapping_full: pl.Tensor[[CP_KV_T_DYN], pl.INT64],
     attn_sink: pl.Tensor[[H], pl.FP32],
     wo_a: pl.Tensor[[O_GROUPS, O_LORA, O_GROUP_IN], pl.BF16],
-    wo_b: pl.Tensor[[D, O_GROUPS * O_LORA], pl.INT8],
+    wo_b: pl.Tensor[[O_GROUPS, D, O_LORA], pl.INT8],
     wo_b_scale: pl.Tensor[[D], pl.FP32],
     attn_out_local: pl.Tensor[[CP_Q_T_DYN, D], pl.BF16],
     late_dep: pl.Scalar[pl.TASK_ID],
@@ -926,12 +855,15 @@ def prefill_attention_hca_cp_core(
     ori_block_num = pl.tensor.dim(kv_cache, 0)
     ori_cache_rows = ori_block_num * BLOCK_SIZE
     kv_cache_flat = pl.reshape(kv_cache, [ori_cache_rows, HEAD_DIM])
-    with pl.at(level=pl.Level.CORE_GROUP, name_hint="prefill_hca_cp_cache_write") as ori_cache_write_tid:
-        for write_t in pl.range(kv_dim):
-            write_row_raw = pl.read(ori_slot_mapping_full, [write_t])
-            if write_row_raw >= 0:
-                write_row = pl.cast(write_row_raw, pl.INDEX)
-                kv_cache_flat[write_row : write_row + 1, :] = kv_full[write_t : write_t + 1, :]
+    with pl.spmd((kv_dim + HCA_CACHE_WRITE_TILE - 1) // HCA_CACHE_WRITE_TILE, name_hint="prefill_hca_cp_cache_write") as ori_cache_write_tid:
+        write_base = pl.tile.get_block_idx() * HCA_CACHE_WRITE_TILE
+        for write_offset in pl.range(HCA_CACHE_WRITE_TILE):
+            write_t = write_base + write_offset
+            if write_t < kv_dim:
+                write_row_raw = pl.read(ori_slot_mapping_full, [write_t])
+                if write_row_raw >= 0:
+                    write_row = pl.cast(write_row_raw, pl.INDEX)
+                    kv_cache_flat[write_row : write_row + 1, :] = kv_full[write_t : write_t + 1, :]
 
     prefill_compressor_ratio128(
         x_normed_full,
@@ -944,64 +876,72 @@ def prefill_attention_hca_cp_core(
     )
 
     swa_indices = pl.create_tensor([q_dim, WIN], dtype=pl.INT32)
-    with pl.at(level=pl.Level.CORE_GROUP, name_hint="prefill_hca_cp_swa_indices") as swa_indices_tid:
-        for idx_t in pl.range(q_dim):
-            swa_row = pl.full([1, WIN], dtype=pl.INT32, value=-1)
-            request_id = pl.read(local_request_ids, [idx_t])
-            if request_id >= 0:
-                abs_pos = pl.read(position_ids_local, [idx_t])
-                window_valid = pl.min(pl.cast(WIN, pl.INT32), abs_pos + 1)
-                key_start_abs = abs_pos + 1 - window_valid
-                for win_col in pl.range(WIN):
-                    win_col_i32 = pl.cast(win_col, pl.INT32)
-                    if win_col_i32 < window_valid:
-                        key_abs = key_start_abs + win_col_i32
-                        blk_slot = key_abs // BLOCK_SIZE
-                        blk = pl.read(ori_block_table, [request_id, pl.cast(blk_slot, pl.INDEX)])
-                        if blk >= 0:
-                            row = pl.cast(blk * BLOCK_SIZE + (key_abs - blk_slot * BLOCK_SIZE), pl.INT32)
-                            pl.write(swa_row, [0, win_col], row)
-            swa_indices[idx_t : idx_t + 1, 0:WIN] = swa_row
+    with pl.spmd((q_dim + HCA_SWA_ROW_TILE - 1) // HCA_SWA_ROW_TILE, name_hint="prefill_hca_cp_swa_indices") as swa_indices_tid:
+        row_base = pl.tile.get_block_idx() * HCA_SWA_ROW_TILE
+        for row_offset in pl.range(HCA_SWA_ROW_TILE):
+            idx_t = row_base + row_offset
+            if idx_t < q_dim:
+                swa_row = pl.full([1, WIN], dtype=pl.INT32, value=-1)
+                request_id = pl.read(local_request_ids, [idx_t])
+                if request_id >= 0:
+                    abs_pos = pl.read(position_ids_local, [idx_t])
+                    window_valid = pl.min(pl.cast(WIN, pl.INT32), abs_pos + 1)
+                    key_start_abs = abs_pos + 1 - window_valid
+                    for win_col in pl.range(WIN):
+                        win_col_i32 = pl.cast(win_col, pl.INT32)
+                        if win_col_i32 < window_valid:
+                            key_abs = key_start_abs + win_col_i32
+                            blk_slot = key_abs // BLOCK_SIZE
+                            blk = pl.read(ori_block_table, [request_id, pl.cast(blk_slot, pl.INDEX)])
+                            if blk >= 0:
+                                row = pl.cast(blk * BLOCK_SIZE + (key_abs - blk_slot * BLOCK_SIZE), pl.INT32)
+                                pl.write(swa_row, [0, win_col], row)
+                swa_indices[idx_t : idx_t + 1, 0:WIN] = swa_row
 
     # Streaming-attention input publication fence.
-    cmp_cache_rows = pl.tensor.dim(cmp_kv, 0) * BLOCK_SIZE
+    cmp_cache_rows = pl.tensor.dim(cmp_kv, 0) * CMP_STORAGE_BLOCK_SIZE
     state_rows = pl.tensor.dim(compress_state, 0) * HCA_STATE_BLOCK_SIZE
     cmp_cache_flat = pl.reshape(cmp_kv, [cmp_cache_rows, HEAD_DIM])
     compress_state_flat = pl.reshape(compress_state, [state_rows, MAIN_COMPRESS_STATE_DIM])
     q_ready_flat = pl.reshape(q, [q_dim * H, HEAD_DIM])
-    cache_ready_fence = pl.create_tensor([1], dtype=pl.INT32)
-    with pl.at(
-        level=pl.Level.CORE_GROUP, name_hint="prefill_hca_cp_cache_ready",
+    cache_ready_blocks = (kv_dim + HCA_CACHE_READY_TILE - 1) // HCA_CACHE_READY_TILE
+    cache_ready_fence = pl.create_tensor([cache_ready_blocks], dtype=pl.INT32)
+    with pl.spmd(
+        cache_ready_blocks, name_hint="prefill_hca_cp_cache_ready",
         deps=[ori_cache_write_tid, swa_indices_tid],
     ) as cache_ready_dep:
+        ready_block = pl.tile.get_block_idx()
         ready_bit = pl.cast(1, pl.INT32)
-        for ready_t in pl.range(kv_dim):
-            if ready_t < q_dim:
-                q_ready_tile = pl.load(q_ready_flat, [ready_t * H, 0], [1, 16])
-                q_ready_bits = pl.reinterpret_view(q_ready_tile, pl.INT16)
-                q_ready_sample = pl.tile.read(q_ready_bits, [0, 0])
-                ready_bit = ready_bit + pl.cast(q_ready_sample, pl.INT32)
-            state_ready_row_raw = pl.read(state_slot_mapping_full, [ready_t])
-            if state_ready_row_raw >= 0:
-                state_ready_row = pl.cast(state_ready_row_raw, pl.INDEX)
-                state_ready_sample = pl.read(compress_state_flat, [state_ready_row, 0])
-                state_ready_bit = pl.cast(state_ready_sample == state_ready_sample, pl.INT32)
-                ready_bit = ready_bit * state_ready_bit
-            cmp_ready_row_raw = pl.read(cmp_slot_mapping_full, [ready_t])
-            if cmp_ready_row_raw >= 0:
-                cmp_ready_row = pl.cast(cmp_ready_row_raw, pl.INDEX)
-                cmp_ready_tile = pl.load(cmp_cache_flat, [cmp_ready_row, 0], [1, 16])
-                cmp_ready_bits = pl.reinterpret_view(cmp_ready_tile, pl.INT16)
-                cmp_ready_sample = pl.tile.read(cmp_ready_bits, [0, 0])
-                cmp_ready_value = pl.cast(cmp_ready_sample, pl.INT32)
-                ready_bit = ready_bit + cmp_ready_value
-        pl.write(cache_ready_fence, [0], ready_bit)
+        for ready_offset in pl.range(HCA_CACHE_READY_TILE):
+            ready_t = ready_block * HCA_CACHE_READY_TILE + ready_offset
+            if ready_t < kv_dim:
+                if ready_t < q_dim:
+                    q_ready_tile = pl.load(q_ready_flat, [ready_t * H, 0], [1, 16])
+                    q_ready_bits = pl.reinterpret_view(q_ready_tile, pl.INT16)
+                    q_ready_sample = pl.tile.read(q_ready_bits, [0, 0])
+                    ready_bit = ready_bit + pl.cast(q_ready_sample, pl.INT32)
+                state_ready_row_raw = pl.read(state_slot_mapping_full, [ready_t])
+                if state_ready_row_raw >= 0:
+                    state_ready_row = pl.cast(state_ready_row_raw, pl.INDEX)
+                    state_ready_sample = pl.read(compress_state_flat, [state_ready_row, 0])
+                    state_ready_bit = pl.cast(state_ready_sample == state_ready_sample, pl.INT32)
+                    ready_bit = ready_bit * state_ready_bit
+                cmp_ready_row_raw = pl.read(cmp_slot_mapping_full, [ready_t])
+                if cmp_ready_row_raw >= 0:
+                    cmp_ready_row = pl.cast(cmp_ready_row_raw, pl.INDEX)
+                    cmp_ready_tile = pl.load(cmp_cache_flat, [cmp_ready_row, 0], [1, 16])
+                    cmp_ready_bits = pl.reinterpret_view(cmp_ready_tile, pl.INT16)
+                    cmp_ready_sample = pl.tile.read(cmp_ready_bits, [0, 0])
+                    cmp_ready_value = pl.cast(cmp_ready_sample, pl.INT32)
+                    ready_bit = ready_bit + cmp_ready_value
+        pl.write(cache_ready_fence, [ready_block], ready_bit)
 
     # Per-request HCA streaming over rank-local packed query intervals.
     with pl.spmd(q_dim, name_hint="prefill_hca_cp_pad_output_init") as pad_output_tid:
         pad_t = pl.tile.get_block_idx()
         if pl.read(local_request_ids, [pad_t]) < 0:
-            attn_out_local[pad_t : pad_t + 1, :] = pl.full([1, D], dtype=pl.BF16, value=0.0)
+            pad_row = pl.tile.full([1, D], dtype=pl.BF16, value=0.0)
+            pl.store(pad_row, [pad_t, 0], attn_out_local)
     # Serial chain over requests, array carry as in the non-CP path above.
     request_deps = pl.array.create(1, pl.TASK_ID)
     request_deps[0] = pl.system.task_dummy(deps=[cache_ready_dep, pad_output_tid])
@@ -1044,8 +984,8 @@ def prefill_attention_hca_cp(
     hc_attn_scale: pl.Tensor[[3], pl.FP32],
     hc_attn_base: pl.Tensor[[MIX_HC], pl.FP32],
     attn_norm_w: pl.Tensor[[D], pl.BF16],
-    wq_a: pl.Tensor[[D, Q_LORA], pl.BF16],
-    wq_b: pl.Tensor[[Q_LORA, H * HEAD_DIM], pl.INT8],
+    wq_a: pl.Tensor[[D, Q_LORA], pl.BF16, pl.NZ],
+    wq_b: pl.Tensor[[Q_LORA, H * HEAD_DIM], pl.INT8, pl.NZ],
     wq_b_scale: pl.Tensor[[H * HEAD_DIM], pl.FP32],
     wkv: pl.Tensor[[D, HEAD_DIM], pl.BF16],
     gamma_cq: pl.Tensor[[Q_LORA], pl.BF16],
@@ -1063,7 +1003,7 @@ def prefill_attention_hca_cp(
     kv_cache: pl.Tensor[[ORI_BLOCK_NUM_DYN, BLOCK_SIZE, 1, HEAD_DIM], pl.BF16],
     ori_slot_mapping_full: pl.Tensor[[CP_KV_T_DYN], pl.INT64],
     ori_block_table: pl.Tensor[[REQUESTS_DYN, SPARSE_ORI_MAX_BLOCKS], pl.INT32],
-    cmp_kv: pl.Tensor[[CMP_BLOCK_NUM_DYN, BLOCK_SIZE, 1, HEAD_DIM], pl.BF16],
+    cmp_kv: pl.Tensor[[CMP_BLOCK_NUM_DYN, CMP_STORAGE_BLOCK_SIZE, 1, HEAD_DIM], pl.BF16],
     cmp_block_table: pl.Tensor[[REQUESTS_DYN, SPARSE_CMP_MAX_BLOCKS], pl.INT32],
     position_ids_local: pl.Tensor[[CP_Q_T_DYN], pl.INT32],
     position_ids_full: pl.Tensor[[CP_KV_T_DYN], pl.INT32],
@@ -1071,10 +1011,10 @@ def prefill_attention_hca_cp(
     state_slot_mapping_full: pl.Tensor[[CP_KV_T_DYN], pl.INT64],
     attn_sink: pl.Tensor[[H], pl.FP32],
     wo_a_local: pl.Tensor[[O_PROJ_LOCAL_GROUPS, O_LORA, O_GROUP_IN], pl.BF16],
-    wo_b_local: pl.Tensor[[D, O_PROJ_LOCAL_COLS], pl.INT8],
+    wo_b_local: pl.Tensor[[O_PROJ_LOCAL_GROUPS, D, O_LORA], pl.INT8],
     wo_b_scale: pl.Tensor[[D], pl.FP32],
     wo_a_full: pl.Tensor[[O_PROJ_SCRATCH_GROUPS, O_PROJ_SCRATCH_RANK, O_PROJ_SCRATCH_INPUT], pl.BF16],
-    wo_b_full: pl.Tensor[[O_PROJ_SCRATCH_D, O_PROJ_SCRATCH_COLS], pl.INT8],
+    wo_b_full: pl.Tensor[[O_PROJ_SCRATCH_GROUPS, O_PROJ_SCRATCH_D, O_LORA], pl.INT8],
     x_out_full: pl.Tensor[[CP_KV_T_DYN, HC_MULT, D], pl.FP32],
     gather_window: pld.DistributedTensor[[PREFILL_GROUP_CAP, D], pl.BF16],
     gather_signal: pld.DistributedTensor[[TP_SIZE, 1], pl.INT32],
@@ -1111,19 +1051,23 @@ def prefill_attention_hca_cp(
     x_normed_local = pl.create_tensor([q_dim, D], dtype=pl.BF16)
     freqs_cos_local = pl.create_tensor([q_dim, ROPE_DIM], dtype=pl.BF16)
     freqs_sin_local = pl.create_tensor([q_dim, ROPE_DIM], dtype=pl.BF16)
-    for local_row in pl.spmd(q_dim, name_hint="prefill_hca_cp_query_slice"):
-        query_row = pl.load(x_normed_full, [local_base + local_row, 0], [1, D], target_memory=pl.MemorySpace.Vec)
-        pl.store(query_row, [local_row, 0], x_normed_local)
-        query_cos = pl.load(
-            freqs_cos, [local_base + local_row, 0], [1, ROPE_DIM],
-            target_memory=pl.MemorySpace.Vec,
-        )
-        query_sin = pl.load(
-            freqs_sin, [local_base + local_row, 0], [1, ROPE_DIM],
-            target_memory=pl.MemorySpace.Vec,
-        )
-        pl.store(query_cos, [local_row, 0], freqs_cos_local)
-        pl.store(query_sin, [local_row, 0], freqs_sin_local)
+    for block in pl.spmd((q_dim + HCA_QUERY_SLICE_TILE - 1) // HCA_QUERY_SLICE_TILE, name_hint="prefill_hca_cp_query_slice"):
+        row_base = block * HCA_QUERY_SLICE_TILE
+        for row_offset in pl.range(HCA_QUERY_SLICE_TILE):
+            local_row = row_base + row_offset
+            if local_row < q_dim:
+                query_row = pl.load(x_normed_full, [local_base + local_row, 0], [1, D], target_memory=pl.MemorySpace.Vec)
+                pl.store(query_row, [local_row, 0], x_normed_local)
+                query_cos = pl.load(
+                    freqs_cos, [local_base + local_row, 0], [1, ROPE_DIM],
+                    target_memory=pl.MemorySpace.Vec,
+                )
+                query_sin = pl.load(
+                    freqs_sin, [local_base + local_row, 0], [1, ROPE_DIM],
+                    target_memory=pl.MemorySpace.Vec,
+                )
+                pl.store(query_cos, [local_row, 0], freqs_cos_local)
+                pl.store(query_sin, [local_row, 0], freqs_sin_local)
 
     attn_out_local = pl.create_tensor([q_dim, D], dtype=pl.BF16)
     attn_out_local = prefill_attention_hca_cp_core(
@@ -1166,8 +1110,8 @@ def prefill_attention_hca_cp_test(
     hc_attn_scale: pl.Tensor[[3], pl.FP32],
     hc_attn_base: pl.Tensor[[MIX_HC], pl.FP32],
     attn_norm_w: pl.Tensor[[D], pl.BF16],
-    wq_a: pl.Tensor[[D, Q_LORA], pl.BF16],
-    wq_b: pl.Tensor[[Q_LORA, H * HEAD_DIM], pl.INT8],
+    wq_a: pl.Tensor[[D, Q_LORA], pl.BF16, pl.NZ],
+    wq_b: pl.Tensor[[Q_LORA, H * HEAD_DIM], pl.INT8, pl.NZ],
     wq_b_scale: pl.Tensor[[H * HEAD_DIM], pl.FP32],
     wkv: pl.Tensor[[D, HEAD_DIM], pl.BF16],
     gamma_cq: pl.Tensor[[Q_LORA], pl.BF16],
@@ -1187,7 +1131,7 @@ def prefill_attention_hca_cp_test(
     kv_cache: pl.InOut[pl.Tensor[[ORI_BLOCK_NUM_DYN, BLOCK_SIZE, 1, HEAD_DIM], pl.BF16]],
     ori_slot_mapping_full: pl.Tensor[[CP_KV_T_DYN], pl.INT64],
     ori_block_table: pl.Tensor[[REQUESTS_DYN, SPARSE_ORI_MAX_BLOCKS], pl.INT32],
-    cmp_kv: pl.InOut[pl.Tensor[[CMP_BLOCK_NUM_DYN, BLOCK_SIZE, 1, HEAD_DIM], pl.BF16]],
+    cmp_kv: pl.InOut[pl.Tensor[[CMP_BLOCK_NUM_DYN, CMP_STORAGE_BLOCK_SIZE, 1, HEAD_DIM], pl.BF16]],
     cmp_block_table: pl.Tensor[[REQUESTS_DYN, SPARSE_CMP_MAX_BLOCKS], pl.INT32],
     position_ids_local: pl.Tensor[[CP_Q_T_DYN], pl.INT32],
     position_ids_full: pl.Tensor[[CP_KV_T_DYN], pl.INT32],
@@ -1195,7 +1139,7 @@ def prefill_attention_hca_cp_test(
     state_slot_mapping_full: pl.Tensor[[CP_KV_T_DYN], pl.INT64],
     attn_sink: pl.Tensor[[H], pl.FP32],
     wo_a: pl.Tensor[[O_PROJ_LOCAL_GROUPS, O_LORA, O_GROUP_IN], pl.BF16],
-    wo_b: pl.Tensor[[D, O_PROJ_LOCAL_COLS], pl.INT8],
+    wo_b: pl.Tensor[[O_PROJ_LOCAL_GROUPS, D, O_LORA], pl.INT8],
     wo_b_scale: pl.Tensor[[D], pl.FP32],
     x_out_full: pl.Out[pl.Tensor[[CP_KV_T_DYN, HC_MULT, D], pl.FP32]],
     gather_window: pld.DistributedTensor[[PREFILL_GROUP_CAP, D], pl.BF16],
@@ -1229,7 +1173,7 @@ def prefill_attention_hca_cp_test(
     x_out_full.bind_dynamic(0, CP_KV_T_DYN)
 
     wo_a_full = pl.create_tensor([O_PROJ_SCRATCH_GROUPS, O_PROJ_SCRATCH_RANK, O_PROJ_SCRATCH_INPUT], dtype=pl.BF16)
-    wo_b_full = pl.create_tensor([O_PROJ_SCRATCH_D, O_PROJ_SCRATCH_COLS], dtype=pl.INT8)
+    wo_b_full = pl.create_tensor([O_PROJ_SCRATCH_GROUPS, O_PROJ_SCRATCH_D, O_LORA], dtype=pl.INT8)
     o_proj_order_fence = pl.create_tensor([1], dtype=pl.INT32)
     with pl.at(level=pl.Level.CORE_GROUP, name_hint="prefill_hca_o_proj_order_init"):
         pl.write(o_proj_order_fence, [0], pl.cast(0, pl.INT32))
@@ -1288,7 +1232,7 @@ def l3_prefill_attention_hca_cp(
     kv_cache: pl.InOut[pl.Tensor[[TP_SIZE, ORI_BLOCK_NUM_DYN, BLOCK_SIZE, 1, HEAD_DIM], pl.BF16]],
     ori_slot_mapping_full: pl.Tensor[[TP_SIZE, CP_KV_T_DYN], pl.INT64],
     ori_block_table: pl.Tensor[[TP_SIZE, REQUESTS_DYN, SPARSE_ORI_MAX_BLOCKS], pl.INT32],
-    cmp_kv: pl.InOut[pl.Tensor[[TP_SIZE, CMP_BLOCK_NUM_DYN, BLOCK_SIZE, 1, HEAD_DIM], pl.BF16]],
+    cmp_kv: pl.InOut[pl.Tensor[[TP_SIZE, CMP_BLOCK_NUM_DYN, CMP_STORAGE_BLOCK_SIZE, 1, HEAD_DIM], pl.BF16]],
     cmp_block_table: pl.Tensor[[TP_SIZE, REQUESTS_DYN, SPARSE_CMP_MAX_BLOCKS], pl.INT32],
     position_ids_local: pl.Tensor[[TP_SIZE, CP_Q_T_DYN], pl.INT32],
     position_ids_full: pl.Tensor[[TP_SIZE, CP_KV_T_DYN], pl.INT32],
@@ -1296,7 +1240,7 @@ def l3_prefill_attention_hca_cp(
     state_slot_mapping_full: pl.Tensor[[TP_SIZE, CP_KV_T_DYN], pl.INT64],
     attn_sink: pl.Tensor[[TP_SIZE, H], pl.FP32],
     wo_a: pl.Tensor[[TP_SIZE, O_PROJ_LOCAL_GROUPS, O_LORA, O_GROUP_IN], pl.BF16],
-    wo_b: pl.Tensor[[TP_SIZE, D, O_PROJ_LOCAL_COLS], pl.INT8],
+    wo_b: pl.Tensor[[TP_SIZE, O_PROJ_LOCAL_GROUPS, D, O_LORA], pl.INT8],
     wo_b_scale: pl.Tensor[[TP_SIZE, D], pl.FP32],
     x_out_full: pl.Out[pl.Tensor[[TP_SIZE, CP_KV_T_DYN, HC_MULT, D], pl.FP32]],
 ):
@@ -1427,9 +1371,10 @@ def build_cp_tensor_specs(
                 init_value=torch.stack(shards).contiguous(),
             ))
         elif spec.name == "wo_b":
-            shards = [value[:, rank * O_PROJ_LOCAL_COLS : (rank + 1) * O_PROJ_LOCAL_COLS] for rank in range(tp_size)]
+            # Same leading-group-axis split as wo_a -- wo_b is now [GROUPS, D, O_LORA].
+            shards = [value[rank * O_PROJ_LOCAL_GROUPS : (rank + 1) * O_PROJ_LOCAL_GROUPS] for rank in range(tp_size)]
             specs.append(TensorSpec(
-                "wo_b", [tp_size, D, O_PROJ_LOCAL_COLS], spec.dtype,
+                "wo_b", [tp_size, O_PROJ_LOCAL_GROUPS, D, O_LORA], spec.dtype,
                 init_value=torch.stack(shards).contiguous(),
             ))
         elif spec.name == "x_out":
@@ -1488,7 +1433,10 @@ def build_ragged2_cp_tensor_specs(tp_size: int = TP_SIZE):
         request_cmp_table = cmp_block_table[request : request + 1]
         request_state_table = compress_state_block_table[request : request + 1]
         ori_mapping = make_ori_slot_mapping(positions_2d, request_ori_table)
-        cmp_mapping = compressed_slot_mapping(positions_2d, request_cmp_table, compress_ratio=COMPRESS_RATIO)
+        cmp_mapping = compressed_slot_mapping(
+            positions_2d, request_cmp_table,
+            compress_ratio=COMPRESS_RATIO, block_size=CMP_STORAGE_BLOCK_SIZE,
+        )
         state_mapping = make_state_slot_mapping(positions_2d, request_state_table, state_block_size=state_size)
         ori_mappings.append(ori_mapping.reshape(-1))
         cmp_mappings.append(cmp_mapping.reshape(-1))
@@ -1505,7 +1453,7 @@ def build_ragged2_cp_tensor_specs(tp_size: int = TP_SIZE):
             row = cache_row_from_table(ori_block_table[request], position)
             kv_cache_flat[row] = ((torch.rand(HEAD_DIM) - 0.5) * 0.1).to(torch.bfloat16)
 
-    cmp_kv = torch.zeros(HCA_CMP_BLOCK_NUM, BLOCK_SIZE, 1, HEAD_DIM, dtype=torch.bfloat16)
+    cmp_kv = torch.zeros(HCA_CMP_BLOCK_NUM, CMP_STORAGE_BLOCK_SIZE, 1, HEAD_DIM, dtype=torch.bfloat16)
     compress_state_shape = (HCA_STATE_BLOCK_NUM, HCA_STATE_BLOCK_SIZE, MAIN_COMPRESS_STATE_DIM)
     compress_state = torch.zeros(compress_state_shape, dtype=torch.float32)
     compress_state_flat = compress_state.view(-1, MAIN_COMPRESS_STATE_DIM)
@@ -1579,7 +1527,8 @@ def golden_prefill_attention_hca_cp(tensors):
         "attn_sink", "wo_b_scale",
     )}
     full["wo_a"] = torch.cat([tensors["wo_a"][rank] for rank in range(tp_size)], dim=0)
-    full["wo_b"] = torch.cat([tensors["wo_b"][rank] for rank in range(tp_size)], dim=1)
+    # wo_b is now [GROUPS, D, O_LORA] -- same leading-group-axis concat as wo_a.
+    full["wo_b"] = torch.cat([tensors["wo_b"][rank] for rank in range(tp_size)], dim=0)
     full["x_hc"] = tensors["x_hc_full"][0]
     full["compress_state"] = tensors["compress_state"][0].clone()
     full["kv_cache"] = tensors["kv_cache"][0].clone()
@@ -1629,7 +1578,7 @@ if __name__ == "__main__":
         "--case", choices=["b1", "ragged2"], default="b1",
         help="Fixture case; ragged2 is the fixed two-request TP2 boundary case.",
     )
-    parser.add_argument("--enable-chip-swimlane", action="store_true", default=False)
+    parser.add_argument("--enable-chip-swimlane", type=int, nargs="?", const=1, default=0, choices=range(5))
     parser.add_argument("--enable-dep-gen", action="store_true", default=False)
     parser.add_argument("--dump-passes", action="store_true", default=False)
     args = parser.parse_args()
@@ -1661,6 +1610,7 @@ if __name__ == "__main__":
                 device_id=device_ids[0],
                 enable_chip_swimlane=args.enable_chip_swimlane,
                 enable_dep_gen=args.enable_dep_gen,
+                ring_heap=PREFILL_RING_HEAP,
             ),
             compile_only=args.compile_only,
             rtol=1e-2,

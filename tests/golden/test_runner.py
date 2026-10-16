@@ -33,6 +33,7 @@ from golden.runner import (
     _report_bench,
     _report_l3_per_rank,
     _report_raw_samples,
+    _report_task_slots,
     _resident_loop_sizes,
     _run_benchmark,
     _run_benchmark_l3,
@@ -355,6 +356,81 @@ class TestGoldenDataCacheMiss:
         assert str(partial / "in" / "x.pt") in r.error
         assert str(partial / "in" / "state.pt") in r.error
 
+    def test_missing_dir_fails_before_compile(self, three_kinds_specs, tmp_path):
+        missing = tmp_path / "does_not_exist"
+        with patch("pypto.ir.compile") as compile_mock:
+            r = run(
+                fn=object(),
+                specs=three_kinds_specs,
+                golden_fn=None,
+                golden_data=str(missing),
+            )
+
+        assert not r.passed
+        assert "golden_data is not a directory" in (r.error or "")
+        compile_mock.assert_not_called()
+
+
+class TestGoldenDataInputsOnly:
+    """``golden_data`` holds ``in/`` but no ``out/``: a capture from a program
+    with no ``golden_fn``."""
+
+    @pytest.fixture
+    def inputs_only_cache(self, tmp_path):
+        cache = tmp_path / "inputs_only"
+        _save_tensors(cache / "in", {
+            "x": torch.tensor([1.0, 2.0, 3.0, 4.0]),
+            "state": torch.tensor([10.0, 20.0, 30.0, 40.0]),
+        })
+        return cache
+
+    def test_without_golden_fn_replays_inputs_and_skips_validation(
+        self, inputs_only_cache, three_kinds_specs, tmp_path, capsys,
+    ):
+        observed = {}
+
+        def fake_execute(work_dir, tensors, **_kwargs):
+            observed["x"] = tensors[0].clone()
+            observed["state"] = tensors[2].clone()
+            tensors[1][:] = torch.full_like(tensors[1], 9999.0)
+
+        compiled_dir = _make_build_dir(tmp_path)
+        compile_p, exec_p = _patch_compile_and_execute(compiled_dir, fake_execute=fake_execute)
+        with compile_p, exec_p, patch("golden.runner._validate") as validate_mock:
+            r = run(
+                fn=object(),
+                specs=three_kinds_specs,
+                golden_fn=None,
+                golden_data=str(inputs_only_cache),
+            )
+
+        assert r.passed, f"unexpected failure: {r.error}"
+        validate_mock.assert_not_called()
+        torch.testing.assert_close(observed["x"], torch.tensor([1.0, 2.0, 3.0, 4.0]))
+        torch.testing.assert_close(observed["state"], torch.tensor([10.0, 20.0, 30.0, 40.0]))
+        assert not (inputs_only_cache / "out").exists()
+        out = capsys.readouterr().out
+        assert "golden_data has no out/: reusing inputs only" in out
+        assert "validation skipped: golden_data has no out/" in out
+
+    def test_with_golden_fn_still_requires_out(
+        self, inputs_only_cache, three_kinds_specs, tmp_path,
+    ):
+        compiled_dir = _make_build_dir(tmp_path)
+        compile_p, exec_p = _patch_compile_and_execute(compiled_dir)
+        with compile_p, exec_p:
+            r = run(
+                fn=object(),
+                specs=three_kinds_specs,
+                golden_fn=lambda t: None,
+                golden_data=str(inputs_only_cache),
+            )
+
+        assert not r.passed
+        assert "golden_data is missing files" in (r.error or "")
+        assert str(inputs_only_cache / "out" / "y.pt") in r.error
+        assert str(inputs_only_cache / "in" / "x.pt") not in r.error
+
 
 class TestGoldenFnPath:
     """No ``golden_data`` — the classic path that generates inputs, calls
@@ -626,7 +702,7 @@ class TestJitCompilePath:
                     compile_runtime=True, benchmark_step=1,
                 )
             ],
-            config={"enable_chip_swimlane": True},
+            config={"enable_chip_swimlane": 1},
             compile_only=True,
         )
 
@@ -1014,21 +1090,43 @@ class TestRuntimeDir:
         create_tensor.assert_not_called()
         execute.assert_not_called()
 
-    def test_runtime_dir_l3_skips_requested_benchmark(
-        self,
-        tmp_path,
-        monkeypatch,
-        capsys,
-    ):
+    def test_runtime_dir_l3_runs_requested_benchmark(self, tmp_path, monkeypatch):
         prebuilt = tmp_path / "prebuilt"
         prebuilt.mkdir()
         compiled = _artifact(prebuilt, _l3_info("x__ssa_v0", shape=[1], dtype=torch.float32))
         specs = [TensorSpec("x", [1], torch.float32)]
         monkeypatch.setenv("PYPTO_BENCH", "1")
+        stats = object()
 
         with (
             _l3_abi_environment(),
             patch("golden.runner._reload_from_dir", return_value=compiled),
+            patch("golden.runner._run_benchmark_l3", return_value=stats) as benchmark,
+            patch("golden.runner._dispatch") as execute,
+        ):
+            result = run(fn=object(), specs=specs, runtime_dir=str(prebuilt))
+
+        assert result.passed, result.error
+        assert result.bench is stats
+        execute.assert_called_once()
+        benchmark.assert_called_once()
+        assert benchmark.call_args.args[0] is compiled
+
+    def test_runtime_dir_stepped_scalar_skips_requested_benchmark(
+        self, tmp_path, monkeypatch, capsys,
+    ):
+        prebuilt = tmp_path / "prebuilt"
+        prebuilt.mkdir()
+        specs = [
+            TensorSpec("x", [1], torch.float32),
+            ScalarSpec("epoch", torch.int32, 0, benchmark_step=1),
+        ]
+        monkeypatch.setenv("PYPTO_BENCH", "1")
+
+        with (
+            _l3_abi_environment(),
+            patch("golden.runner._reload_from_dir", return_value=_artifact(prebuilt)),
+            patch("golden.runner._validate_compiled_spec_abi"),
             patch("golden.runner._run_benchmark_l3") as benchmark,
             patch("golden.runner._dispatch") as execute,
         ):
@@ -1036,9 +1134,33 @@ class TestRuntimeDir:
 
         assert result.passed, result.error
         assert result.bench is None
-        benchmark.assert_not_called()
         execute.assert_called_once()
-        assert "benchmark skipped: runtime_dir replay is correctness-only" in capsys.readouterr().out
+        benchmark.assert_not_called()
+        assert "stepped scalar(s) ['epoch']" in capsys.readouterr().out
+
+    def test_runtime_dir_l2_runs_requested_benchmark(
+        self, three_kinds_specs, tmp_path, monkeypatch,
+    ):
+        prebuilt = tmp_path / "prebuilt"
+        prebuilt.mkdir()
+        monkeypatch.setenv("PYPTO_BENCH", "1")
+        stats = object()
+
+        with (
+            _patch_reload(prebuilt) as reload,
+            patch("golden.runner._is_l3", return_value=False),
+            patch("golden.runner._run_benchmark", return_value=stats) as benchmark,
+            patch("golden.runner._run_benchmark_l3") as benchmark_l3,
+            patch("golden.runner._dispatch") as execute,
+        ):
+            result = run(fn=object(), specs=three_kinds_specs, runtime_dir=str(prebuilt))
+
+        assert result.passed, result.error
+        assert result.bench is stats
+        execute.assert_called_once()
+        benchmark.assert_called_once()
+        assert benchmark.call_args.args[0] is reload.return_value
+        benchmark_l3.assert_not_called()
 
     def test_runtime_dir_missing_returns_fail(self, three_kinds_specs, tmp_path):
         missing = tmp_path / "does_not_exist"
@@ -2217,7 +2339,7 @@ class TestResidentPath:
         assert r.passed, f"unexpected failure: {r.error}"
         l3res.assert_called_once()
 
-    def test_runtime_dir_resident_disables_embedded_benchmark(self, tmp_path, monkeypatch):
+    def test_runtime_dir_resident_enables_embedded_benchmark(self, tmp_path, monkeypatch):
         prebuilt = tmp_path / "prebuilt"
         prebuilt.mkdir()
         specs = self._resident_specs()
@@ -2240,7 +2362,7 @@ class TestResidentPath:
             result = run(fn=object(), specs=specs, runtime_dir=str(prebuilt))
 
         assert result.passed, result.error
-        assert l3res.call_args.kwargs["benchmark_enabled"] is False
+        assert l3res.call_args.kwargs["benchmark_enabled"] is True
         execute.assert_not_called()
 
     def test_resident_benchmark_reuses_handle_and_advances_stepped_scalar(self, monkeypatch):
@@ -2475,6 +2597,7 @@ class _FakeInv:
         self.pid = pid
         self.inv = inv
         self.effective_us = effective_us
+        self.spans = ()
 
 
 class _FakeStats:
@@ -2603,6 +2726,38 @@ class TestBenchReports:
         out = capsys.readouterr().out
         assert "rank 10: eff_us min=50.0" in out
         assert "slot" not in out
+
+    def test_task_slots_off_without_tagged_spans(self, capsys):
+        _report_task_slots(_FakeStats())
+        assert capsys.readouterr().out == ""
+
+    def test_task_slots_merge_repeats_and_pair_by_invocation(self, monkeypatch, capsys):
+        """Slot 0 repeats in inv 0; inv 1 lacks slot 1 and inv 2 lacks slot 0.
+
+        Inv 0's slot 0 window is 500..2000 ns. Both slots hold two samples, so a
+        positional pairing would diff inv 2 against inv 1; only inv 0 carries
+        both, giving ``dfin_us`` = 5.0 - 2.0.
+        """
+
+        def span(slot, ts, dur, is_device=True):
+            name = f"chip.run.runner_run.device_wall.task_slot_{slot}"
+            return types.SimpleNamespace(name=name, ts=ts, dur=dur, is_device=is_device)
+
+        invs = [_FakeInv(10, i, 0.0) for i in range(3)]
+        invs[0].spans = (span(0, 1000, 1000), span(0, 500, 1000), span(1, 4000, 1000),
+                         span(1, 0, 90000, is_device=False))
+        invs[1].spans = (span(0, 1500, 500),)
+        invs[2].spans = (span(1, 11000, 1000),)
+        stats = types.SimpleNamespace(invocations=list(reversed(invs)))
+        monkeypatch.setenv("PYPTO_BENCH_RAW", "1")
+        _report_task_slots(stats)
+        assert capsys.readouterr().out.splitlines() == [
+            "[RUN]   task slots: ranks=1",
+            "[RUN]     rank 10 task_slot 0: n=2 fin_us=2.0 dur_us=1.0",
+            "[RUN]       raw fin_us=[2.0, 2.0]",
+            "[RUN]     rank 10 task_slot 1: n=2 fin_us=8.5 dur_us=1.0 dfin_us=3.0",
+            "[RUN]       raw fin_us=[5.0, 12.0]",
+        ]
 
     def test_report_lines_stay_ci_safe(self, monkeypatch, capsys):
         """Daily CI's pattern selects the headline and only the headline.

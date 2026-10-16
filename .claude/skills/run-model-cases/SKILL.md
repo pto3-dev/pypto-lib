@@ -13,7 +13,7 @@ model documentation, which explains what each program computes:
 - [Models](../../../docs/models/index.md)
 - [Qwen3-14B](../../../docs/models/qwen3_14b/index.md)
 - [DeepSeek V4-Flash](../../../docs/models/deepseek_v4_flash_mtp/index.md)
-- [Platforms and Devices](../../../docs/get-started/platforms.md)
+- [Run Your First Kernel](../../../docs/get-started/first-kernel.md) — the platform table
 - [Compile and Runtime Workflow](../../../docs/run-and-validate/compile-runtime-workflow.md)
 
 For a caller who has not yet proven the environment, the setup sequence and its
@@ -90,8 +90,6 @@ Component entry points such as `decode_csa.py` and `rmsnorm.py` take a single
 card. Their CLIs also accept a simulator, but a simulator run can fail in the
 runtime stage on workspace provisioning while the same case validates on a
 device — prefer the device form when a card is available.
-
-DeepSeek V4 Pro mirrors this tree on A5 (`-p a5`).
 
 ## Escalating within a tree
 

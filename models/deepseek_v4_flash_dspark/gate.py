@@ -20,8 +20,8 @@ T = MOE_TOKENS
 D = M.hidden_size
 NORM_EPS = M.rms_norm_eps
 # Routing space: every rank routes over the full global expert set so dispatch
-# can fan tokens across ranks. moe.py shrinks config.FLASH.n_routed_experts to
-# 32*EP before importing this module, so N_EXPERTS follows the active EP world.
+# can fan tokens across ranks. moe.py sets config.FLASH.n_routed_experts to
+# a fixed per-rank count * EP before importing this module (256 at EP8).
 N_EXPERTS = M.n_routed_experts
 TOPK = M.num_experts_per_tok
 ROUTE_SCALE = M.routed_scaling_factor
@@ -32,15 +32,15 @@ N_HASH_LAYERS = M.num_hash_layers
 T_TILE = 8
 NORM_TOKEN_TILE = 4
 GATE_T_TILE = 8
-GATE_M_TILE = 16        # cube M-tile: matmul rows must be a multiple of 16 (fractal)
-GATE_N_TILE = 16        # expert columns per gate spmd block
+GATE_M_TILE = 32        # cube M-tile: matmul rows must be a multiple of 16 (fractal)
+GATE_N_TILE = 32        # expert columns per gate spmd block
 assert N_EXPERTS % GATE_N_TILE == 0
 T_PAD = ((T + GATE_M_TILE - 1) // GATE_M_TILE) * GATE_M_TILE
 D_TILE = 256
 ROW_PAD = 8
 FFN_REDUCE_TILE = D // ROW_PAD
 assert D % ROW_PAD == 0
-GATE_D_TILE = 2048
+GATE_D_TILE = 1024
 assert D % GATE_D_TILE == 0, "gate K-loop must cover D"
 QUANT_TILE = 256
 SCORE_PAD = 256         # padded expert row for sort32 + mrgsort
@@ -48,8 +48,7 @@ TOPK_PAD = 8            # TOPK padded to 32B-aligned width
 SORT_PAD = TOPK_PAD * 2 # (val, idx) interleaved slice width
 assert TOPK <= TOPK_PAD
 
-@pl.jit.inline
-def gate(
+def _gate(
     x_mixed: pl.Tensor[[T, D], pl.BF16],
     norm_w: pl.Tensor[[D], pl.BF16],
     gate_w: pl.Tensor[[N_EXPERTS, D], pl.FP32],
@@ -58,10 +57,10 @@ def gate(
     num_tokens: pl.Scalar[pl.INT32],
     tid2eid: pl.Tensor[[VOCAB, TOPK], pl.INT32],
     input_ids: pl.Tensor[[T], pl.INT64],
-    x_norm_i8: pl.Tensor[[T, D], pl.INT8],
-    x_norm_scale: pl.Tensor[[T, 1], pl.FP32],
-    indices: pl.Tensor[[T, TOPK], pl.INT32],
-    weights: pl.Tensor[[T, TOPK], pl.FP32],
+    x_norm_i8: pl.Out[pl.Tensor[[T, D], pl.INT8]],
+    x_norm_scale: pl.Out[pl.Tensor[[T, 1], pl.FP32]],
+    indices: pl.Out[pl.Tensor[[T, TOPK], pl.INT32]],
+    weights: pl.Out[pl.Tensor[[T, TOPK], pl.FP32]],
 ):
     # Deferred RMSNorm (qwen3-style): store xg = x*gamma (NOT *inv_rms), because
     # the per-token positive scalar inv_rms factors out of everything downstream:
@@ -166,8 +165,9 @@ def gate(
     with pl.at(level=pl.Level.CORE_GROUP, name_hint="gate_pre_route"):
         for zt in pl.range(T):
             if zt >= active_tokens:
-                inactive_x_norm_f16 = pl.full([1, D], dtype=pl.FP16, value=0.0)
-                inactive_x_norm_i8 = pl.cast(inactive_x_norm_f16, target_type=pl.INT8, mode="trunc")
+                # Positive FP16 zero has zero bytes; no numeric conversion is needed.
+                inactive_x_norm_f16 = pl.full([1, D // 2], dtype=pl.FP16, value=0.0)
+                inactive_x_norm_i8 = pl.reinterpret_view(inactive_x_norm_f16, pl.INT8)
                 x_norm_i8[zt : zt + 1, :] = inactive_x_norm_i8
                 pl.write(x_norm_scale, [zt, 0], pl.cast(0.0, pl.FP32))
                 for zk in pl.range(TOPK):
@@ -183,6 +183,8 @@ def gate(
     # stays outermost and // % divide by the compile-time GATE_N_BLOCKS.
     GATE_N_BLOCKS = N_EXPERTS // GATE_N_TILE
     for gb_idx in pl.spmd(active_gate_tiles * GATE_N_BLOCKS, name_hint="gate", allow_early_resolve=True):
+        # Weight reads bypass L2.
+        pl.set_cache_policy(gate_w, pl.CachePolicy.BYPASS)
         tg = gb_idx // GATE_N_BLOCKS
         nb = gb_idx % GATE_N_BLOCKS
         t1 = tg * GATE_M_TILE
@@ -291,29 +293,8 @@ def gate(
     return weights
 
 
-@pl.jit
-def gate_test(
-    x_mixed: pl.Tensor[[T, D], pl.BF16],
-    norm_w: pl.Tensor[[D], pl.BF16],
-    gate_w: pl.Tensor[[N_EXPERTS, D], pl.FP32],
-    gate_bias: pl.Tensor[[N_EXPERTS], pl.FP32],
-    layer_id: pl.Scalar[pl.INT32],
-    num_tokens: pl.Scalar[pl.INT32],
-    tid2eid: pl.Tensor[[VOCAB, TOPK], pl.INT32],
-    input_ids: pl.Tensor[[T], pl.INT64],
-    x_norm_i8: pl.Out[pl.Tensor[[T, D], pl.INT8]],
-    x_norm_scale: pl.Out[pl.Tensor[[T, 1], pl.FP32]],
-    indices: pl.Out[pl.Tensor[[T, TOPK], pl.INT32]],
-    weights: pl.Out[pl.Tensor[[T, TOPK], pl.FP32]],
-):
-    gate(
-        x_mixed,
-        norm_w, gate_w, gate_bias,
-        layer_id, num_tokens,
-        tid2eid, input_ids,
-        x_norm_i8, x_norm_scale, indices, weights,
-    )
-    return x_norm_i8, x_norm_scale, indices, weights
+gate = pl.jit.inline(_gate)
+gate_test = pl.jit(_gate)
 
 
 def _per_token_int8_quant(x_bf16):
@@ -431,7 +412,7 @@ if __name__ == "__main__":
     parser.add_argument("-d", "--device", type=int, default=0)
     parser.add_argument("--layer-id", type=int, default=10)
     parser.add_argument("--num-tokens", type=int, default=T)
-    parser.add_argument("--enable-chip-swimlane", type=int, nargs="?", const=1, default=0, choices=(0, 1, 2))
+    parser.add_argument("--enable-chip-swimlane", type=int, nargs="?", const=1, default=0, choices=range(5))
     parser.add_argument("--dump-passes", action="store_true", default=False)
     args = parser.parse_args()
 

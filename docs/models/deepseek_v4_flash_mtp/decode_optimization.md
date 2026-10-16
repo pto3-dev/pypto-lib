@@ -566,23 +566,38 @@ Every decode attention layer streams its whole weight set from HBM once per
 forward, and in a full forward that traffic is always **cold**: the MoE between
 two layers pushes 427.8 MB through L2, so nothing an attention layer read
 survives to the next one. One SDMA CMO warm per layer now covers every weight
-that layer reads, in consumer-deadline order, **anchored at layer entry** where
-the cores are still busy with the previous stage so the warm overlaps them —
-anchoring it later measured worse.
+that layer reads, in consumer-deadline order, **anchored on the layer's
+`rms_norm`** — early enough to land before the projections need the weights, and
+late enough that the cores are busy with work the warm can overlap. Both the
+layer's first task and every later anchor measured worse.
 
 **Fast rank p50 40132.0 → 39287.9 µs (−2.10 %)**, with each attention block
 returning to its standalone speed and MoE unaffected, as expected (#963).
+
+Re-measured on the current kernels, that warm buys only −0.23 % at ep2 and
+−0.56 % at ep8. Anchored on `rms_norm`, even the o-projection weights alone make
+the forward 2.2 % *slower* than no warm. The warm now covers only the o-projection
+pair `wo_a` + `wo_b`, and it issues once the q projection has written `q`. By that
+point the last large projection stream has been read, and the o-projection is
+still a whole attention kernel away. Against the `rms_norm`-anchored warm, the fast
+rank p50 goes **34345.1 → 33424.2 µs (−2.68 %) at ep2** and **35486.0 → 34711.7 µs
+(−2.18 %) at ep8**, −2.90 % and −2.73 % against no warm (balanced routing, start
+position 8192, warmup 500). The old warm had no gain left on HCA, where it landed
+within ±6 µs per layer of no warm. Every attention block now runs within
+15 µs of its standalone latency.
 
 Three hard constraints, each established by its own negative result:
 
 | Constraint | Evidence |
 |---|---|
 | **One scope, one context.** | Splitting the warm across two `pl.at` scopes puts two SDMA streams in flight, halving aggregate throughput (285 → 153 GB/s) and turning a −1.1 % gain into a +0.7 % loss. |
-| **All weights or none.** | Warming one projection alone is *worse than not warming*: the warm costs a near-fixed ~20 µs in its segment while the saving scales with coverage. |
+| **Warm only what can land first.** | Weights consumed right after `rms_norm` cannot be warmed in time, and the warm then competes with their own stream. Within the o-projection pair, partial coverage loses: `wo_a` alone keeps 83 % of the pair's gain and `wo_b` alone 48 %. |
 | **The warm set must fit L2.** | 157.9 MB and 146.9 MB sets fit inside 192 MiB and win; a 268.4 MB set (1.33× L2) evicts itself and costs 3 %. |
 
 The warm is a cache hint with no destination — deleting the scope changes no
-value. That is what makes it safe to tune aggressively.
+value. That is what makes it safe to tune aggressively. The general form of this
+change — when a warm pays off, the API, and how to measure one — is
+[L2 Prefetch](../../debug-and-tune/l2-prefetch.md).
 
 ---
 
@@ -592,6 +607,8 @@ value. That is what makes it safe to tune aggressively.
   L2 / L1 / L0 tuning rules
 - [Cube Tile Tuning](../../debug-and-tune/cube-tile-tuning.md) — choosing row, N and K tiles against
   the compiler's memory report
+- [L2 Prefetch](../../debug-and-tune/l2-prefetch.md) — the SDMA cache warm used in
+  §4.5, generalized: candidate selection, sizing, anchoring, and measurement
 - [Dependencies and Scheduling](../../debug-and-tune/dependency-and-scheduling.md) — how edges form,
   when the scheduler issues, early dispatch, and dummy-task idioms
 - [Precision Tuning](../../debug-and-tune/precision-tuning.md) — rounding modes, dtype alignment, and
