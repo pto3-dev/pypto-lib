@@ -6,17 +6,12 @@
 # INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
-"""Generate one HOST program dispatching a complete model to both TP ranks."""
-
-"""Collective source generators used by the TP2 model composition."""
+"""Collective and residual source fragments for the TP2 decode model."""
 
 import ast
-
 import pypto.language as pl
-
 from .vector_norm import make_vector_norm
 from .reusable import reusable_methods
-
 
 ROWS = pl.dynamic("rows")
 
@@ -76,20 +71,35 @@ def gather_logits(self,
     signal: pl.InOut[pld.DistributedTensor[[2,1],pl.INT32]],
     metadata: pl.Tensor[[4],pl.INT32],
 ) -> tuple[pl.Tensor[[1,248320],pl.FP32],pld.DistributedTensor[[1,124160],pl.FP32],pld.DistributedTensor[[2,1],pl.INT32]]:
+    pl.func_attr({"static_block_mapping":True})
     ctx=pld.get_comm_ctx(data)
     rank=pld.rank(ctx)
     peer=1-rank
     epoch=pl.read(metadata,[1])
-    for offset in pl.range(0,124160,1280):
-        value=pl.cast(pl.load(local,[0,offset],[1,1280]),pl.FP32)
-        data=pl.store(value,[0,offset],data)
+    lane=pl.tile.get_block_idx()
+    for job in pl.range(97*lane//2,97*(lane+1)//2):
+        value=pl.cast(pl.load(local,[0,job*1280],[1,1280]),pl.FP32)
+        data=pl.store(value,[0,job*1280],data)
     pld.system.notify(signal,peer=peer,offsets=[rank,0],value=1,op=pld.NotifyOp.AtomicAdd)
-    pld.system.wait(signal,offsets=[peer,0],expected=epoch,cmp=pld.WaitCmp.Ge)
-    for offset in pl.range(0,124160,1280):
-        own=pl.load(data,[0,offset],[1,1280])
-        other=pld.tile.remote_load(data,peer=peer,offsets=[0,offset],shape=[1,1280])
-        out=pl.store(own,[0,rank*124160+offset],out)
-        out=pl.store(other,[0,peer*124160+offset],out)
+    pld.system.wait(signal,offsets=[peer,0],expected=epoch*2,cmp=pld.WaitCmp.Ge)
+    for job in pl.range(97*lane//2,97*(lane+1)//2):
+        own=pl.load(data,[0,job*1280],[1,1280])
+        other=pld.tile.remote_load(data,peer=peer,offsets=[0,job*1280],shape=[1,1280])
+        out=pl.store(own,[0,rank*124160+job*1280],out)
+        out=pl.store(other,[0,peer*124160+job*1280],out)
+    return out,data,signal
+
+@pl.function(type=pl.FunctionType.Inline)
+def gather_logits_dispatch(self,
+    local: pl.Tensor[[1,124160],pl.BF16],
+    out: pl.Out[pl.Tensor[[1,248320],pl.FP32]],
+    data: pl.InOut[pld.DistributedTensor[[1,124160],pl.FP32]],
+    signal: pl.InOut[pld.DistributedTensor[[2,1],pl.INT32]],
+    metadata: pl.Tensor[[4],pl.INT32],
+) -> tuple[pl.Tensor[[1,248320],pl.FP32],pld.DistributedTensor[[1,124160],pl.FP32],pld.DistributedTensor[[2,1],pl.INT32]]:
+    width=pl.min(2,pl.system.available_cluster_count()*2)
+    with pl.spmd(width):
+        out,data,signal=self.gather_logits(local,out,data,signal,metadata)
     return out,data,signal
 """
 

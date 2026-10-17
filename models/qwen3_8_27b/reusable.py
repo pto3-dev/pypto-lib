@@ -91,6 +91,8 @@ def reusable_methods(name, function, bindings):
         else:
             compute_body.append(statement)
     kernel.body = scalar_prefix + [block_index] + compute_body + copy.deepcopy(wrapper.body[index + 1 :])
+    if not name.startswith("_"):
+        kernel.body.insert(0, ast.parse('pl.func_attr({"static_block_mapping": True})').body[0])
     if cache_policies:
         # Pass9's supported function attr, consumed by ConvertTensorToTileOps.
         kernel.body.insert(0, ast.parse(f'pl.func_attr({{"cache_policy": {cache_policies!r}}})').body[0])

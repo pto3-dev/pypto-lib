@@ -1,0 +1,6 @@
+{
+  "selected": [
+    "5120x124160"
+  ],
+  "reason": "Head has non-overlapping micro samples and bitwise-equal output. Z samples overlap; retain its control."
+}
