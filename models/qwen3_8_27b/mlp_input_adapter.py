@@ -99,7 +99,7 @@ def _render(root, lane):
 
 
 def install_mlp_input(build):
-    from .attention_program_adapter import MLP_EVENTS_OFFSET
+    from .device_program_layout import MLP_EVENTS_OFFSET
 
     reports = []
     for rank in (0, 1):
