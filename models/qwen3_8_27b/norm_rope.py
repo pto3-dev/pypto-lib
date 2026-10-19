@@ -124,3 +124,65 @@ def make_packed_norm_rope(heads):
         return out, gate
 
     return fused
+
+
+def make_norm_rope_append(heads=2):
+    if heads != 2:
+        raise ValueError("This decode specialization requires two KV heads.")
+    cache_rows = pl.dynamic("cache_rows")
+
+    @pl.jit.inline
+    def fused(
+        x: pl.Tensor[[1, 2, 256], pl.BF16],
+        weight: pl.Tensor[[1, 256], pl.BF16],
+        cos: pl.Tensor[[POSITIONS, 32], pl.BF16],
+        sin: pl.Tensor[[POSITIONS, 32], pl.BF16],
+        positions: pl.Tensor[[1], pl.INT64],
+        v: pl.Tensor[[1, 512], pl.BF16],
+        key_cache: pl.InOut[pl.Tensor[[cache_rows, 512], pl.BF16]],
+        value_cache: pl.InOut[pl.Tensor[[cache_rows, 512], pl.BF16]],
+        slots: pl.Tensor[[1], pl.INT64],
+    ):
+        xf = pl.reshape(x, [2, 256])
+        kf = pl.reshape(key_cache, [pl.tensor.dim(key_cache, 0) * 2, 256])
+        for job in pl.spmd(1, name_hint="key_rope_append"):
+            value = pl.cast(pl.slice(xf, [8, 256], [0, 0], [2, 256], pad_value=0, clamp=True), pl.FP32)
+            variance = pl.add(pl.mul(pl.row_sum(pl.mul(value, value)), 1.0 / 256), 1e-6)
+            inverse = pl.rsqrt(variance)
+            inverse = pl.mul(inverse, pl.add(pl.mul(pl.mul(variance, pl.mul(inverse, inverse)), -0.5), 1.5))
+            gamma = pl.cast(
+                pl.cast(
+                    pl.add(pl.cast(pl.slice(weight, [1, 256], [0, 0]), pl.FP32), 1.0), pl.BF16, mode="rint"
+                ),
+                pl.FP32,
+            )
+            normalized = pl.col_expand_mul(pl.row_expand_mul(value, inverse), gamma)
+            position = pl.read(positions, [0])
+            ct = pl.cast(pl.slice(cos, [1, 32], [position, 0]), pl.FP32)
+            st = pl.cast(pl.slice(sin, [1, 32], [position, 0]), pl.FP32)
+            first = pl.slice(normalized, [8, 32], [0, 0])
+            second = pl.slice(normalized, [8, 32], [0, 32])
+            rotated_first = pl.sub(pl.col_expand_mul(first, ct), pl.col_expand_mul(second, st))
+            rotated_second = pl.add(pl.col_expand_mul(second, ct), pl.col_expand_mul(first, st))
+            slot = pl.read(slots, [0])
+            if slot >= 0:
+                kf = pl.assemble(
+                    kf,
+                    pl.tensor.set_validshape(pl.cast(normalized, pl.BF16, mode="rint"), 2, 256),
+                    [slot * 2, 0],
+                )
+                kf = pl.assemble(
+                    kf,
+                    pl.tensor.set_validshape(pl.cast(rotated_first, pl.BF16, mode="rint"), 2, 32),
+                    [slot * 2, 0],
+                )
+                kf = pl.assemble(
+                    kf,
+                    pl.tensor.set_validshape(pl.cast(rotated_second, pl.BF16, mode="rint"), 2, 32),
+                    [slot * 2, 32],
+                )
+                vt = pl.slice(v, [1, 512], [0, 0])
+                value_cache = pl.assemble(value_cache, vt, [slot, 0])
+        return key_cache, value_cache
+
+    return fused

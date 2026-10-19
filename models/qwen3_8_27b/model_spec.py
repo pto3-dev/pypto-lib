@@ -10,6 +10,7 @@
 
 from dataclasses import dataclass, field
 from math import prod
+from .device_program_layout import STORAGE_BYTES
 
 
 def layer_shapes(index, replicate_small=False):
@@ -291,4 +292,5 @@ class ModelSpec:
                     ("teacher_out", (self.tokens, 5120), "BF16", "Out"),
                 ]
             )
+        result.append(("device_program_storage", (STORAGE_BYTES,), "UINT8", "InOut"))
         return result

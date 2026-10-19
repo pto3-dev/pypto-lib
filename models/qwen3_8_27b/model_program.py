@@ -17,7 +17,7 @@ import sys
 import textwrap
 
 from .dense import make_gemm, make_norm, make_pointwise
-from .norm_rope import make_norm_rope, make_packed_norm_rope
+from .norm_rope import make_norm_rope, make_packed_norm_rope, make_norm_rope_append
 from .linear_attention import make_conv, make_qk_norm, make_recurrent
 from .conv_qk_norm import make_conv_qk_norm
 from .selected_gates import make_selected_gates
@@ -33,7 +33,7 @@ from .fused_projection import make_packed_silu
 from .swiglu_down import make_swiglu_down, make_nd_swiglu_down
 from .nz_tiled import make_nz_tiled_gemm
 from .tiled_weights import make_tiled_gemm, make_split_tiled_gemm
-
+import pypto.language as pl
 from .collective_sources import (
     copy_hidden,
     reduction_source,
@@ -42,6 +42,8 @@ from .collective_sources import (
     reduction_add_norm_source,
     debug_source,
 )
+
+ROWS = pl.dynamic("rows")
 
 
 def build_model(
@@ -88,6 +90,26 @@ def build_model(
                 if nt < 16 or nt % 16 or kt < 256 or kt % 16:
                     raise ValueError("Invalid Cube tile policy")
                 options = dict(n_tile=nt, k_tile=kt)
+        if spec.tokens == 1 and spec.packed_weight_policy is None:
+            from .l1_reuse_policy import projection_plan, selected_projection_keys
+
+            key = f"{input_dim}x{output_dim}"
+            if key in selected_projection_keys():
+                from .static_a_projection import make_gemm as make_static_a
+
+                nt, kt = options["n_tile"], options["k_tile"]
+                inner = {"5120x3072": 512, "5120x124160": 256, "3072x5120": 128}[key]
+                plan = projection_plan(input_dim, output_dim, n_tile=nt, k_tile=kt, inner_k=inner)
+                if not plan["eligible"]:
+                    raise ValueError(f"Rejected selected L1 reuse projection: {key}: {plan}")
+                return make_static_a(
+                    input_dim,
+                    output_dim,
+                    inner_k=inner,
+                    weight_cache_bypass=bypass_weights,
+                    **kwargs,
+                    **options,
+                )
         if spec.tokens == 1 and input_dim == 5120 and output_dim == 5120:
             from .static_a_projection import make_gemm as make_static_a
 
@@ -224,9 +246,9 @@ def build_model(
     if spec.fuse_gdn_ba:
         if not spec.native_weight_order:
             raise ValueError("BA fusion requires native adjacent B/A weights.")
-        from .nd_ba_vector import make_gemm as make_ba_vector
+        from .nd_ba_gates import make_ba_gates
 
-        funcs["project_ba"] = make_ba_vector(5120, 48, inline=True, n_tile=16, k_tile=1024, stage=1)
+        funcs["ba_gates"] = make_ba_gates(inline=True)
     if spec.teacher_input:
         funcs["copy_hidden"] = copy_hidden
     if spec.fuse_gdn_qkv_z:
@@ -242,6 +264,8 @@ def build_model(
             funcs["project_gdn_z"] = make_split_tiled_gemm(
                 5120, 5120, 3072, inline=True, n_tile=nt, k_tile=kt
             )
+    if t == 1 and spec.native_qk_rope and not spec.native_cache_pools:
+        funcs["norm_rope_k_append"] = make_norm_rope_append()
     if spec.fuse_attention_qkv:
         if spec.packed_weight_policy is not None or t != 1:
             raise ValueError("Joint attention is currently shared ND decode only.")
@@ -570,12 +594,14 @@ def publish_hidden(self, x: pl.Tensor[[{t},5120],pl.BF16], out: pl.Out[pl.Tensor
                         offset,
                         (48, 5120),
                     )
-                    emit(f"gdn_ba=self.project_ba(norm,packed_ba_weight{index},gdn_ba)")
-                    emit("b=pl.slice(gdn_ba,[1,24],[0,0])")
-                    emit("a=pl.slice(gdn_ba,[1,24],[0,24])")
+
                 g = f"(group_index*3+{index})" if looped else index - index // 4
                 view(f"a_log{index}", "float_weights", f"{g}*48", (1, 24))
                 view(f"dt_bias{index}", "float_weights", f"{g}*48+24", (1, 24))
+                if spec.fuse_gdn_ba:
+                    emit(
+                        f"alpha,beta=self.ba_gates(norm,packed_ba_weight{index},a_log{index},dt_bias{index},alpha,beta)"
+                    )
                 if t == 1:
                     emit(
                         f"convolved,qn,kn,conv{index}=self.convolve(mixed,{names['linear_attn.conv1d.weight']},conv{index},starts,indices,initial,convolved,qn,kn)"
@@ -592,7 +618,8 @@ def publish_hidden(self, x: pl.Tensor[[{t},5120],pl.BF16], out: pl.Out[pl.Tensor
                     emit("q,k,v=self.split_gdn(convolved,q,k,v)")
                 if t != 1:
                     emit("qn,kn=self.normalize_gdn(q,k,qn,kn)")
-                emit(f"alpha,beta=self.gates{rank}(a,b,a_log{index},dt_bias{index},alpha,beta)")
+                if not spec.fuse_gdn_ba:
+                    emit(f"alpha,beta=self.gates{rank}(a,b,a_log{index},dt_bias{index},alpha,beta)")
                 emit(
                     f"gdn_core,state{index}=self.recurrent(qn,kn,v,alpha,beta,state{index},starts,indices,initial,gdn_core)"
                 )
@@ -635,9 +662,10 @@ def publish_hidden(self, x: pl.Tensor[[{t},5120],pl.BF16], out: pl.Out[pl.Tensor
                         emit(
                             f"full_qr=self.norm_rope_q(full_q,{names['self_attn.q_norm.weight']},cos,sin,positions,full_qr)"
                         )
-                    emit(
-                        f"full_kr=self.norm_rope_k(pl.reshape(full_k,[{t},2,256]),{names['self_attn.k_norm.weight']},cos,sin,positions,full_kr)"
-                    )
+                    if t != 1 or spec.native_cache_pools:
+                        emit(
+                            f"full_kr=self.norm_rope_k(pl.reshape(full_k,[{t},2,256]),{names['self_attn.k_norm.weight']},cos,sin,positions,full_kr)"
+                        )
                 else:
                     emit(
                         f"full_qn=self.norm_q(pl.reshape(full_q,[{t * 12},256]),{names['self_attn.q_norm.weight']},pl.reshape(full_q,[{t * 12},256]),full_qn)"
@@ -661,9 +689,14 @@ def publish_hidden(self, x: pl.Tensor[[{t},5120],pl.BF16], out: pl.Out[pl.Tensor
                 else:
                     emit(f"native_key_flat{index}=pl.reshape(keys{index},[{spec.cache_rows},512])")
                     emit(f"native_value_flat{index}=pl.reshape(values{index},[{spec.cache_rows},512])")
-                    emit(
-                        f"key_flat{index},value_flat{index}=self.append(pl.reshape(full_kr,[{t},512]),full_v,native_key_flat{index},native_value_flat{index},kv_slots)"
-                    )
+                    if t == 1 and spec.native_qk_rope:
+                        emit(
+                            f"key_flat{index},value_flat{index}=self.norm_rope_k_append(pl.reshape(full_k,[1,2,256]),{names['self_attn.k_norm.weight']},cos,sin,positions,full_v,native_key_flat{index},native_value_flat{index},kv_slots)"
+                        )
+                    else:
+                        emit(
+                            f"key_flat{index},value_flat{index}=self.append(pl.reshape(full_kr,[{t},512]),full_v,native_key_flat{index},native_value_flat{index},kv_slots)"
+                        )
                     emit(
                         f"attention_scores=self.compute_scores(full_qr,pl.reshape(key_flat{index},[{spec.cache_rows},2,256]),table,lengths,attention_scores)"
                     )
@@ -746,7 +779,7 @@ def publish_hidden(self, x: pl.Tensor[[{t},5120],pl.BF16], out: pl.Out[pl.Tensor
         view("last_hidden", f"pl.reshape(head_norm,[{t * 5120}])", (t - 1) * 5120, (1, 5120))
         emit("out=self.project_head(last_hidden,lm_head,out)")
         emit(
-            "global_logits,logit_data,logit_signal=self.gather_logits(out,global_logits,logit_data,logit_signal,metadata)"
+            "global_logits,logit_data,logit_signal=self.gather_logits_dispatch(out,global_logits,logit_data,logit_signal,metadata)"
         )
         if spec.device_greedy:
             emit("greedy=self.greedy(out,greedy)")
