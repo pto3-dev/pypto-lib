@@ -1,0 +1,33 @@
+{
+  "model": "Qwen3.6 mixed W8A8",
+  "tp": 4,
+  "rows": 24,
+  "mtp": 5,
+  "compile_smoke": false,
+  "source": "direct qwen36 modules",
+  "native_backend": "explicit typed-cache/static-plan dispatcher",
+  "variant": "head_all_conv",
+  "communication_protocol": "lane_frontier_v1",
+  "communication_max_steps": 16000000,
+  "device_poll_ticks": 0,
+  "performance_changes": true,
+  "attention_plan": "request_rows_v1",
+  "leaf_overrides": {
+    "softmax_row_cache": true,
+    "recurrent_v64": true
+  },
+  "ragged_valid_ends": "starts5_8_v1",
+  "projection_gdn_tiles": "gdn128_z96_l1k256_l0k128",
+  "valid_end_convolution_fids": [
+    7,
+    19,
+    21
+  ],
+  "softmax_result_store_pipeline": "two_slots_wait_on_reuse_v1",
+  "reduce_peer_prefetch": "four_loads_rank_ordered_math_v1",
+  "gdn_outer_update": "direct_fp32_mul_v2",
+  "pv_value_cache_bypass": "single-entry wrapper; runtime queried L2 alias on V loads only; numerical body exact",
+  "attention_cache_policy": "key_value; queried no-allocate alias on K, score stores cached; numerical body unchanged",
+  "attention_math_implementation": "direct_pypto_dsl_qk_softmax_pv",
+  "attention_end_fusion": "per-token reduce28+BF16 gate+dynamic INT8 quant; standalone quant1536 removed"
+}

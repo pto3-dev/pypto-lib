@@ -1,0 +1,85 @@
+{
+  "status": "performance_goal_met_for_frozen_fixture",
+  "formal_evidence": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06",
+  "runtime_source_snapshot": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot",
+  "working_runtime_root": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030",
+  "model_artifact_root": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/spmd_fusion_20261029/build/target_gate_quant_fused",
+  "attention_dsl_source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/src/qwen36_attention_dsl",
+  "fusion_dsl_source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/spmd_fusion_20261029/src/qwen36_fusion",
+  "static_runtime_source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/spmd_fusion_20261029/src/runtime",
+  "environment": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/env_used.sh",
+  "scenario": {
+    "tp": 4,
+    "pp": 1,
+    "batch": 4,
+    "input_tokens_each": 32768,
+    "output_tokens_each": 10240,
+    "mtp_draft_tokens": 5,
+    "devices": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "checkpoint": "public-inner-surrogate",
+    "request_fixture": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/prompt_suite_20261028/engineering_context_seed1024_32k_10k_v1",
+    "drafter": "native graph",
+    "target": "PyPTO DIRECT"
+  },
+  "tpot_ms": 16.463485669499477,
+  "stable_sse": {
+    "count": 12095,
+    "mean_ms": 47.81174289375775,
+    "median_ms": 47.2313,
+    "p90_ms": 47.991603999999995,
+    "p99_ms": 60.73131299999984,
+    "max_ms": 924.37193,
+    "percentile_method": "linear interpolation"
+  },
+  "stable_amortized": {
+    "token_intervals": 38343,
+    "mean_ms": 15.081841021829328,
+    "median_ms": 9.553184,
+    "p90_ms": 23.950165,
+    "p99_ms": 47.89313,
+    "max_ms": 308.1239766666667,
+    "percentile_method": "token-weighted nearest rank"
+  },
+  "ttft_ms": [
+    9252.125249942765,
+    19153.45107007306,
+    28417.903269990347,
+    37583.66919995751
+  ],
+  "mtp": {
+    "drafts": 12845.0,
+    "draft_tokens": 64208.0,
+    "accepted_draft_tokens": 28110.0,
+    "acceptance_percent": 43.77959132818341,
+    "mean_acceptance_length_including_bonus": 3.188400155702608,
+    "accepted_prefix_histogram": {
+      "0": 3421,
+      "1": 2544,
+      "2": 1812,
+      "3": 1265,
+      "4": 868,
+      "5": 2935
+    }
+  },
+  "historical_record_tpot_ms": 16.498970884361846,
+  "paired_old_replay_tpot_ms": 17.336742178436012,
+  "observed_improvement_vs_old_replay_percent": 5.03702771806066,
+  "numerical_evidence": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_04/pto/kernel_pair",
+  "numerical_evidence_reused_same_four_rank_artifact_hashes": true,
+  "source_manifest_sha256": "7e471883e1ddb1e3589fd3a08ea74f462f32f0f1586d0412dc42882f2607f83a",
+  "open_items": [
+    "Native/PTO10K free generation diverges; not closed numerical acceptance.",
+    "Underlying original CANN H2D admission wait not fully attributed.",
+    "Some long tails and irregular-shape native fallbacks remain."
+  ],
+  "notes": [
+    "One full formal run; do not claim statistically significant0.2% improvement over historical16.499.",
+    "SSE batch gaps and token-amortized intervals are separate; no per-token timestamp interpolation.",
+    "Native benchmark data was retained, not freshly measured in this turn."
+  ]
+}

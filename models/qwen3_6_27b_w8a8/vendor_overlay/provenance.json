@@ -1,0 +1,6 @@
+{
+  "original_path": "/home/g00893677/pto-dev/qwen3_8_27b-pto/vllm-ascend/vllm_ascend/worker/model_runner_v1.py",
+  "original_sha256": "0a61468c7f8fb51f0de2a45419b1b874a69ef11d4648a0f80a16aaf85b8f8435",
+  "overlay_sha256": "a23eef465ad9ef80bc256c28d4e36c52e1667a543d8c668cefe5007bb434f813",
+  "change": "Extract M-RoPE preparation into one default-preserving extension method. No other vendor behavior changes."
+}

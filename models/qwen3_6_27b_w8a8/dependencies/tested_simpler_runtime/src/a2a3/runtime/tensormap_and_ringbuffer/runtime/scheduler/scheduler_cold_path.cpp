@@ -1,0 +1,1577 @@
+/*
+ * Copyright (c) PyPTO Contributors.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
+ * -----------------------------------------------------------------------------------------------------------
+ */
+#include "scheduler_context.h"
+
+#include "utils/fatal_shutdown_latch.h"
+
+#include <cinttypes>
+#include <cstdio>
+
+#include "common/unified_log.h"
+#include "aicpu/aicpu_device_config.h"
+#include "aicpu/device_phase_aicpu.h"
+#include "aicpu/device_time.h"
+#include "aicpu/chip_swimlane_collector_aicpu.h"
+#include "aicpu/device_run_result_base_aicpu.h"
+#include "aicpu/platform_regs.h"
+#include "aicpu/pmu_collector_aicpu.h"
+#include "aicpu/args_dump_aicpu.h"
+#include "common/memory_barrier.h"
+#include "common/chip_swimlane_profiling.h"
+#include "common/platform_config.h"
+#include "runtime_core.h"
+#include "shared_memory.h"
+#include "runtime.h"
+#include "spin_hint.h"
+
+// =============================================================================
+// Cold-path helpers for the main dispatch loop (noinline to reduce hot-loop icache)
+// =============================================================================
+
+// Returns true iff this call won the first-writer CAS for sched_error_code — the
+// caller may then write companion fields (e.g. the stall detail) knowing they
+// describe the same observation that owns the latched code.
+static bool latch_scheduler_error(SharedMemoryHeader *header, int32_t thread_idx, int32_t error_code) {
+    if (header == nullptr || error_code == SIMPLER_ERROR_NONE) {
+        return false;
+    }
+    // The first error code/thread pair wins; the bitmap cumulatively records all reporting threads.
+    int32_t expected = SIMPLER_ERROR_NONE;
+    bool won = header->sched_error_code.compare_exchange_strong(expected, error_code, std::memory_order_acq_rel);
+    if (won) {
+        header->sched_error_thread.store(thread_idx, std::memory_order_release);
+    }
+    if (thread_idx >= 0 && thread_idx < 32) {
+        header->sched_error_bitmap.fetch_or(1U << static_cast<uint32_t>(thread_idx), std::memory_order_acq_rel);
+    }
+    return won;
+}
+
+LoopAction SchedulerContext::handle_orchestrator_exit(
+    int32_t thread_idx, SharedMemoryHeader *header, Runtime *runtime, int32_t &task_count
+) {
+    if (completed_.load(std::memory_order_acquire)) {
+        return LoopAction::BREAK_LOOP;
+    }
+    int32_t orch_err = header->orch_error_code.load(std::memory_order_acquire);
+    if (orch_err != SIMPLER_ERROR_NONE) {
+        LOG_ERROR(
+            "Thread %d: Fatal error (code=%d), sending EXIT_SIGNAL to all cores. "
+            "completed_tasks=%d, total_tasks=%d",
+            thread_idx, orch_err, completed_tasks_.load(std::memory_order_relaxed), total_tasks_
+        );
+        emergency_shutdown(runtime);
+        return LoopAction::BREAK_LOOP;
+    }
+    int32_t sched_err = header->sched_error_code.load(std::memory_order_acquire);
+    if (sched_err != SIMPLER_ERROR_NONE) {
+        LOG_ERROR("Thread %d: Scheduler fatal error detected (code=%d)", thread_idx, sched_err);
+        emergency_shutdown(runtime);
+        return LoopAction::BREAK_LOOP;
+    }
+
+    bool orch_done = orchestrator_done_.load(std::memory_order_acquire);
+    if (!orch_done) return LoopAction::NONE;
+
+    task_count = total_tasks_;
+    if (task_count > 0 && completed_tasks_.load(std::memory_order_relaxed) >= task_count) {
+        completed_.store(true, std::memory_order_release);
+        LOG_INFO(
+            "Thread %d: completed tasks %d/%d", thread_idx, completed_tasks_.load(std::memory_order_relaxed), task_count
+        );
+        return LoopAction::BREAK_LOOP;
+    }
+    return LoopAction::NONE;
+}
+
+LoopAction SchedulerContext::check_idle_fatal_error(int32_t thread_idx, SharedMemoryHeader *header, Runtime *runtime) {
+    if (completed_.load(std::memory_order_acquire)) {
+        return LoopAction::BREAK_LOOP;
+    }
+    int32_t orch_err = header->orch_error_code.load(std::memory_order_acquire);
+    if (orch_err != SIMPLER_ERROR_NONE) {
+        LOG_ERROR("Thread %d: Fatal error detected (code=%d), sending EXIT_SIGNAL to all cores", thread_idx, orch_err);
+        emergency_shutdown(runtime);
+        return LoopAction::BREAK_LOOP;
+    }
+    int32_t sched_err = header->sched_error_code.load(std::memory_order_acquire);
+    if (sched_err != SIMPLER_ERROR_NONE) {
+        LOG_ERROR("Thread %d: Scheduler fatal error detected (code=%d)", thread_idx, sched_err);
+        emergency_shutdown(runtime);
+        return LoopAction::BREAK_LOOP;
+    }
+    return LoopAction::NONE;
+}
+
+// =============================================================================
+// Stall diagnostic log format.
+//
+// Every line is self-contained — when scheduler threads emit concurrently and
+// device_log interleaves their output, each line still carries enough context
+// to identify which thread / iteration / object it belongs to.
+//
+// Prefix on every line:
+//   [STALL thread=N idle_iterations=K] CATEGORY ...
+//
+// Local half-timeout reports contain only the caller's CLUSTER state at INFO.
+// The shutdown winner emits global SUMMARY/TASK, every thread's CLUSTER,
+// and AsyncWait diagnostics at WARN.
+//
+// Reader workflow:
+//   1. grep SUMMARY                          -> overall completion status
+//   2. grep "idle_iterations=N TASK"         -> stuck RUNNING task and which
+//                                               core/thread it is on
+//   3. grep "idle_iterations=N CLUSTER.*task=<id>" -> cross-check via the
+//                                                     cluster line (or just
+//                                                     read running_on in step 2)
+// =============================================================================
+
+namespace {
+
+// Format a core's idle/busy state into a fixed buffer. Used inside CLUSTER lines.
+// Layout (idle):    coreN(idle)
+// Layout (busy):    coreN(busy kernel=K task=T cond_reg_state=ack)
+// Layout (anomaly): coreN(busy kernel=K task=T cond_reg_state=fin ANOMALY)
+//
+// Healthy busy: COND register reports ack (AICore still executing). fin means
+// AICore wrote completion but AICPU hasn't recycled the running slot yet —
+// either a completion-poll bug or the diagnostic raced the recycle.
+void format_core_status(
+    char *buf, size_t buf_size, int32_t core_id, bool idle, const CoreExecState *core_state, uint64_t reg_addr_for_cond
+) {
+    if (idle) {
+        snprintf(buf, buf_size, "core%d(idle)", core_id);
+        return;
+    }
+    int32_t kernel = -1;
+    TaskId task_id = TaskId::invalid();
+    if (core_state && core_state->running_slot_state) {
+        int32_t subslot = static_cast<int32_t>(core_state->running_subslot);
+        kernel = core_state->running_slot_state->task->kernel_id[subslot];
+        task_id = core_state->running_slot_state->task->task_id;
+    }
+    uint64_t cond_reg = read_reg(reg_addr_for_cond, RegId::COND);
+    int32_t hw_state = EXTRACT_TASK_STATE(cond_reg);
+    const char *cond_reg_state_str = (hw_state == TASK_ACK_STATE) ? "ack" : "fin";
+    if (hw_state == TASK_ACK_STATE) {
+        snprintf(
+            buf, buf_size, "core%d(busy kernel=%d task=0x%" PRIx64 " cond_reg_state=%s)", core_id, kernel,
+            TaskId::to_uint64(task_id), cond_reg_state_str
+        );
+    } else {
+        snprintf(
+            buf, buf_size,
+            "core%d(busy kernel=%d task=0x%" PRIx64
+            " cond_reg_state=%s ANOMALY cond_tok=%d running_tok=%d pending_tok=%d)",
+            core_id, kernel, TaskId::to_uint64(task_id), cond_reg_state_str, EXTRACT_TASK_ID(cond_reg),
+            core_state->running_reg_task_id, core_state->pending_reg_task_id
+        );
+    }
+}
+
+}  // namespace
+
+int32_t SchedulerContext::find_core_owner_thread(int32_t core_id) const {
+    for (int32_t t = 0; t < aicpu_thread_num_; t++) {
+        const int32_t *ids = core_trackers_[t].core_ids();
+        int32_t n = core_trackers_[t].core_num();
+        for (int32_t i = 0; i < n; i++) {
+            if (ids[i] == core_id) return t;
+        }
+    }
+    return -1;
+}
+
+bool SchedulerContext::self_owns_running_task(int32_t thread_idx) const {
+    const int32_t *cores = core_trackers_[thread_idx].core_ids();
+    int32_t core_num = core_trackers_[thread_idx].core_num();
+    for (int32_t i = 0; i < core_num; i++) {
+        if (core_exec_states_[cores[i]].running_slot_state != nullptr) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool SchedulerContext::no_thread_owns_running_task() const {
+    for (int32_t t = 0; t < aicpu_thread_num_; t++) {
+        if (self_owns_running_task(t)) return false;
+    }
+    return true;
+}
+
+// A stall dump's level follows its report, not its line: see StallDumpReport.
+#define STALL_DUMP_LOG(report, ...)                  \
+    do {                                             \
+        if ((report) == StallDumpReport::Shutdown) { \
+            LOG_WARN(__VA_ARGS__);                   \
+        } else {                                     \
+            LOG_INFO(__VA_ARGS__);                   \
+        }                                            \
+    } while (0)
+
+void SchedulerContext::log_global_stall_diagnostics(
+    int32_t trigger_thread_idx, int32_t idle_iterations, int32_t last_progress_count
+) {
+    int32_t cnt_ready = 0, cnt_waiting = 0, cnt_running = 0, submitted_in_ring = 0;
+    for (int r = 0; r < CHIP_MAX_RING_DEPTH; r++) {
+        SharedMemoryRingHeader &ring = *sched_->ring_sched_states[r].ring;
+        int32_t ring_task_count = ring.fc.current_task_index.load(std::memory_order_relaxed);
+        submitted_in_ring += ring_task_count;
+        // Scan only live task_ids [last_task_alive, current_task_index): slots
+        // wrap (slot = task_id % window), so starting at 0 re-reads each live
+        // slot once per earlier task_id and inflates the scan_* counts.
+        int32_t ring_task_start = ring.fc.last_task_alive.load(std::memory_order_relaxed);
+        for (int32_t si = ring_task_start; si < ring_task_count; si++) {
+            ChipTaskSlotState &slot_state = ring.get_slot_state_by_task_id(si);
+            ChipTaskState st = slot_state.task_state.load(std::memory_order_relaxed);
+            int32_t rc = slot_state.fanin_refcount.load(std::memory_order_relaxed);
+            int32_t fi = slot_state.fanin_count;
+            int32_t kid_aic = slot_state.task->kernel_id[0];
+            int32_t kid_aiv0 = slot_state.task->kernel_id[1];
+            int32_t kid_aiv1 = slot_state.task->kernel_id[2];
+            uint64_t task_id = TaskId::to_uint64(slot_state.task->task_id);
+            if (st >= CHIP_TASK_COMPLETED) continue;
+            // task_state has no intermediate ready/running value — it
+            // stays PENDING until the worker stores COMPLETED. Classify
+            // by the ground truth instead: a slot is RUNNING iff some
+            // core has it as running_slot_state. A task occupies at most
+            // 3 cores (one cluster), all under the same owner thread by
+            // construction of assign_cores_to_threads.
+            char running_on[192] = {0};
+            int32_t owner = -1;
+            int32_t pos = 0;
+            bool is_running = false;
+            for (int32_t cid = 0; cid < cores_total_num_ && pos + 32 < (int32_t)sizeof(running_on); cid++) {
+                if (core_exec_states_[cid].running_slot_state != &slot_state) continue;
+                is_running = true;
+                if (owner < 0) owner = find_core_owner_thread(cid);
+                const char *sname = subslot_name(core_exec_states_[cid].running_subslot);
+                int32_t written = snprintf(
+                    running_on + pos, sizeof(running_on) - pos, "%score=%d(%s)", pos == 0 ? "" : " ", cid, sname
+                );
+                if (written > 0) pos += written;
+            }
+
+            if (is_running) {
+                cnt_running++;
+                if (cnt_running > STALL_DUMP_READY_MAX) continue;
+                LOG_WARN(
+                    "[STALL thread=%d idle_iterations=%d] TASK ring=%d task_id=0x%" PRIx64
+                    " state=RUNNING fanin_refcount=%d/%d kernels=[aic:%d aiv0:%d aiv1:%d] "
+                    "running_on=[owner_thread=%d cores=[%s]]",
+                    trigger_thread_idx, idle_iterations, r, task_id, rc, fi, kid_aic, kid_aiv0, kid_aiv1, owner,
+                    running_on
+                );
+                continue;
+            }
+            if (rc >= fi) {
+                cnt_ready++;
+                if (cnt_ready > STALL_DUMP_READY_MAX) continue;
+                LOG_WARN(
+                    "[STALL thread=%d idle_iterations=%d] TASK ring=%d task_id=0x%" PRIx64
+                    " state=READY   fanin_refcount=%d/%d kernels=[aic:%d aiv0:%d aiv1:%d]",
+                    trigger_thread_idx, idle_iterations, r, task_id, rc, fi, kid_aic, kid_aiv0, kid_aiv1
+                );
+                continue;
+            }
+            cnt_waiting++;
+            if (cnt_waiting > STALL_DUMP_WAIT_MAX) continue;
+            LOG_WARN(
+                "[STALL thread=%d idle_iterations=%d] TASK ring=%d task_id=0x%" PRIx64
+                " state=WAIT    fanin_refcount=%d/%d kernels=[aic:%d aiv0:%d aiv1:%d] missing_deps=%d",
+                trigger_thread_idx, idle_iterations, r, task_id, rc, fi, kid_aic, kid_aiv0, kid_aiv1, fi - rc
+            );
+        }
+    }
+    int32_t effective_total = total_tasks_ > 0 ? total_tasks_ : submitted_in_ring;
+    int32_t c = completed_tasks_.load(std::memory_order_relaxed);
+    LOG_WARN(
+        "[STALL thread=%d idle_iterations=%d] SUMMARY completed=%d/%d last_progress_iteration=%d "
+        "scan_ready=%d scan_waiting=%d scan_running=%d",
+        trigger_thread_idx, idle_iterations, c, effective_total, last_progress_count, cnt_ready, cnt_waiting,
+        cnt_running
+    );
+}
+
+void SchedulerContext::log_stall_diagnostics(int32_t thread_idx, int32_t idle_iterations, StallDumpReport report) {
+    CoreTracker &tracker = core_trackers_[thread_idx];
+
+    // CLUSTER lines: one per cluster this thread owns.
+    // cluster_id = local_cluster_idx * active_sched_threads_ + thread_idx, matching the
+    // round-robin assignment in assign_cores_to_threads.
+    int32_t ast = active_sched_threads_ > 0 ? active_sched_threads_ : aicpu_thread_num_;
+    for (int32_t cli = 0; cli < tracker.get_cluster_count() && cli < STALL_DUMP_CORE_MAX; cli++) {
+        int32_t offset = cli * PLATFORM_CORES_PER_BLOCKDIM;
+        int32_t aic_id = tracker.get_aic_core_id(offset);
+        int32_t aiv0_id = tracker.get_aiv0_core_id(offset);
+        int32_t aiv1_id = tracker.get_aiv1_core_id(offset);
+        bool aic_idle = tracker.is_aic_core_idle(offset);
+        bool aiv0_idle = tracker.is_aiv0_core_idle(offset);
+        bool aiv1_idle = tracker.is_aiv1_core_idle(offset);
+        int32_t cluster_id = cli * ast + thread_idx;
+        char aic_buf[192], aiv0_buf[192], aiv1_buf[192];
+        format_core_status(
+            aic_buf, sizeof(aic_buf), aic_id, aic_idle, &core_exec_states_[aic_id], core_exec_states_[aic_id].reg_addr
+        );
+        format_core_status(
+            aiv0_buf, sizeof(aiv0_buf), aiv0_id, aiv0_idle, &core_exec_states_[aiv0_id],
+            core_exec_states_[aiv0_id].reg_addr
+        );
+        format_core_status(
+            aiv1_buf, sizeof(aiv1_buf), aiv1_id, aiv1_idle, &core_exec_states_[aiv1_id],
+            core_exec_states_[aiv1_id].reg_addr
+        );
+        STALL_DUMP_LOG(
+            report, "[STALL thread=%d idle_iterations=%d] CLUSTER cluster_id=%d aic=%s aiv0=%s aiv1=%s", thread_idx,
+            idle_iterations, cluster_id, aic_buf, aiv0_buf, aiv1_buf
+        );
+    }
+}
+
+#undef STALL_DUMP_LOG
+
+void SchedulerContext::log_shutdown_stall_snapshot(
+    int32_t trigger_thread_idx, int32_t trigger_idle_iterations, int32_t trigger_last_progress_count, const char *reason
+) {
+    LOG_WARN(
+        "[SHUTDOWN_SNAPSHOT trigger_thread=%d reason=%s idle_iterations=%d] "
+        "dumping all scheduler threads for stall diagnosis",
+        trigger_thread_idx, reason, trigger_idle_iterations
+    );
+    if (sched_ == nullptr) {
+        LOG_WARN(
+            "[SHUTDOWN_SNAPSHOT trigger_thread=%d reason=%s] scheduler runtime is not bound; "
+            "skipping stall diagnostics",
+            trigger_thread_idx, reason
+        );
+        return;
+    }
+    int32_t thread_count = active_sched_threads_ > 0 ? active_sched_threads_ : aicpu_thread_num_;
+    if (thread_count < 0 || thread_count > MAX_AICPU_THREADS) {
+        LOG_ERROR(
+            "[SHUTDOWN_SNAPSHOT trigger_thread=%d] invalid thread_count=%d, clamping to [0,%d]", trigger_thread_idx,
+            thread_count, MAX_AICPU_THREADS
+        );
+        thread_count = thread_count < 0 ? 0 : MAX_AICPU_THREADS;
+    }
+    log_global_stall_diagnostics(trigger_thread_idx, trigger_idle_iterations, trigger_last_progress_count);
+    for (int32_t t = 0; t < thread_count; t++) {
+        log_stall_diagnostics(t, trigger_idle_iterations, StallDumpReport::Shutdown);
+    }
+    if (sched_ != nullptr) {
+        AICoreCompletionMailbox *mailbox = rt_ != nullptr ? rt_->aicore_mailbox : nullptr;
+        sched_->async_wait_list.log_diagnostics(mailbox, reason);
+    }
+}
+
+SchedulerContext::StallClassification SchedulerContext::classify_stall_reason() const {
+    StallClassification cls{};
+    cls.stuck_task_id = TaskId::invalid();
+    cls.stuck_core = -1;
+    int32_t cnt_running = 0, cnt_ready = 0, cnt_waiting = 0;
+    for (int r = 0; r < CHIP_MAX_RING_DEPTH; r++) {
+        SharedMemoryRingHeader &ring = *sched_->ring_sched_states[r].ring;
+        int32_t ring_task_count = ring.fc.current_task_index.load(std::memory_order_relaxed);
+        // Active task_ids live in [last_task_alive, current_task_index); slots wrap
+        // (slot = task_id % window), so scanning from 0 re-reads each live slot once
+        // per earlier task_id that mapped to it -- inflating the counts to O(history).
+        // Start at the tail so each live slot is visited exactly once (O(window)).
+        int32_t ring_task_start = ring.fc.last_task_alive.load(std::memory_order_relaxed);
+        for (int32_t si = ring_task_start; si < ring_task_count; si++) {
+            ChipTaskSlotState &slot_state = ring.get_slot_state_by_task_id(si);
+            ChipTaskState st = slot_state.task_state.load(std::memory_order_relaxed);
+            if (st >= CHIP_TASK_COMPLETED) continue;
+            // Same ground truth as log_global_stall_diagnostics: task_state stays PENDING
+            // until COMPLETED, so RUNNING is read from core ownership, not the slot.
+            int32_t run_core = -1;
+            for (int32_t cid = 0; cid < cores_total_num_; cid++) {
+                if (core_exec_states_[cid].running_slot_state == &slot_state) {
+                    run_core = cid;
+                    break;
+                }
+            }
+            if (run_core >= 0) {
+                if (cnt_running == 0) {
+                    // Snapshot the non-atomic task pointer once: it can be null on a
+                    // torn slot, and a concurrent writer may flip it mid-read.
+                    TaskDescriptor *task_ptr = slot_state.task;
+                    cls.stuck_task_id = (task_ptr != nullptr) ? task_ptr->task_id : TaskId::invalid();
+                    cls.stuck_core = run_core;
+                }
+                cnt_running++;
+                continue;
+            }
+            int32_t rc = slot_state.fanin_refcount.load(std::memory_order_relaxed);
+            int32_t fi = slot_state.fanin_count;
+            if (rc >= fi) {
+                cnt_ready++;
+                continue;
+            }
+            cnt_waiting++;
+        }
+    }
+    cls.cnt_running = cnt_running;
+    cls.cnt_ready = cnt_ready;
+    cls.cnt_waiting = cnt_waiting;
+    cls.completed = completed_tasks_.load(std::memory_order_relaxed);
+    cls.total = total_tasks_;
+    cls.orch_done = orchestrator_done_ ? 1 : 0;
+    cls.detail = classify_stall_detail(cnt_running, cnt_ready, cnt_waiting, cls.orch_done);
+    return cls;
+}
+
+int32_t SchedulerContext::handle_timeout_exit(
+    int32_t thread_idx, SharedMemoryHeader *header, Runtime *runtime, int32_t idle_iterations,
+    int32_t last_progress_count
+#if SIMPLER_DFX
+    ,
+    uint64_t sched_start_ts
+#endif
+) {
+    StallClassification cls = classify_stall_reason();
+    LOG_ERROR(
+        "[STALL thread=%d idle_iterations=%d] TIMEOUT_EXIT after_idle_iterations=%d sub_class=%s "
+        "completed=%d/%d running=%d ready=%d waiting=%d orch_done=%d stuck_task_id=0x%" PRIx64 " stuck_core=%d",
+        thread_idx, idle_iterations, idle_iterations, stall_detail_name(cls.detail), cls.completed, cls.total,
+        cls.cnt_running, cls.cnt_ready, cls.cnt_waiting, cls.orch_done, TaskId::to_uint64(cls.stuck_task_id),
+        cls.stuck_core
+    );
+    // Only the thread that wins the code-100 latch publishes the detail/locators,
+    // keeping the host-visible sub-class consistent with the latched code.
+    if (latch_scheduler_error(header, thread_idx, SIMPLER_ERROR_SCHEDULER_TIMEOUT) && header != nullptr) {
+        header->sched_stall_completed.store(cls.completed, std::memory_order_relaxed);
+        header->sched_stall_total.store(cls.total, std::memory_order_relaxed);
+        header->sched_stall_cnt_running.store(cls.cnt_running, std::memory_order_relaxed);
+        header->sched_stall_cnt_ready.store(cls.cnt_ready, std::memory_order_relaxed);
+        header->sched_stall_cnt_waiting.store(cls.cnt_waiting, std::memory_order_relaxed);
+        header->sched_stall_orch_done.store(cls.orch_done, std::memory_order_relaxed);
+        header->sched_stall_task_id.store(cls.stuck_task_id, std::memory_order_relaxed);
+        header->sched_stall_core.store(cls.stuck_core, std::memory_order_relaxed);
+        // detail published last (release) so a host reading a non-NONE detail
+        // sees the locators above already settled.
+        header->sched_stall_detail.store(cls.detail, std::memory_order_release);
+    }
+    if (begin_emergency_shutdown()) {
+        log_shutdown_stall_snapshot(thread_idx, idle_iterations, last_progress_count, "scheduler_timeout");
+#if SIMPLER_DFX
+        // Capture the in-flight kernels' partial output before signalling the
+        // cores to exit, so the dump reflects the live stuck state.
+        if (is_dump_args_enabled()) {
+            dump_running_task_outputs(
+                cores_total_num_,
+                [this](int32_t cid) {
+                    return core_exec_states_[cid].running_slot_state;
+                },
+                [this, thread_idx](const ChipTaskSlotState &slot_state) {
+                    dump_args_for_task<SUBTASK_SLOT_COUNT>(
+                        thread_idx, *slot_state.task, *slot_state.payload, slot_state.active_mask,
+                        ArgsDumpStage::AFTER_COMPLETION,
+                        [](ActiveMask active_mask, int raw_subtask_id) {
+                            return active_mask.subtask_active(static_cast<SubtaskSlot>(raw_subtask_id));
+                        },
+                        [this](int32_t func_id) {
+                            return get_function_bin_addr(func_id);
+                        }
+                    );
+                }
+            );
+        }
+#endif
+        signal_emergency_shutdown(runtime);
+    }
+#if SIMPLER_DFX
+    uint64_t sched_timeout_ts = get_sys_cnt_aicpu();
+    aicpu_phase_set_window(
+        AicpuPhase::SchedWindow, static_cast<uint64_t>(sched_start_ts), static_cast<uint64_t>(sched_timeout_ts)
+    );
+#if SIMPLER_SCHED_PROFILING
+    LOG_INFO(
+        "Thread %d: sched_start=%" PRIu64 " sched_end(timeout)=%" PRIu64 " sched_cost=%.3fus", thread_idx,
+        static_cast<uint64_t>(sched_start_ts), static_cast<uint64_t>(sched_timeout_ts),
+        cycles_to_us(sched_timeout_ts - sched_start_ts)
+    );
+#endif
+#endif
+    return -SIMPLER_ERROR_SCHEDULER_TIMEOUT;
+}
+
+#if SIMPLER_DFX
+void SchedulerContext::log_chip_swimlane_summary(int32_t thread_idx, [[maybe_unused]] int32_t cur_thread_completed) {
+    auto &chip_swimlane = sched_chip_swimlane_[thread_idx];
+    uint64_t sched_end_ts = get_sys_cnt_aicpu();
+    // Ride the sched window home to the host phase buffer (the host reduces
+    // across sched threads → the `Sched` [STRACE] marker). The verbose
+    // per-thread device-log line below is now opt-in deep-dive.
+    aicpu_phase_set_window(
+        AicpuPhase::SchedWindow, static_cast<uint64_t>(chip_swimlane.sched_start_ts),
+        static_cast<uint64_t>(sched_end_ts)
+    );
+#if SIMPLER_SCHED_PROFILING
+    LOG_INFO(
+        "Thread %d: sched_start=%" PRIu64 " sched_end=%" PRIu64 " sched_cost=%.3fus", thread_idx,
+        static_cast<uint64_t>(chip_swimlane.sched_start_ts), static_cast<uint64_t>(sched_end_ts),
+        cycles_to_us(sched_end_ts - chip_swimlane.sched_start_ts)
+    );
+
+    uint64_t sched_total = chip_swimlane.sched_complete_cycle + chip_swimlane.sched_async_cycle +
+                           chip_swimlane.sched_dispatch_cycle + chip_swimlane.sched_idle_cycle;
+    if (sched_total == 0) sched_total = 1;
+
+    {
+        SchedProfilingData sp = scheduler_get_profiling(thread_idx);
+        uint64_t otc_total = sp.lock_cycle + sp.fanout_cycle + sp.fanin_cycle + sp.self_consumed_cycle;
+        uint64_t complete_poll =
+            (chip_swimlane.sched_complete_cycle > otc_total + chip_swimlane.sched_complete_perf_cycle) ?
+                (chip_swimlane.sched_complete_cycle - otc_total - chip_swimlane.sched_complete_perf_cycle) :
+                0;
+        uint64_t dispatch_poll = (chip_swimlane.sched_dispatch_cycle >
+                                  chip_swimlane.sched_dispatch_pop_cycle + chip_swimlane.sched_dispatch_setup_cycle) ?
+                                     (chip_swimlane.sched_dispatch_cycle - chip_swimlane.sched_dispatch_pop_cycle -
+                                      chip_swimlane.sched_dispatch_setup_cycle) :
+                                     0;
+
+        LOG_INFO(
+            "Thread %d: === Scheduler Phase Breakdown: total=%.3fus, %d tasks ===", thread_idx,
+            cycles_to_us(sched_total), cur_thread_completed
+        );
+
+        // fanout / fanin per-thread aggregates live in
+        // sched_overhead_analysis.compute_dag_stats_from_deps (deps.json edges
+        // × core_to_thread).
+        LOG_INFO(
+            "Thread %d:   complete       : %.3fus (%.1f%%)", thread_idx,
+            cycles_to_us(chip_swimlane.sched_complete_cycle), chip_swimlane.sched_complete_cycle * 100.0 / sched_total
+        );
+
+        uint64_t c_parent = chip_swimlane.sched_complete_cycle > 0 ? chip_swimlane.sched_complete_cycle : 1;
+        uint64_t complete_miss_count = (chip_swimlane.complete_probe_count > chip_swimlane.complete_hit_count) ?
+                                           (chip_swimlane.complete_probe_count - chip_swimlane.complete_hit_count) :
+                                           0;
+        double complete_hit_rate = chip_swimlane.complete_probe_count > 0 ?
+                                       chip_swimlane.complete_hit_count * 100.0 / chip_swimlane.complete_probe_count :
+                                       0.0;
+        LOG_INFO(
+            "Thread %d:     poll         : %.3fus (%.1f%%)  hit=%" PRIu64 ", miss=%" PRIu64 ", hit_rate=%.1f%%",
+            thread_idx, cycles_to_us(complete_poll), complete_poll * 100.0 / c_parent,
+            static_cast<uint64_t>(chip_swimlane.complete_hit_count), static_cast<uint64_t>(complete_miss_count),
+            complete_hit_rate
+        );
+        LOG_INFO(
+            "Thread %d:     otc_lock     : %.3fus (%.1f%%)  work=%.3fus wait=%.3fus  atomics=%" PRIu64 "", thread_idx,
+            cycles_to_us(sp.lock_cycle), sp.lock_cycle * 100.0 / c_parent,
+            cycles_to_us(sp.lock_cycle - sp.lock_wait_cycle), cycles_to_us(sp.lock_wait_cycle),
+            static_cast<uint64_t>(sp.lock_atomic_count)
+        );
+        LOG_INFO(
+            "Thread %d:     otc_fanout   : %.3fus (%.1f%%)  work=%.3fus wait=%.3fus  atomics=%" PRIu64 "", thread_idx,
+            cycles_to_us(sp.fanout_cycle), sp.fanout_cycle * 100.0 / c_parent,
+            cycles_to_us(sp.fanout_cycle - sp.push_wait_cycle), cycles_to_us(sp.push_wait_cycle),
+            static_cast<uint64_t>(sp.fanout_atomic_count)
+        );
+        LOG_INFO(
+            "Thread %d:     otc_fanin    : %.3fus (%.1f%%)  atomics=%" PRIu64 "", thread_idx,
+            cycles_to_us(sp.fanin_cycle), sp.fanin_cycle * 100.0 / c_parent,
+            static_cast<uint64_t>(sp.fanin_atomic_count)
+        );
+        LOG_INFO(
+            "Thread %d:     otc_self     : %.3fus (%.1f%%)  atomics=%" PRIu64 "", thread_idx,
+            cycles_to_us(sp.self_consumed_cycle), sp.self_consumed_cycle * 100.0 / c_parent,
+            static_cast<uint64_t>(sp.self_atomic_count)
+        );
+        LOG_INFO(
+            "Thread %d:     perf         : %.3fus (%.1f%%)", thread_idx,
+            cycles_to_us(chip_swimlane.sched_complete_perf_cycle),
+            chip_swimlane.sched_complete_perf_cycle * 100.0 / c_parent
+        );
+
+        LOG_INFO(
+            "Thread %d:   async_poll     : %.3fus (%.1f%%)", thread_idx, cycles_to_us(chip_swimlane.sched_async_cycle),
+            chip_swimlane.sched_async_cycle * 100.0 / sched_total
+        );
+
+        LOG_INFO(
+            "Thread %d:   dispatch       : %.3fus (%.1f%%)", thread_idx,
+            cycles_to_us(chip_swimlane.sched_dispatch_cycle), chip_swimlane.sched_dispatch_cycle * 100.0 / sched_total
+        );
+
+        uint64_t d_parent = chip_swimlane.sched_dispatch_cycle > 0 ? chip_swimlane.sched_dispatch_cycle : 1;
+        LOG_INFO(
+            "Thread %d:     poll         : %.3fus (%.1f%%)", thread_idx, cycles_to_us(dispatch_poll),
+            dispatch_poll * 100.0 / d_parent
+        );
+        LOG_INFO(
+            "Thread %d:     pop          : %.3fus (%.1f%%)  work=%.3fus wait=%.3fus  atomics=%" PRIu64 "", thread_idx,
+            cycles_to_us(chip_swimlane.sched_dispatch_pop_cycle),
+            chip_swimlane.sched_dispatch_pop_cycle * 100.0 / d_parent,
+            cycles_to_us(chip_swimlane.sched_dispatch_pop_cycle - sp.pop_wait_cycle), cycles_to_us(sp.pop_wait_cycle),
+            static_cast<uint64_t>(sp.pop_atomic_count)
+        );
+        LOG_INFO(
+            "Thread %d:     setup        : %.3fus (%.1f%%)", thread_idx,
+            cycles_to_us(chip_swimlane.sched_dispatch_setup_cycle),
+            chip_swimlane.sched_dispatch_setup_cycle * 100.0 / d_parent
+        );
+
+        LOG_INFO(
+            "Thread %d:   idle           : %.3fus (%.1f%%)", thread_idx, cycles_to_us(chip_swimlane.sched_idle_cycle),
+            chip_swimlane.sched_idle_cycle * 100.0 / sched_total
+        );
+
+        if (cur_thread_completed > 0) {
+            LOG_INFO(
+                "Thread %d:   avg/complete   : %.3fus", thread_idx,
+                cycles_to_us(chip_swimlane.sched_complete_cycle) / cur_thread_completed
+            );
+        }
+    }
+    LOG_INFO(
+        "Thread %d: Scheduler summary: total_time=%.3fus, loops=%" PRIu64 ", tasks_scheduled=%d", thread_idx,
+        cycles_to_us(sched_total), static_cast<uint64_t>(chip_swimlane.sched_loop_count), cur_thread_completed
+    );
+#endif
+}
+#endif
+
+// =============================================================================
+// Shutdown: each thread retires the cores it owns, on its own way out.
+// Core ownership is a partition — assign_cores_to_threads hands every cluster
+// to exactly one scheduler thread — so concurrent retirements never name the
+// same core. Emergency shutdown sweeps the whole table and claims per core, so
+// a core is retired exactly once no matter which path reaches it first.
+// =============================================================================
+int32_t SchedulerContext::shutdown(int32_t thread_idx, Runtime *runtime) {
+    const int32_t *cores = core_trackers_[thread_idx].core_ids();
+    const int32_t core_num = core_trackers_[thread_idx].core_num();
+    if (core_num == 0) return 0;  // orchestrator threads own no core
+
+#if SIMPLER_DFX
+    // A fatal run ends in a host-side device reset, so counters read here would
+    // not survive into the next generation. Retirement below still runs: it is
+    // what releases this thread's workers, and no other path will.
+    if (is_pmu_enabled() && !fatal_shutdown_started_.load(std::memory_order_acquire)) {
+        pmu_aicpu_finalize(cores, core_num);
+    }
+#endif
+    LOG_INFO("Thread %d: retiring %d cores", thread_idx, core_num);
+    return retire_cores(runtime, cores, core_num);
+}
+
+int32_t SchedulerContext::retire_cores(Runtime *runtime, const int32_t *core_ids, int32_t core_num) {
+    int32_t claimed_ids[PLATFORM_MAX_CORES];
+    int32_t count = 0;
+    for (int32_t i = 0; i < core_num; ++i) {
+        const int32_t core_id = core_ids[i];
+        if (core_id < 0 || core_id >= cores_total_num_) continue;
+        // An early request remains pending. Only the operation adding the
+        // second bit owns retirement; acquire observes the publisher's state.
+        if (__atomic_fetch_or(&retirement_state_[core_id], RETIREMENT_REQUESTED, __ATOMIC_ACQ_REL) ==
+            RETIREMENT_READY) {
+            claimed_ids[count++] = core_id;
+        }
+    }
+    return retire_claimed_cores(runtime, claimed_ids, count);
+}
+
+void SchedulerContext::publish_retirement_cores(Runtime *runtime, const int32_t *core_ids, int32_t core_num) {
+    int32_t claimed_ids[PLATFORM_MAX_CORES];
+    int32_t count = 0;
+    for (int32_t i = 0; i < core_num; ++i) {
+        const int32_t core_id = core_ids[i];
+        // The initializer owns these metadata stores; requesters do not read
+        // them until READY. Unmapped cores stay unpublished for host recovery.
+        if (core_id < 0 || core_id >= cores_total_num_) continue;
+        if (core_exec_states_[core_id].reg_addr == 0) continue;
+        if (__atomic_fetch_or(&retirement_state_[core_id], RETIREMENT_READY, __ATOMIC_ACQ_REL) ==
+            RETIREMENT_REQUESTED) {
+            claimed_ids[count++] = core_id;
+        }
+    }
+    (void)retire_claimed_cores(runtime, claimed_ids, count);
+}
+
+void SchedulerContext::publish_all_retirement_cores(Runtime *runtime) {
+    // The serial initializer has joined every handshake before reading metadata.
+    int32_t ids[PLATFORM_MAX_CORES];
+    for (int32_t i = 0; i < cores_total_num_; ++i)
+        ids[i] = i;
+    publish_retirement_cores(runtime, ids, cores_total_num_);
+}
+
+void SchedulerContext::publish_retirement_group(Runtime *runtime, int32_t owner_thread) {
+    // The blocked handshake partition is stable even if tracker assignment fails.
+    int32_t ids[PLATFORM_MAX_CORES];
+    int32_t count = 0;
+    const int32_t aic_n = cores_total_num_ / PLATFORM_CORES_PER_BLOCKDIM;
+    for (int32_t ci = owner_thread; ci < aic_n; ci += active_sched_threads_) {
+        ids[count++] = ci;
+        ids[count++] = aic_n + 2 * ci;
+        ids[count++] = aic_n + 2 * ci + 1;
+    }
+    publish_retirement_cores(runtime, ids, count);
+}
+
+int32_t SchedulerContext::retire_claimed_cores(Runtime *runtime, const int32_t *core_ids, int32_t core_num) {
+    AicoreExitTarget targets[PLATFORM_MAX_CORES];
+    int32_t claimed_ids[PLATFORM_MAX_CORES];
+    size_t count = 0;
+    for (int32_t i = 0; i < core_num; ++i) {
+        const int32_t core_id = core_ids[i];
+        if (core_id < 0 || core_id >= cores_total_num_) continue;
+        const uint64_t reg_addr = core_exec_states_[core_id].reg_addr;
+        if (reg_addr == 0) continue;
+        claimed_ids[count] = core_id;
+        targets[count] = {reg_addr, &runtime->get_teardown_gates()[core_id]};
+        ++count;
+    }
+    if (count == 0) return 0;
+
+    // platform_retire_aicore_group fills every entry on every path it returns
+    // from, so this needs no initializer.
+    bool released[PLATFORM_MAX_CORES];
+    const int32_t rc = platform_retire_aicore_group(targets, count, platform_aicore_exit_deadline(), released);
+    if (rc != 0) {
+        // Naming the cores is the only signal an unreleased worker leaves: it
+        // spins on a gate it cannot log about, and the host sees just a stream
+        // timeout. See docs/troubleshooting/a2a3-worker-retirement.md.
+        for (size_t i = 0; i < count; ++i) {
+            if (!released[i]) {
+                LOG_ERROR(
+                    "AICore retirement: core %d not released (COND=0x%llx); worker stays blocked", claimed_ids[i],
+                    static_cast<unsigned long long>(read_reg(targets[i].reg_addr, RegId::COND))
+                );
+            }
+        }
+    }
+    return rc;
+}
+
+int32_t SchedulerContext::retire_all_cores(Runtime *runtime) {
+    int32_t all[PLATFORM_MAX_CORES];
+    int32_t n = 0;
+    for (int32_t i = 0; i < cores_total_num_; ++i)
+        all[n++] = i;
+    return retire_cores(runtime, all, n);
+}
+
+// =============================================================================
+// Handshake a contiguous slice of AICore workers. Runs on every AICPU thread in
+// parallel (partitioned by tidx/nthreads); the leader's pre_handshake_init has
+// already zeroed state, set cores_total_num_, and reset the counts/flag. The
+// per-core work here — releasing the core, then opening its register window over
+// serial MMIO — is what dominates preamble, so splitting the slice across
+// threads is the whole point. Within a slice we still sweep (poll every
+// outstanding core per pass, service whichever reported) so one slow core's
+// wakeup overlaps its neighbours' instead of blocking them. Worker-id lists are
+// built serially in post_handshake_init (core-index order) once every slice has
+// landed, so the shared aic_count_/aiv_count_ are written by one thread only.
+// =============================================================================
+void SchedulerContext::handshake_partition(Runtime *runtime, int32_t tidx, int32_t nthreads) {
+    Handshake *all_handshakes = reinterpret_cast<Handshake *>(runtime->dev.workers);
+    // This run's identity, latched from KernelArgs at AICPU entry. Non-zero on a
+    // native program launch, so only a report stamped with it is this run's;
+    // zero on a kernel/persistent launch, which keeps the aicore_done predicate.
+    const uint64_t report_epoch = get_platform_run_result_epoch();
+    const int32_t total = cores_total_num_;
+    const int32_t lo = static_cast<int32_t>((static_cast<int64_t>(tidx) * total) / nthreads);
+    const int32_t hi = static_cast<int32_t>((static_cast<int64_t>(tidx + 1) * total) / nthreads);
+
+    // The AICore publishes {physical_core_id, core_type, aicore_done} on launch,
+    // gated by nothing. task is not published here: the AICore's aicore_done
+    // report flushes its whole handshake cache line, so a task stored before the
+    // report would be clobbered. task is written per core in the sweep below,
+    // after that core's aicore_done is observed and before its window opens (the
+    // point the AICore reads task).
+
+    // Get platform physical cores count for validation
+    uint32_t max_physical_cores_count = platform_get_physical_cores_count();
+
+    // Step 2: collect responses from this slice. Each core reports
+    // {physical_core_id, core_type, aicore_done} in one write, then waits — by
+    // polling its own DATA_MAIN_BASE SPR — for us to open its register window.
+    // We sweep the slice: poll every outstanding core per pass and service
+    // whichever have reported, rather than blocking on core i before looking at
+    // core i+1, so per-core wakeups overlap (≈ max, not Σ). aicore_done is a GM
+    // read (not the nGnRE MMIO reg window), so sweeping is not forced serial the
+    // way RegId::COND polling is.
+    //
+    // Servicing a core = validate its physical_core_id, then open its register
+    // window (platform_init_aicore_regs: FAST_PATH + DATA_MAIN_BASE=IDLE). That
+    // IDLE write is *also* the signal the core polls for to leave its
+    // post-report wait — so opening the window IS the acknowledgement. There is
+    // no separate aicpu_regs_ready ack and no second round-trip. AIC/AIV
+    // classification is deferred to post_handshake_init (serial) so aic_count_/
+    // aiv_count_ are never incremented from more than one thread.
+    uint64_t *regs = reinterpret_cast<uint64_t *>(regs_);
+    bool core_serviced[RUNTIME_MAX_WORKER] = {false};
+
+    // Every core publishes aicore_done on launch, so the whole slice is already
+    // reported when the AICPU sweeps it. The reported cores are collected first,
+    // then serviced in batched phases (publish tasks, open windows, store
+    // CoreExecStates); each phase issues its stores without interleaving another
+    // phase's, so posted MMIO STRs and write-through GM stores do not serialize.
+    struct ReadyCore {
+        int32_t i;
+        uint32_t pcid;
+        uint64_t reg_addr;
+        CoreType core_type;
+    };
+    ReadyCore ready[RUNTIME_MAX_WORKER];
+    int32_t n_ready = 0;
+
+    // Phase 1: collect every reported core in this slice and prefetch its
+    // CoreExecState line for write, so the Phase 4 struct store hits a warm line.
+    for (int32_t remaining = hi - lo; remaining > 0;) {
+        for (int32_t i = lo; i < hi; i++) {
+            if (core_serviced[i]) continue;
+            Handshake *hank = &all_handshakes[i];
+            if (!aicore_report_accepted(hank, report_epoch)) {
+                SPIN_WAIT_HINT();
+                continue;
+            }
+            // The report's payload is Normal cacheable memory and nothing gives
+            // these loads an address or data dependency on the marker load, so
+            // without a load-load barrier they may be satisfied ahead of it.
+            // Once per accepted report, not per poll.
+            rmb();
+            uint32_t physical_core_id = hank->physical_core_id;
+            if (physical_core_id >= max_physical_cores_count) {
+                LOG_ERROR(
+                    "Core %d reported invalid physical_core_id=%u (platform max=%u)", i, physical_core_id,
+                    max_physical_cores_count
+                );
+                handshake_failed_.store(true, std::memory_order_release);
+                core_serviced[i] = true;
+                remaining--;
+                continue;
+            }
+            const uint64_t reg_addr = regs[physical_core_id];
+            if (reg_addr == 0) {
+                LOG_ERROR("Core %d reported physical_core_id=%u with no register window", i, physical_core_id);
+                handshake_failed_.store(true, std::memory_order_release);
+                core_serviced[i] = true;
+                remaining--;
+                continue;
+            }
+            __builtin_prefetch(&core_exec_states_[i], 1, 3);
+            ready[n_ready++] = {i, physical_core_id, reg_addr, hank->core_type};
+            core_serviced[i] = true;
+            remaining--;
+        }
+    }
+
+    // Phase 2: publish every task pointer, then ONE barrier. The core reads task
+    // only after its window opens (Phase 3); a single barrier orders all task
+    // stores before any window STR. Writing task now (after the report) also
+    // keeps the core's CACHELINE_OUT report flush from clobbering it.
+    for (int32_t r = 0; r < n_ready; r++) {
+        all_handshakes[ready[r].i].task = reinterpret_cast<uint64_t>(&payload_per_core_[ready[r].i][0]);
+    }
+    OUT_OF_ORDER_STORE_BARRIER();
+
+    // Phase 3: open every window. platform_init_aicore_regs' STRs are posted
+    // Device-nGnRE writes, issued back-to-back with no interleaved GM stores.
+    for (int32_t r = 0; r < n_ready; r++) {
+        platform_init_aicore_regs(ready[r].reg_addr);
+    }
+
+    // Phase 4: publish each CoreExecState with a single (prefetched) struct store.
+    // core_exec_states_ is AICPU-private (the scheduler reads it, never the core),
+    // so it may be written after the windows open.
+    for (int32_t r = 0; r < n_ready; r++) {
+        int32_t i = ready[r].i;
+        CoreExecState st{};
+        st.reg_addr = ready[r].reg_addr;
+        st.cond_ptr = get_reg_ptr(ready[r].reg_addr, RegId::COND);
+        st.running_reg_task_id = AICPU_TASK_INVALID;
+        st.pending_reg_task_id = AICPU_TASK_INVALID;
+#if !SIMPLER_DFX
+        st.worker_id = i;
+        st.physical_core_id = ready[r].pcid;
+        st.core_type = ready[r].core_type;
+#endif
+        core_exec_states_[i] = st;
+        core_type_compact_[i] = static_cast<uint8_t>(ready[r].core_type);
+#if SIMPLER_DFX
+        physical_core_ids_[i] = ready[r].pcid;
+#endif
+    }
+    OUT_OF_ORDER_STORE_BARRIER();
+}
+
+// Handshake exactly the cores this scheduler thread will later manage. Blocked
+// core layout ([0,N/3) AIC, [N/3,N) AIV) makes ownership predictable before
+// handshake: cluster ci = {ci, N/3+2ci, N/3+2ci+1}, assigned to thread
+// ci % active_threads. Same protocol as handshake_partition, but over the owned
+// set instead of a contiguous slice.
+void SchedulerContext::handshake_owned_clusters(Runtime *runtime, int32_t tidx, int32_t active_threads) {
+    Handshake *all_handshakes = reinterpret_cast<Handshake *>(runtime->dev.workers);
+    // This run's identity, latched from KernelArgs at AICPU entry. Non-zero on a
+    // native program launch, so only a report stamped with it is this run's;
+    // zero on a kernel/persistent launch, which keeps the aicore_done predicate.
+    const uint64_t report_epoch = get_platform_run_result_epoch();
+    const int32_t aic_n = cores_total_num_ / PLATFORM_CORES_PER_BLOCKDIM;
+
+    int32_t owned[RUNTIME_MAX_WORKER];
+    int32_t own_n = 0;
+    for (int32_t ci = tidx; ci < aic_n; ci += active_threads) {
+        owned[own_n++] = ci;                  // AIC
+        owned[own_n++] = aic_n + 2 * ci;      // AIV0
+        owned[own_n++] = aic_n + 2 * ci + 1;  // AIV1
+    }
+
+    uint32_t max_physical_cores_count = platform_get_physical_cores_count();
+    uint64_t *regs = reinterpret_cast<uint64_t *>(regs_);
+    bool core_serviced[RUNTIME_MAX_WORKER] = {false};
+
+    // Batched 4-phase handshake (mirrors handshake_partition over the owned set):
+    // collect reports, then publish tasks / open windows / store CoreExecStates in
+    // separate passes so posted MMIO STRs and GM stores don't serialize, and only
+    // two barriers fire for the whole owned set (not one per core).
+    struct ReadyCore {
+        int32_t i;
+        uint32_t pcid;
+        uint64_t reg_addr;
+        CoreType core_type;
+    };
+    ReadyCore ready[RUNTIME_MAX_WORKER];
+    int32_t n_ready = 0;
+
+    // Phase 1: collect every reported owned core, prefetch its CoreExecState line.
+    for (int32_t remaining = own_n; remaining > 0;) {
+        for (int32_t k = 0; k < own_n; k++) {
+            int32_t i = owned[k];
+            if (core_serviced[i]) continue;
+            Handshake *hank = &all_handshakes[i];
+            if (!aicore_report_accepted(hank, report_epoch)) {
+                SPIN_WAIT_HINT();
+                continue;
+            }
+            // See the contiguous-slice sweep above: the payload loads carry no
+            // dependency on the marker load, so they need the barrier between.
+            rmb();
+            uint32_t physical_core_id = hank->physical_core_id;
+            if (physical_core_id >= max_physical_cores_count) {
+                LOG_ERROR(
+                    "Core %d reported invalid physical_core_id=%u (platform max=%u)", i, physical_core_id,
+                    max_physical_cores_count
+                );
+                handshake_failed_.store(true, std::memory_order_release);
+                core_serviced[i] = true;
+                remaining--;
+                continue;
+            }
+            const uint64_t reg_addr = regs[physical_core_id];
+            if (reg_addr == 0) {
+                LOG_ERROR("Core %d reported physical_core_id=%u with no register window", i, physical_core_id);
+                handshake_failed_.store(true, std::memory_order_release);
+                core_serviced[i] = true;
+                remaining--;
+                continue;
+            }
+            __builtin_prefetch(&core_exec_states_[i], 1, 3);
+            ready[n_ready++] = {i, physical_core_id, reg_addr, hank->core_type};
+            core_serviced[i] = true;
+            remaining--;
+        }
+    }
+
+    // Phase 2: publish every task pointer, then ONE barrier. The core reads task
+    // only after its window opens (Phase 3), so a single barrier orders all task
+    // stores before any window STR.
+    for (int32_t r = 0; r < n_ready; r++) {
+        all_handshakes[ready[r].i].task = reinterpret_cast<uint64_t>(&payload_per_core_[ready[r].i][0]);
+    }
+    OUT_OF_ORDER_STORE_BARRIER();
+
+    // Phase 3: open every window (the IDLE write is also the core's ack).
+    for (int32_t r = 0; r < n_ready; r++) {
+        platform_init_aicore_regs(ready[r].reg_addr);
+    }
+
+    // Phase 4: publish each CoreExecState (AICPU-private, may follow the windows).
+    // reg_task_id fields start INVALID (pre_handshake_init memset zeroed them, and
+    // 0 is a valid task id); core_type_compact_ is filled for parity.
+    for (int32_t r = 0; r < n_ready; r++) {
+        int32_t i = ready[r].i;
+        CoreExecState st{};
+        st.reg_addr = ready[r].reg_addr;
+        st.cond_ptr = get_reg_ptr(ready[r].reg_addr, RegId::COND);
+        st.running_reg_task_id = AICPU_TASK_INVALID;
+        st.pending_reg_task_id = AICPU_TASK_INVALID;
+#if !SIMPLER_DFX
+        st.worker_id = i;
+        st.physical_core_id = ready[r].pcid;
+        st.core_type = ready[r].core_type;
+#endif
+        core_exec_states_[i] = st;
+        core_type_compact_[i] = static_cast<uint8_t>(ready[r].core_type);
+#if SIMPLER_DFX
+        physical_core_ids_[i] = ready[r].pcid;
+#endif
+    }
+    OUT_OF_ORDER_STORE_BARRIER();
+}
+
+// =============================================================================
+// Per-thread self-assignment (barrier-free init). Thread tidx owns the clusters
+// ci with ci % active_sched_threads_ == tidx (same round-robin as
+// assign_cores_to_threads), and the blocked layout gives their worker ids
+// directly, so a thread populates its own CoreTracker + per-core payload state
+// right after handshaking its own clusters, with no all-thread barrier.
+// =============================================================================
+void SchedulerContext::assign_own_clusters(Runtime *runtime, int32_t tidx) {
+    const int32_t aic_n = cores_total_num_ / PLATFORM_CORES_PER_BLOCKDIM;
+    const int32_t active = active_sched_threads_;
+
+    CoreTracker &tracker = core_trackers_[tidx];
+    int32_t own_n = 0;
+    for (int32_t ci = tidx; ci < aic_n; ci += active)
+        own_n++;
+    // Mirrors the check assign_cores_to_threads() makes on the serial path. A
+    // thread owning more clusters than CoreTracker can hold used to write past
+    // core_id_map_ into the next tracker, which is the orchestrator's on the
+    // decoupled path: its cluster_count_ became garbage and shutdown() then
+    // sent AICORE_EXIT to a core the scheduler was still dispatching to.
+    if (own_n > CoreTracker::MAX_CLUSTERS) {
+        LOG_ERROR(
+            "Thread %d owns %d clusters, exceeding CoreTracker capacity %d (raise aicpu_thread_num)", tidx, own_n,
+            CoreTracker::MAX_CLUSTERS
+        );
+        handshake_failed_.store(true, std::memory_order_release);
+        publish_retirement_group(runtime, tidx);
+        return;
+    }
+    tracker.init(own_n);
+
+    int32_t local = 0;
+    for (int32_t ci = tidx; ci < aic_n; ci += active) {
+        tracker.set_cluster(local++, ci, aic_n + 2 * ci, aic_n + 2 * ci + 1);
+    }
+
+    // Per-cluster GlobalContext sub_block_id (mirrors post_handshake_init) for
+    // this thread's owned cores only — a thread only ever dispatches to its own.
+    for (int32_t c = 0; c < tracker.get_cluster_count(); c++) {
+        int32_t cluster_offset = c * PLATFORM_CORES_PER_BLOCKDIM;
+        int32_t aiv0_id = tracker.get_core_id_by_offset(tracker.get_aiv0_core_offset(cluster_offset));
+        int32_t aiv1_id = tracker.get_core_id_by_offset(tracker.get_aiv1_core_offset(cluster_offset));
+        payload_per_core_[aiv0_id][0].global_context.sub_block_id = 0;
+        payload_per_core_[aiv0_id][1].global_context.sub_block_id = 0;
+        payload_per_core_[aiv1_id][0].global_context.sub_block_id = 1;
+        payload_per_core_[aiv1_id][1].global_context.sub_block_id = 1;
+    }
+
+    // Per-dispatch AsyncCtx constant prefill + one-time slab clear for owned cores
+    // (mirrors post_handshake_init's all-core loop, restricted to this thread's).
+    for (int32_t c = 0; c < tracker.get_cluster_count(); c++) {
+        for (int32_t sub = 0; sub < PLATFORM_CORES_PER_BLOCKDIM; sub++) {
+            int32_t core_id = tracker.get_core_id_by_offset(c * PLATFORM_CORES_PER_BLOCKDIM + sub);
+            for (int32_t buf = 0; buf < 2; buf++) {
+                DispatchPayload &dp = payload_per_core_[core_id][buf];
+                AsyncCtx &ac = dp.local_context.async_ctx;
+                volatile DeferredCompletionSlab *slab = &deferred_slab_per_core_[core_id][buf];
+                ac.completion_count = &slab->count;
+                ac.completion_error_code = &slab->error_code;
+                ac.completion_entries = &slab->entries[0];
+                ac.completion_capacity = MAX_COMPLETIONS_PER_TASK;
+                slab->count = 0;
+                slab->error_code = SIMPLER_ERROR_NONE;
+                for (int k = 0; k < DMA_WORKSPACE_KIND_COUNT; ++k) {
+                    dp.global_context.dma_workspace[k] = get_dma_workspace_addr(k);
+                }
+                dp.global_context.l2_cache_offset = get_dev_l2_cache_offset();
+                dp.global_context.callable_entry_table = runtime->dev.callable_entry_table_addr_;
+                dp.global_context.callable_entry_count = runtime->dev.callable_table_len_;
+                dp.global_context.reserved = 0;
+                dp.args[PAYLOAD_LOCAL_CONTEXT_INDEX] = reinterpret_cast<uint64_t>(&dp.local_context);
+                dp.args[PAYLOAD_GLOBAL_CONTEXT_INDEX] = reinterpret_cast<uint64_t>(&dp.global_context);
+            }
+        }
+    }
+    publish_retirement_group(runtime, tidx);
+}
+
+// Abort the run on a handshake failure discovered without the all-thread barrier
+// (non-DFX path): latch completion so every scheduler thread exits its dispatch
+// loop, and broadcast exit to whatever cores did come up. Idempotent.
+void SchedulerContext::abort_and_shutdown(Runtime *runtime) { emergency_shutdown(runtime); }
+
+// Profiling-subsystem init (leader-only). pmu_aicpu_init needs every core's
+// physical_core_id, so the barrier-free init path calls this behind an
+// all-thread barrier compiled only into DFX builds. No-op otherwise.
+void SchedulerContext::post_handshake_profiling_init() {
+#if SIMPLER_DFX
+    if (is_dump_args_enabled()) {
+        dump_args_init(active_sched_threads_);
+    }
+    if (is_pmu_enabled()) {
+        pmu_aicpu_init(physical_core_ids_, cores_total_num_);
+    }
+#endif
+}
+
+// =============================================================================
+// Assign discovered cores to scheduler threads (cluster-aligned round-robin).
+// =============================================================================
+bool SchedulerContext::assign_cores_to_threads() {
+    // Cluster-aligned round-robin assignment: cluster ci -> sched thread ci % active_sched_threads_.
+    // Each cluster = 1 AIC + 2 adjacent AIV; the triple is always kept together.
+    active_sched_threads_ = (sched_thread_num_ > 0) ? sched_thread_num_ : aicpu_thread_num_;
+    int32_t cluster_count = aic_count_;
+
+    // Max clusters any single sched thread can hold: ceil(cluster_count / active_sched_threads_).
+    int32_t max_clusters_per_thread = (cluster_count + active_sched_threads_ - 1) / active_sched_threads_;
+    int32_t thread_cores_num = max_clusters_per_thread * PLATFORM_CORES_PER_BLOCKDIM;
+
+    if (thread_cores_num > CoreTracker::MAX_CORE_PER_THREAD) {
+        LOG_ERROR("Can't assign more then 64 cores in per scheduler");
+        return false;
+    }
+
+    LOG_INFO(
+        "Assigning cores (round-robin): %d clusters across %d sched threads (%d AIC, %d AIV)", cluster_count,
+        active_sched_threads_, aic_count_, aiv_count_
+    );
+
+    // running_reg_task_id / pending_reg_task_id for every serviced core are reset
+    // in handshake_partition's sweep.
+
+    // Count clusters per thread first (round-robin may distribute unevenly)
+    int32_t clusters_per_thread[MAX_AICPU_THREADS] = {};
+    for (int32_t ci = 0; ci < cluster_count; ci++) {
+        clusters_per_thread[ci % active_sched_threads_]++;
+    }
+    for (int32_t i = 0; i < active_sched_threads_; i++) {
+        core_trackers_[i].init(clusters_per_thread[i]);
+    }
+
+    int32_t cluster_idx_per_thread[MAX_AICPU_THREADS] = {};
+
+    for (int32_t ci = 0; ci < cluster_count; ci++) {
+        int32_t t = ci % active_sched_threads_;
+
+        int32_t aic_wid = aic_worker_ids_[ci];
+        int32_t aiv0_wid = aiv_worker_ids_[2 * ci];
+        int32_t aiv1_wid = aiv_worker_ids_[2 * ci + 1];
+
+        core_trackers_[t].set_cluster(cluster_idx_per_thread[t]++, aic_wid, aiv0_wid, aiv1_wid);
+
+        LOG_DEBUG("Thread %d: cluster %d (AIC=%d, AIV0=%d, AIV1=%d)", t, ci, aic_wid, aiv0_wid, aiv1_wid);
+    }
+
+    for (int32_t t = 0; t < aicpu_thread_num_; t++) {
+        LOG_DEBUG(
+            "Thread %d: total %d cores (%d clusters)", t, core_trackers_[t].core_num(),
+            core_trackers_[t].get_cluster_count()
+        );
+    }
+
+    LOG_INFO(
+        "Config: threads=%d, cores=%d, cores_per_thread=%d", aicpu_thread_num_, cores_total_num_, thread_cores_num
+    );
+    return true;
+}
+
+// =============================================================================
+// Emergency shutdown: elect one thread, broadcast exit to every handshake'd
+// core, then join them. A core is retired exactly once because retire_cores
+// claims per core, not because the per-thread path stands down: shutdown()
+// runs on every thread regardless of whether a fatal shutdown has begun.
+// =============================================================================
+bool SchedulerContext::begin_emergency_shutdown() {
+    return publish_fatal_shutdown(fatal_shutdown_started_, completed_);
+}
+
+void SchedulerContext::signal_emergency_shutdown(Runtime *runtime) {
+    // Sweeps every core rather than one thread's slice: a fatal run must not
+    // depend on the owning threads reaching their own shutdown. Per-core
+    // claiming keeps whatever they already retired untouched. A core still
+    // handshaking retains REQUESTED and its publisher services it after READY.
+    // Cores that never publish remain the host recovery path's responsibility.
+    LOG_WARN("Emergency shutdown: requesting retirement of all AICores");
+    (void)retire_all_cores(runtime);
+}
+
+void SchedulerContext::emergency_shutdown(Runtime *runtime) {
+    if (begin_emergency_shutdown()) {
+        int32_t orch_error = SIMPLER_ERROR_NONE;
+        if (sched_ != nullptr && sched_->sm_header != nullptr) {
+            orch_error = sched_->sm_header->orch_error_code.load(std::memory_order_acquire);
+        }
+        if (orch_error == SIMPLER_ERROR_TENSOR_WAIT_TIMEOUT) {
+            log_shutdown_stall_snapshot(-1, 0, completed_tasks_.load(std::memory_order_relaxed), "tensor_data_timeout");
+        } else {
+            log_shutdown_stall_snapshot(-1, 0, completed_tasks_.load(std::memory_order_relaxed), "fatal_shutdown");
+        }
+        signal_emergency_shutdown(runtime);
+    }
+}
+
+// =============================================================================
+// Lifecycle: init / deinit
+// =============================================================================
+int32_t SchedulerContext::pre_handshake_init(
+    Runtime *runtime, int32_t aicpu_thread_num, int32_t sched_thread_num, uint64_t regs_base
+) {
+    always_assert(runtime != nullptr);
+
+    // Zero all per-core execution state before handshake
+    memset(core_exec_states_, 0, sizeof(core_exec_states_));
+    memset(retirement_state_, 0, sizeof(retirement_state_));
+
+    // Wire thread/transition configuration that handshake/assign need to read.
+    aicpu_thread_num_ = aicpu_thread_num;
+    sched_thread_num_ = sched_thread_num;
+    regs_ = regs_base;
+
+#if SIMPLER_DFX
+    // chip_swimlane_aicpu_init promotes g_chip_swimlane_level from the shared-memory
+    // header — must be called BEFORE caching the level, otherwise the cached
+    // value would still be 0 (only the binary enable bit has been seeded by
+    // kernel.cpp at this point). Reset the cached level on disabled runs so a
+    // prior enabled launch's level can't leak into the phase-record gates in
+    // scheduler_dispatch. This runs on the leader before it publishes
+    // hs_setup_done_, so it happens-before every thread's handshake_partition
+    // and therefore before any register window is opened.
+    if (is_chip_swimlane_enabled()) {
+        chip_swimlane_aicpu_init(runtime->dev.worker_count);
+        chip_swimlane_level_ = get_chip_swimlane_level();
+        if (chip_swimlane_level_ >= ChipSwimlaneLevel::SCHED_PHASES) {
+            // Sched-phase pool count must match the dump_args_init thread count
+            // below. This block runs before assign_cores_to_threads, so the
+            // active_sched_threads_ member isn't set yet — recompute the same
+            // normalization locally: sched_thread_num_ <= 0 means "use all AICPU
+            // threads as scheduler threads" (see assign_cores_to_threads'
+            // active_sched_threads_). Without it, init_phase would prime zero
+            // sched pools and all sched_phase emits would silently drop.
+            const int sched_phase_threads = (sched_thread_num_ > 0) ? sched_thread_num_ : aicpu_thread_num_;
+            // Orchestration is always single-threaded, so orch-phase is one pool
+            // (ordinal 0) — see record_orch_phase.
+            const int orch_phase_threads = 1;
+            chip_swimlane_aicpu_init_phase(runtime->dev.worker_count, sched_phase_threads, orch_phase_threads);
+        }
+    } else {
+        chip_swimlane_level_ = ChipSwimlaneLevel::DISABLED;
+    }
+#endif
+
+    // Core count is needed by every thread to compute its handshake slice.
+    cores_total_num_ = runtime->dev.worker_count;
+    if (cores_total_num_ == 0 || cores_total_num_ > RUNTIME_MAX_WORKER) {
+        LOG_ERROR("Invalid cores_total_num %d (expected 1-%d)", cores_total_num_, RUNTIME_MAX_WORKER);
+        return -1;
+    }
+    // The prior launch may have left RELEASE=1. The wmb() is what orders these
+    // resets before hs_setup_done_ and before any register window opens: a
+    // window is a plain Device-nGnRE store, carrying no release semantics of
+    // its own.
+    memset(runtime->get_teardown_gates(), 0, sizeof(AicoreTeardownControl) * cores_total_num_);
+    wmb();
+    // The blocked 1 AIC : 2 AIV layout requires an exact multiple of 3: cluster ci
+    // owns cores {ci, N/3+2ci, N/3+2ci+1}, so a non-zero remainder leaves the tail
+    // AIV cores [3*(N/3), N) in no cluster — unhandshaked, their windows never open,
+    // and the run hangs at the op-execute timeout. assign_cores_to_threads pairs
+    // aiv_worker_ids_[2*ci]/[2*ci+1] on the serial path too, so this holds for both.
+    if (cores_total_num_ % PLATFORM_CORES_PER_BLOCKDIM != 0) {
+        LOG_ERROR(
+            "cores_total_num %d is not a multiple of %d (blocked 1 AIC : 2 AIV layout)", cores_total_num_,
+            PLATFORM_CORES_PER_BLOCKDIM
+        );
+        return -1;
+    }
+    // Blocked core layout ([0,N/3) AIC, [N/3,N) AIV) with a fixed 1:2 AIC:AIV
+    // ratio makes these exact pre-handshake, so scheduler threads can self-assign
+    // their owned clusters (assign_own_clusters) without the post-handshake
+    // discovery pass and its all-thread barrier.
+    const int32_t cluster_num = cores_total_num_ / PLATFORM_CORES_PER_BLOCKDIM;
+    aic_count_ = cluster_num * PLATFORM_AIC_CORES_PER_BLOCKDIM;
+    aiv_count_ = cluster_num * PLATFORM_AIV_CORES_PER_BLOCKDIM;
+    active_sched_threads_ = (sched_thread_num_ > 0) ? sched_thread_num_ : aicpu_thread_num_;
+    handshake_failed_.store(false, std::memory_order_release);
+
+    // State the barrier-free per-thread init path no longer reaches via
+    // post_handshake_init; reset on the leader before any scheduler thread is
+    // released to dispatch.
+    completed_tasks_.store(0, std::memory_order_release);
+    orchestrator_done_.store(false, std::memory_order_release);
+    func_id_to_addr_ = reinterpret_cast<uint64_t *>(runtime->dev.callable_table_addr_);
+    func_id_to_addr_count_ = runtime->dev.callable_table_len_;
+
+    // total_tasks_ must be read before hs_setup_done_ is published: on the
+    // decoupled path the orchestrator resets the SM as soon as it observes
+    // hs_setup_done_, which zeroes these ring counters, so the read completes here
+    // (on the leader, before any thread is released) rather than post-handshake.
+    if (runtime->get_gm_sm_ptr()) {
+        auto *header = static_cast<SharedMemoryHeader *>(runtime->get_gm_sm_ptr());
+        int64_t window_tasks = 0;
+        for (int r = 0; r < CHIP_MAX_RING_DEPTH; r++) {
+            int32_t ring_tasks = header->rings[r].fc.current_task_index.load(std::memory_order_acquire);
+            if (ring_tasks > 0 && ring_tasks <= CHIP_SCOPE_TASKS_CAP) window_tasks += ring_tasks;
+        }
+        total_tasks_ = static_cast<int32_t>(window_tasks);
+    } else {
+        total_tasks_ = 0;
+    }
+
+    LOG_INFO("Handshaking with %d cores", cores_total_num_);
+    return 0;
+}
+
+int32_t SchedulerContext::post_handshake_init(Runtime *runtime) {
+    if (handshake_failed_.load(std::memory_order_acquire)) {
+        publish_all_retirement_cores(runtime);
+        emergency_shutdown(runtime);
+        return -1;
+    }
+
+    // Build the AIC/AIV worker-id lists in core-index order, which
+    // assign_cores_to_threads pairs into clusters. core_type is read from the
+    // contiguously packed core_type_compact_ the sweep filled, not the 64B-aligned
+    // per-core Handshake struct. aic_worker_ids_/aiv_worker_ids_ store through to
+    // HBM, so the lists are built in local (cached) buffers and published with two
+    // wide memcpys rather than element by element.
+    int32_t local_aic[RUNTIME_MAX_WORKER];
+    int32_t local_aiv[RUNTIME_MAX_WORKER];
+    int32_t la = 0, lv = 0;
+    for (int32_t i = 0; i < cores_total_num_; i++) {
+        if (static_cast<CoreType>(core_type_compact_[i]) == CoreType::AIC) {
+            local_aic[la++] = i;
+        } else {
+            local_aiv[lv++] = i;
+        }
+    }
+    memcpy(aic_worker_ids_, local_aic, static_cast<size_t>(la) * sizeof(int32_t));
+    memcpy(aiv_worker_ids_, local_aiv, static_cast<size_t>(lv) * sizeof(int32_t));
+    aic_count_ = la;
+    aiv_count_ = lv;
+    LOG_INFO("Core discovery complete: %d AIC, %d AIV", aic_count_, aiv_count_);
+
+    if (!assign_cores_to_threads()) {
+        publish_all_retirement_cores(runtime);
+        emergency_shutdown(runtime);
+        return -1;
+    }
+
+    // Profiling-subsystem buffer/state init: single-threaded cold path (leader
+    // only), so the "do it once" guarantee is structural (no CAS needed). Runs
+    // after the handshake / assign_cores_to_threads because pmu_aicpu_init needs
+    // physical_core_ids_ / cores_total_num_. Mirrors the chip_swimlane_aicpu_init
+    // convention above; the per-thread *_set_orch_thread_idx setters stay on the
+    // orchestrator thread (see aicpu_executor.cpp).
+#if SIMPLER_DFX
+    if (is_dump_args_enabled()) {
+        dump_args_init(active_sched_threads_);
+    }
+    if (is_pmu_enabled()) {
+        pmu_aicpu_init(physical_core_ids_, cores_total_num_);
+    }
+#endif
+
+    // total_tasks_ is read in pre_handshake_init (before the orchestrator's early
+    // SM reset on the decoupled path can zero the ring counters).
+    completed_tasks_.store(0, std::memory_order_release);
+
+    // Device orchestration: the orchestrator thread flips this when the graph is built.
+    orchestrator_done_.store(false, std::memory_order_release);
+
+    // prepare_subtask_to_core fully writes a per-core payload / deferred-slab slot
+    // before the AICore is told to read it: build_payload sets
+    // function_bin_addr/args/local_context/not_ready, and deferred_slab->count/
+    // error_code are reset inline on every dispatch. An AICore reads a slot only
+    // after a dispatch targets it (DATA_MAIN_BASE), so a prior round's bytes in an
+    // untouched slot are never observed.
+
+    // Initialize per-core GlobalContext (sub_block_id) based on cluster position.
+    // This is done once at startup and never modified afterwards.
+    for (int32_t t = 0; t < sched_thread_num_; t++) {
+        CoreTracker &tracker = core_trackers_[t];
+        for (int32_t c = 0; c < tracker.get_cluster_count(); c++) {
+            int32_t cluster_offset = c * PLATFORM_CORES_PER_BLOCKDIM;  // Each cluster = 1 AIC + 2 AIV
+            auto aiv0_id = tracker.get_core_id_by_offset(tracker.get_aiv0_core_offset(cluster_offset));
+            auto aiv1_id = tracker.get_core_id_by_offset(tracker.get_aiv1_core_offset(cluster_offset));
+            payload_per_core_[aiv0_id][0].global_context.sub_block_id = 0;
+            payload_per_core_[aiv0_id][1].global_context.sub_block_id = 0;
+            payload_per_core_[aiv1_id][0].global_context.sub_block_id = 1;
+            payload_per_core_[aiv1_id][1].global_context.sub_block_id = 1;
+        }
+    }
+
+    // Prefill the per-dispatch AsyncCtx constant fields once. Of AsyncCtx's five
+    // fields, four are constant for a given (core, buf_idx): the three pointers
+    // target the fixed deferred_slab_per_core_[core][buf] members, and capacity is
+    // MAX_COMPLETIONS_PER_TASK. Only task_token varies per dispatch, so build_payload
+    // writes just that; these constants survive across dispatches because the
+    // payload buffer is never zeroed between them.
+    // The two context-pointer args are also per-(core, buf_idx) constants — they
+    // target this buffer's own local_context / global_context — so prefill them
+    // here too and drop them from the per-dispatch build_payload writes. This keeps
+    // the per-dispatch write footprint on the CL0 control block only (args[48]/[49]
+    // live on a later line).
+    for (int32_t core_id = 0; core_id < RUNTIME_MAX_WORKER; core_id++) {
+        for (int32_t buf = 0; buf < 2; buf++) {
+            DispatchPayload &dp = payload_per_core_[core_id][buf];
+            AsyncCtx &ac = dp.local_context.async_ctx;
+            volatile DeferredCompletionSlab *slab = &deferred_slab_per_core_[core_id][buf];
+            ac.completion_count = &slab->count;
+            ac.completion_error_code = &slab->error_code;
+            ac.completion_entries = &slab->entries[0];
+            ac.completion_capacity = MAX_COMPLETIONS_PER_TASK;
+            // Clear the slab once here; thereafter only the completion path re-clears
+            // count (and only when a deferred task dirtied it), never per dispatch.
+            slab->count = 0;
+            slab->error_code = SIMPLER_ERROR_NONE;
+            for (int k = 0; k < DMA_WORKSPACE_KIND_COUNT; ++k) {
+                dp.global_context.dma_workspace[k] = get_dma_workspace_addr(k);
+            }
+            dp.global_context.l2_cache_offset = get_dev_l2_cache_offset();
+            dp.global_context.callable_entry_table = runtime->dev.callable_entry_table_addr_;
+            dp.global_context.callable_entry_count = runtime->dev.callable_table_len_;
+            dp.global_context.reserved = 0;
+            dp.args[PAYLOAD_LOCAL_CONTEXT_INDEX] = reinterpret_cast<uint64_t>(&dp.local_context);
+            dp.args[PAYLOAD_GLOBAL_CONTEXT_INDEX] = reinterpret_cast<uint64_t>(&dp.global_context);
+        }
+    }
+
+    func_id_to_addr_ = reinterpret_cast<uint64_t *>(runtime->dev.callable_table_addr_);
+    func_id_to_addr_count_ = runtime->dev.callable_table_len_;
+
+    publish_all_retirement_cores(runtime);
+    return 0;
+}
+
+void SchedulerContext::deinit() {
+    // Reset all per-core execution state
+    for (int32_t i = 0; i < RUNTIME_MAX_WORKER; i++) {
+        core_exec_states_[i] = {};
+        core_exec_states_[i].running_reg_task_id = AICPU_TASK_INVALID;
+        core_exec_states_[i].pending_reg_task_id = AICPU_TASK_INVALID;
+    }
+
+    // No per-core memset of payload_per_core_ / deferred_slab_per_core_ here
+    // (~300 KB across all cores). They are re-initialized before they can be read:
+    // build_payload() overwrites the per-dispatch payload fields (function addr,
+    // args[0..num_args) or src_payload, block_idx/block_num, async_ctx.task_token)
+    // on the exact [core][buf_idx] about to run; the async_ctx slab pointers +
+    // capacity, the two context-pointer args, and the deferred slab (count = 0 /
+    // error_code = NONE) are all cleared once per run in init() — the slab is
+    // thereafter re-cleared only by the completion path after a deferred task.
+    // The consumer side cannot reach a stale slot either: the
+    // drain only services a core's running_reg_task_id, and the loop above
+    // already reset every core_exec_states_[].running/pending_reg_task_id to
+    // AICPU_TASK_INVALID — so no FIN for an undispatched slot is processed, and
+    // the count-gated consumer never reads entries[] past the fresh count.
+
+    // Reset sync-start drain coordination — a previous run that aborted mid-drain
+    // would otherwise leave dirty pending/ack state for the next reuse.
+    drain_state_.sync_start_pending.store(0, std::memory_order_release);
+    drain_state_.drain_attempt.store(0, std::memory_order_release);
+    for (int32_t t = 0; t < MAX_AICPU_THREADS; t++) {
+        drain_ack_tokens_[t].store(0, std::memory_order_release);
+    }
+    drain_state_.drain_stage_go.store(0, std::memory_order_release);
+    drain_state_.drain_stage_done_mask.store(0, std::memory_order_release);
+    drain_state_.drain_running_staged.store(0, std::memory_order_release);
+    drain_state_.pending_task.store(nullptr, std::memory_order_release);
+
+    // Reset task counters and orchestrator state
+    completed_tasks_.store(0, std::memory_order_release);
+    total_tasks_ = 0;
+    orchestrator_done_.store(false, std::memory_order_release);
+    completed_.store(false, std::memory_order_release);
+    fatal_shutdown_started_.store(false, std::memory_order_release);
+
+    // Reset core discovery and assignment state
+    aic_count_ = 0;
+    aiv_count_ = 0;
+    cores_total_num_ = 0;
+    aicpu_thread_num_ = 0;
+    sched_thread_num_ = 0;
+    active_sched_threads_ = 0;
+    for (int32_t t = 0; t < MAX_AICPU_THREADS; t++) {
+        core_trackers_[t] = CoreTracker{};
+    }
+
+    regs_ = 0;
+    for (auto &cursor : static_cursors_) cursor = {};
+    for (auto &cursor : static_aiv_cursors_) cursor = {};
+    for (auto &cursor : static_mix_cursors_) cursor = {};
+    sched_ = nullptr;
+    rt_ = nullptr;
+    func_id_to_addr_ = nullptr;
+    func_id_to_addr_count_ = 0;
+}
+
+void SchedulerContext::bind_runtime(RuntimeContext *rt) {
+    rt_ = rt;
+    sched_ = &rt->scheduler;
+}
+
+void SchedulerContext::wait_for_orchestration_done_before_dispatch(Runtime *runtime, int32_t thread_idx) {
+    while (!orchestration_done() && !completed_.load(std::memory_order_acquire)) {
+        if (sched_ != nullptr && sched_->sm_header != nullptr &&
+            check_idle_fatal_error(thread_idx, sched_->sm_header, runtime) == LoopAction::BREAK_LOOP) {
+            break;
+        }
+        SPIN_WAIT_HINT();
+    }
+}
+
+// =============================================================================
+// Post-orchestration bookkeeping. Runs on the orchestrator thread once the
+// build phase finishes; folds inline-completed tasks, flips orchestrator_done_,
+// and drives the orchestrator → scheduler core transition (or fatal shutdown).
+// =============================================================================
+void SchedulerContext::on_orchestration_done(
+    Runtime *runtime, RuntimeContext *rt, [[maybe_unused]] int32_t thread_idx, int32_t total_tasks
+) {
+#if SIMPLER_DFX
+    if (chip_swimlane_level_ >= ChipSwimlaneLevel::ORCH_PHASES) {
+        // Flush the orchestrator's orch-phase buffer (single instance, pool 0).
+        // The orchestrator has no scheduler-phase pool of its own — those belong
+        // to the scheduler threads and are flushed in scheduler_dispatch.
+        chip_swimlane_aicpu_flush_orch_phase_buffer(thread_idx);
+    }
+#endif
+
+    total_tasks_ = total_tasks;
+
+    // Fold tasks completed inline during orchestration
+    int32_t inline_completed = static_cast<int32_t>(rt->orchestrator.inline_completed_tasks);
+    if (inline_completed > 0) {
+        completed_tasks_.fetch_add(inline_completed, std::memory_order_relaxed);
+#if SIMPLER_SCHED_PROFILING
+        rt->scheduler.tasks_completed.fetch_add(inline_completed, std::memory_order_relaxed);
+#endif
+    }
+    orchestrator_done_.store(true, std::memory_order_release);
+
+    // Check for fatal error from orchestration; if so, shut down immediately.
+    int32_t orch_err = 0;
+    if (sched_->sm_header) {
+        orch_err = sched_->sm_header->orch_error_code.load(std::memory_order_relaxed);
+    }
+    if (orch_err != SIMPLER_ERROR_NONE) {
+        emergency_shutdown(runtime);
+    }
+
+#if SIMPLER_DFX
+    // Write the core-to-thread mapping so the profiling data reflects the
+    // scheduler threads' final core distribution.
+    if (chip_swimlane_level_ >= ChipSwimlaneLevel::SCHED_PHASES) {
+        chip_swimlane_aicpu_init_core_assignments(cores_total_num_);
+        for (int32_t t = 0; t < active_sched_threads_; t++) {
+            chip_swimlane_aicpu_write_core_assignments_for_thread(
+                t, core_trackers_[t].core_ids(), core_trackers_[t].core_num()
+            );
+        }
+    }
+#endif
+}

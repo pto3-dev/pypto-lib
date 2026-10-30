@@ -1,0 +1,67 @@
+{
+  "parent": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_native_fixture_20261029/build/target_key_value",
+  "candidate": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1",
+  "ranks": [
+    {
+      "rank": 0,
+      "callable_sha256": "69a0b60841df2714e762da35ad3ebc066035f98d254da5df9b1620c725e5765a",
+      "changed_children_vs_parent": [
+        27,
+        28,
+        29
+      ],
+      "metadata_identical": true,
+      "static_plans_identical": true
+    },
+    {
+      "rank": 1,
+      "callable_sha256": "61f0c04d73d8aadbad50a7ffa3c6549fdb01f2c41f34c3182472bf6930d46294",
+      "changed_children_vs_parent": [
+        27,
+        28,
+        29
+      ],
+      "metadata_identical": true,
+      "static_plans_identical": true
+    },
+    {
+      "rank": 2,
+      "callable_sha256": "aa2cdfe8a7b2f9a8997a0f8462100bc6b90d74850daa1188da686e0b75cca7d4",
+      "changed_children_vs_parent": [
+        27,
+        28,
+        29
+      ],
+      "metadata_identical": true,
+      "static_plans_identical": true
+    },
+    {
+      "rank": 3,
+      "callable_sha256": "d3e098f3b12b33ed703c56e5468ee0ae4d1dd01aee14ef0f8525945f9bc2a3d6",
+      "changed_children_vs_parent": [
+        27,
+        28,
+        29
+      ],
+      "metadata_identical": true,
+      "static_plans_identical": true
+    }
+  ],
+  "dsl_builds": {
+    "27": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/direct_dsl_verified/qk",
+    "28": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/explicit_pipeline_v1/softmax",
+    "29": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/direct_dsl_verified/pv"
+  },
+  "generated_sources": {
+    "27": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/direct_dsl_verified/qk/kernels/aic/s2_scores.cpp",
+    "28": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/explicit_pipeline_v1/softmax/kernels/aiv/softmax_kernel.cpp",
+    "29": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/direct_dsl_verified/pv/kernels/aic/s2_partial_values.cpp"
+  },
+  "donor_sha256": {
+    "27": "e49af5045fe7e19496baf672dfa8fd711c06f077ec08f0d72271ef96578da133",
+    "28": "b0f78b55452ae07189b61b714478c1afa2e31a28c2a2c97bef2466a9b881bada",
+    "29": "30c5135da36130d5adbd47720cf0663b454bf48446c4a00a67b198628de90a45"
+  },
+  "numerical_body_source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/src/qwen36_attention_dsl",
+  "runtime_engine": "unchanged Simpler static-plan interpreter"
+}

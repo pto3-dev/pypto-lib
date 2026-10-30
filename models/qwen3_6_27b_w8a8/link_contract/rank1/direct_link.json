@@ -1,0 +1,6 @@
+{
+  "rank": 1,
+  "native_sources": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_native_fixture_20261029/build/target_key_value/next_levels/rank1/native_backend",
+  "graph_guard_passed": true,
+  "device_poll_ticks": 0
+}

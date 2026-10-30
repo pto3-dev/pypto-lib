@@ -1,0 +1,1985 @@
+{
+  "src/qwen36/__init__.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/__init__.py",
+    "source_sha256": "9c29c582c925d5933940e48cdc5e5b0a3f40c28f4c2542f7f94fc7adb81f1cef",
+    "published_sha256": "6fdcc86c6633b232f2715e5cc268195eab2045296e8f1ed0a6598e5e8936a7e2",
+    "normalized_ast_sha256": "e406729225903e0b72fbf29cc918885b1effdd9f8d43c5f4e688e7a6af7f53a3"
+  },
+  "src/qwen36/bank_layout.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/bank_layout.py",
+    "source_sha256": "eecb15796699b36f38b2181b4fb2c5a41955adeb8e80d37f33ca8b98c1d3668b",
+    "published_sha256": "86af411bb3dbae5f561a8ba7a5e0e9080d69009f48fa0220aee6e3bfc626a6c6",
+    "normalized_ast_sha256": "87409dbe4b553a55873b3e50aa5401108e5a087f4117d94501f18e0d313d299c"
+  },
+  "src/qwen36/build/__init__.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/build/__init__.py",
+    "source_sha256": "9c29c582c925d5933940e48cdc5e5b0a3f40c28f4c2542f7f94fc7adb81f1cef",
+    "published_sha256": "6fdcc86c6633b232f2715e5cc268195eab2045296e8f1ed0a6598e5e8936a7e2",
+    "normalized_ast_sha256": "e406729225903e0b72fbf29cc918885b1effdd9f8d43c5f4e688e7a6af7f53a3"
+  },
+  "src/qwen36/build/compile.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/build/compile.py",
+    "source_sha256": "64a8a23bb4d2a748d46845ed83b09ccaffa186016bf43aa4e4b7f86daa5bbd00",
+    "published_sha256": "8afd1c2a5f244050b30772e62491edc3945b3190214ea3d483a1c57b5ec7d900",
+    "normalized_ast_sha256": "af82ff7e6a666df6ae366d573172bb9b447990e692fb6b7bdb9168686a3a3d9d"
+  },
+  "src/qwen36/build/kernel_config_entry.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/build/kernel_config_entry.py",
+    "source_sha256": "703f04b90709a6d70667dfde5ff5cfcfc03316ec301d5a585539fa859ddbf522",
+    "published_sha256": "43cb7561b945b20ddc50cccda7091e86bd4e1781538de34837aff7c15903aea4",
+    "normalized_ast_sha256": "07ddbfc7ac81e0f92b1a5fad2d16e7e849af2aacbff5264ed7d02b7a02d0da8f"
+  },
+  "src/qwen36/build/link_backend.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/build/link_backend.py",
+    "source_sha256": "6c5ce073f20195807c1e784b0c03d9016ac6526dcb4d3763fa45b5cdfc0aa117",
+    "published_sha256": "4f2b5feee7ed81b142e58679e01973d0c16c77f1b0f67653090c5f4672ee8ff7",
+    "normalized_ast_sha256": "425eeaab55ae34aed64446c2da00781626db20bf06ec77c1b2c4acf67239c3dc"
+  },
+  "src/qwen36/device_plan_layout.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/device_plan_layout.py",
+    "source_sha256": "0462cb1bfc241048c7aaf518a8a17e91db0ca915435cc22bb6c1a0f845bdcb0d",
+    "published_sha256": "65e6e62c98d425689d8bfbd83a407506379c400f263b83a08fb9550edcd99194",
+    "normalized_ast_sha256": "acf0accd935931045ee9e0e31abc9ff90e4bc6ba91cf7a8f5d14b8e1c2ec5dcc"
+  },
+  "src/qwen36/geometry.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/geometry.py",
+    "source_sha256": "d2c12b95e638cc051467f3cb890bea0c34116be4b2406b3cada781bc041fa0f7",
+    "published_sha256": "f33425d702c7a08a493b99c9614dde1ffd8742790d2a139d2ef269491ac51f44",
+    "normalized_ast_sha256": "9654d07e9e8a6de70df08cf098d8eb938a31538699016d31ef3b0c790fdf4ca8"
+  },
+  "src/qwen36/model.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/model.py",
+    "source_sha256": "a98273f367103af02d1499eac7506b2662c17b4599e81ad33ed5700e186f37ec",
+    "published_sha256": "62336711d50367543ad6c298ab2b92eb0d8f41b4d4ec6117e51fc305d9b8bb6a",
+    "normalized_ast_sha256": "9d55a9da55f5c3581f4cb5e1410ad294480e86fc0e89e93c0fe0d1919f2ca98c"
+  },
+  "src/qwen36/model_layout.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/model_layout.py",
+    "source_sha256": "281642d1fc67a2d7f6fc762e976695dcdb799b9c42f63edca47e27e39a2764a5",
+    "published_sha256": "6cc9c5aa1580e5b5c047a302dbd114999044a444469d5294f4e824c96bf422b8",
+    "normalized_ast_sha256": "5ef07c008162643feb69ba7595c2d533d9986ea729f189c7b6d408b8e956b012"
+  },
+  "src/qwen36/native_backend/attention_plan.json": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/native_backend/attention_plan.json",
+    "source_sha256": "1f965edb348d4516a5445eecfd48a3ebf1e1930605e1b95bce24d9f96f873d96",
+    "published_sha256": "1f965edb348d4516a5445eecfd48a3ebf1e1930605e1b95bce24d9f96f873d96"
+  },
+  "src/qwen36/native_backend/attention_plan.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/native_backend/attention_plan.py",
+    "source_sha256": "113822ba4af31ef3150c423014370c436e7eccdb456233047984e1e14491f8f4",
+    "published_sha256": "b474e4692b9b594c0723d7c7769956deb0700c898778fe772e502adeb753a470",
+    "normalized_ast_sha256": "95dfeacecb4ce5c01006fbf807f98559f73c17496646ff0de8fc81f108ad1a8d"
+  },
+  "src/qwen36/native_backend/device_program_aic.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/native_backend/device_program_aic.cpp",
+    "source_sha256": "96968d801bfc88d826204996540afe08666da64f7583dbe287af5c42a47f3479",
+    "published_sha256": "96968d801bfc88d826204996540afe08666da64f7583dbe287af5c42a47f3479"
+  },
+  "src/qwen36/native_backend/device_program_aiv.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/native_backend/device_program_aiv.cpp",
+    "source_sha256": "22eb1ab349fe9a1197bdf0da0280f8a5b7a1835ba439d44e816b0b456c6ae835",
+    "published_sha256": "22eb1ab349fe9a1197bdf0da0280f8a5b7a1835ba439d44e816b0b456c6ae835"
+  },
+  "src/qwen36/native_backend/device_program_body.h": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/native_backend/device_program_body.h",
+    "source_sha256": "0b014ecbc65590832e5cb408faa27774f4acdea05ac67d3817aec91efaf02043",
+    "published_sha256": "0b014ecbc65590832e5cb408faa27774f4acdea05ac67d3817aec91efaf02043"
+  },
+  "src/qwen36/native_backend/device_program_poll10_aic.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/native_backend/device_program_poll10_aic.cpp",
+    "source_sha256": "1beb666abcac482d7622da80ba0a154938d30c0cdef10e68542f32813d2c728c",
+    "published_sha256": "1beb666abcac482d7622da80ba0a154938d30c0cdef10e68542f32813d2c728c"
+  },
+  "src/qwen36/native_backend/device_program_poll10_aiv.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/native_backend/device_program_poll10_aiv.cpp",
+    "source_sha256": "5ca199af00b0e6a8d4dd76cfe76da3b8c2a62617cdfed0e8f917a5c8f63b805a",
+    "published_sha256": "5ca199af00b0e6a8d4dd76cfe76da3b8c2a62617cdfed0e8f917a5c8f63b805a"
+  },
+  "src/qwen36/native_backend/link_manifest.json": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/native_backend/link_manifest.json",
+    "source_sha256": "cb46d67e4bbee12be41b2c1219d438a4f1d854e1982f0a9de8d8f4a83eed9396",
+    "published_sha256": "cb46d67e4bbee12be41b2c1219d438a4f1d854e1982f0a9de8d8f4a83eed9396"
+  },
+  "src/qwen36/native_backend/logical_meta.json": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/native_backend/logical_meta.json",
+    "source_sha256": "08aa911a9d3b006306e52720614b8be2abb3837ebb4de5cb04ca77321e482075",
+    "published_sha256": "08aa911a9d3b006306e52720614b8be2abb3837ebb4de5cb04ca77321e482075"
+  },
+  "src/qwen36/native_backend/orchestration.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/native_backend/orchestration.cpp",
+    "source_sha256": "a7486bb5d058875ea0cf1344b96d69676a0dddc4ba2ab94cc3cdbd0fd80debf4",
+    "published_sha256": "59f311b8b925e5e13db9909ebff3749517cd7d92175ecdcfa20bd3e85ef0bc30",
+    "cpp_empty_line_whitespace_cleaned": true
+  },
+  "src/qwen36/native_backend/physical_meta.json": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/native_backend/physical_meta.json",
+    "source_sha256": "b9164c8658ec1dc78e6d7a2525cf044cc8ecfd4c13be2ad4ee1626f62615571e",
+    "published_sha256": "b9164c8658ec1dc78e6d7a2525cf044cc8ecfd4c13be2ad4ee1626f62615571e"
+  },
+  "src/qwen36/native_backend/softmax_fastmask.hpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/native_backend/softmax_fastmask.hpp",
+    "source_sha256": "48af224b849c1270902ea15ae98554c41bcd0a9bce141bf9295665025dfd190e",
+    "published_sha256": "48af224b849c1270902ea15ae98554c41bcd0a9bce141bf9295665025dfd190e"
+  },
+  "src/qwen36/native_backend/tiled_softmax.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/native_backend/tiled_softmax.cpp",
+    "source_sha256": "d2f2b2a74573a05b9bc85d59c9a9ce9292e89b641921ccdf5a7edb9adb313ecc",
+    "published_sha256": "d2f2b2a74573a05b9bc85d59c9a9ce9292e89b641921ccdf5a7edb9adb313ecc"
+  },
+  "src/qwen36/operators/__init__.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/operators/__init__.py",
+    "source_sha256": "9c29c582c925d5933940e48cdc5e5b0a3f40c28f4c2542f7f94fc7adb81f1cef",
+    "published_sha256": "6fdcc86c6633b232f2715e5cc268195eab2045296e8f1ed0a6598e5e8936a7e2",
+    "normalized_ast_sha256": "e406729225903e0b72fbf29cc918885b1effdd9f8d43c5f4e688e7a6af7f53a3"
+  },
+  "src/qwen36/operators/attention.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/operators/attention.py",
+    "source_sha256": "03aa6a8451d5af03f5a50114cae6f00a6a0f39a23d9b86bd9f7ca6de34f2164e",
+    "published_sha256": "de07758f0d0b249bbf136f0248874d6a7e87b86eab551f92a6af8064f12a4ce4",
+    "normalized_ast_sha256": "5b188098b33d8da00c515b1b1f64d3edcbe7ba02e53260f56325ab1de45e8447"
+  },
+  "src/qwen36/operators/collective_even_lanes.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/operators/collective_even_lanes.py",
+    "source_sha256": "f6f7d6159c4a39ce2c012d82d697fa2d7fee17dcc0559c8248329c98453dcf95",
+    "published_sha256": "a671b61e4e47247881d9f2f7e3c2c96c202dd6652b34bbf48f1046af0dbf940f",
+    "normalized_ast_sha256": "fe22a0d88b34339e2a6d5ad1c90172c9ed67367d718ee4a90ba29d61e441a075"
+  },
+  "src/qwen36/operators/collective_lanes.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/operators/collective_lanes.py",
+    "source_sha256": "c1cc4d72cb3d64d78dd9d57950dc06549887d346536ce3626d65583ccd56331d",
+    "published_sha256": "aa0de6576b6cc4a99817e90fd8aa62d57ee6d4a577b964aa3cc2fdb52c6d3c48",
+    "normalized_ast_sha256": "8b5dabf639b77ccb547d810ae2f97180820eb656e8a51594febbe0abba63e539"
+  },
+  "src/qwen36/operators/collectives.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/operators/collectives.py",
+    "source_sha256": "ab616922b9ed57a3531eb133d9f00111341c4ce439eae6c806d0e654a97fc2dc",
+    "published_sha256": "ec0473527ffe40cf66ce27d7d750470f579e2c5735eb7cf22068880c9c995c4f",
+    "normalized_ast_sha256": "b696d31d63d29364231d997bebb30e1ede317918029e5927007b7dd8371212c3"
+  },
+  "src/qwen36/operators/down_prefetch.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/operators/down_prefetch.py",
+    "source_sha256": "b4bcc229075c1fb368c8ff9d58d211030544499f0ebe5c71c06c6b4a6eef23ce",
+    "published_sha256": "44f81667b7bf86655afd86016b302d62fd93fa92eccad143cf542b93dbab3d9a",
+    "normalized_ast_sha256": "f9df049d5920e127b0966eafc5e4957ff7d5fa9ece9d80029c9784f83f4c434c"
+  },
+  "src/qwen36/operators/embedding.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/operators/embedding.py",
+    "source_sha256": "9eae8b15f65b477ebc18246905d7bee0f1de51d682b72ace8e4d1bbd0c78d101",
+    "published_sha256": "9bbd2eddba70200c31fc1a95efa141760e2bc5b9aae2cd250bcfefc53b294015",
+    "normalized_ast_sha256": "217f96eb5791e06b8d0dcc2ef98a4a68cdd4f9af73d6ed1e20017f322971fcd5"
+  },
+  "src/qwen36/operators/gdn.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/operators/gdn.py",
+    "source_sha256": "7d3dfaacdf06a59a09040564bf6f2d15d976dded29316d21a15731fa76f02bfe",
+    "published_sha256": "5f89e073c58ad0eb0778bfd73f9252ba3fae3eebbc6ba0c2f89ff929c310e0e4",
+    "normalized_ast_sha256": "f695509a032fbc8b34dc0157685febc6011fa0b37cd02a1d28a1e5d5f153b8c1"
+  },
+  "src/qwen36/operators/norm_pointwise.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/operators/norm_pointwise.py",
+    "source_sha256": "d393fcd012f803479be72f23a906a7aa7e6594e78b58b927aec58da28a5601d5",
+    "published_sha256": "98e2fc60eac3db884bb21647148eae443b1f939b424c106ef28423809b50b178",
+    "normalized_ast_sha256": "8b16870c2b041f3224c726a89cc35e3bac6b5656dedeb0b46c95bb12f1208c2c"
+  },
+  "src/qwen36/operators/projection_bf16.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/operators/projection_bf16.py",
+    "source_sha256": "1f5277d10fe0784ed2f11f5ab0215ea45d13f70154a10618fb318e114bd8495d",
+    "published_sha256": "25c99fe186624f983d5db958a86df3d8e391bc811d42d224977a2a9a3f70a84c",
+    "normalized_ast_sha256": "e4788499b0b409e5210a23d75019330ab5c5f60045089dbb817c432083d8ed34"
+  },
+  "src/qwen36/operators/quantized.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/operators/quantized.py",
+    "source_sha256": "b2662da0cca29194eda40d6bc083223188a1daaeb91d86cd1eb3f8607caed0cc",
+    "published_sha256": "a2b201395d45186a24627c54ab1f803ddd26104c6a49c9f62beaf01177ec4203",
+    "normalized_ast_sha256": "dc51e0af6ddd7ee68fcbfcf63ebbfa7c226978796d5b85f0b85f4b167ed339dc"
+  },
+  "src/qwen36/operators/registry.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/operators/registry.py",
+    "source_sha256": "1a17951afcb5a6b3d3da29a262d3341c2c4c06f8dbd1441fdbf4d328e099a08c",
+    "published_sha256": "c89714aa02de48bc5597ba5ae0ebe4825fd4eceab690db07b789e6ce8bcf9b7b",
+    "normalized_ast_sha256": "792d328add4845df5996c0d428957fe375b5651562e68a7c4e11c2283311be64"
+  },
+  "src/qwen36/runtime/__init__.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/runtime/__init__.py",
+    "source_sha256": "9c29c582c925d5933940e48cdc5e5b0a3f40c28f4c2542f7f94fc7adb81f1cef",
+    "published_sha256": "6fdcc86c6633b232f2715e5cc268195eab2045296e8f1ed0a6598e5e8936a7e2",
+    "normalized_ast_sha256": "e406729225903e0b72fbf29cc918885b1effdd9f8d43c5f4e688e7a6af7f53a3"
+  },
+  "src/qwen36/runtime/borrowed_comm.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/runtime/borrowed_comm.py",
+    "source_sha256": "82a920fc100b5f472e76a9a234e12ae9b84e06a0c68446553b3dd8f6cbaa33ca",
+    "published_sha256": "33074b460fdee7210eddd8a5e23fad6dcf53692b78b88709a058c18fce296ffd",
+    "normalized_ast_sha256": "9a75f92936ae6316c6338f44f01d36ac9ac6d33d68a3d979b171057c3cbaff7e"
+  },
+  "src/qwen36/runtime/borrowed_graph_runtime.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/runtime/borrowed_graph_runtime.py",
+    "source_sha256": "dbff346cbdff3b4b45aa49a29f8e640cd62a2ae961bc1b3d31b96cab00e025e9",
+    "published_sha256": "51b58ff04f612ccd4dbbe0b765f5d5e2613af98c402295de86f3f8c11e85de76",
+    "normalized_ast_sha256": "de001affd42acb45f113291a659e942452d1c7cbc4aeb1aaf6615dac29050433"
+  },
+  "src/qwen36/runtime/cpu_output_trace.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/runtime/cpu_output_trace.py",
+    "source_sha256": "18c61d6cc15f5f0d6ecd6b3bfce22253329ac9dc501653c70327a41b1da48a0b",
+    "published_sha256": "828583c79543c32447f9165d0dc0ec3fd746fc9c595aaf610998ec9650af9ff0",
+    "normalized_ast_sha256": "b4373fb9e8592ecd4691fbc40b59164cb411f6ce5885e3465cabbfc954cc3455"
+  },
+  "src/qwen36/runtime/graph_sync_policy.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/runtime/graph_sync_policy.py",
+    "source_sha256": "ff0de166b4fbc60a218c6b9da8eb935f566b04cab8f3754c66dcaab1ea735c64",
+    "published_sha256": "02f4585895c84ea1c0cf55e263b0237fd77a9fed9b44766cdb89cba510ab1c19",
+    "normalized_ast_sha256": "193b732760851e0b92a307d62bad86b4f7bbfe8c427e8a890576fde1cb296573"
+  },
+  "src/qwen36/runtime/host_timeline.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/runtime/host_timeline.py",
+    "source_sha256": "98784fdd9f35ddf858584cb5e5e540ea3baf3739b12da48b82e6d6e49d8f63a1",
+    "published_sha256": "ef492d530d9274601d2b5b265d9e71ca8aa18467ae125bc15aa15950e5d81298",
+    "normalized_ast_sha256": "1cf1d8907b64b26e7fcdc515d3c03b344011df954e549f5e67ac884c7351eb26"
+  },
+  "src/qwen36/runtime/http_server.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/runtime/http_server.py",
+    "source_sha256": "a0b26e1894ed851e085dcbf4abbfb4f5ce39eb78f49ec89e3d0e9be34b95b7f1",
+    "published_sha256": "3ebcbc0f0871552b7405eed65cbcbec7e44ca85c2226f7324013d0c53ac83f54",
+    "normalized_ast_sha256": "239a1f00ef0dc0bfddf1868c2284a98c84a6b03a796b66b7f4f6d9d7a291fe1f"
+  },
+  "src/qwen36/runtime/native_baseline_worker.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/runtime/native_baseline_worker.py",
+    "source_sha256": "7c0dcbffe33cf9fd7990a62dccd1ae3561fe443ecc7a929bb40a741249b33973",
+    "published_sha256": "f3b23b2fcc9537cb2c40031c0ce321ef85f47526e736813b03df402020d6d47f",
+    "normalized_ast_sha256": "98a43e4aa8ef5628e3be720e0625d573933a1bce05041b8bcfc1a67cfdc2b5c1"
+  },
+  "src/qwen36/runtime/native_nz_executor.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/runtime/native_nz_executor.py",
+    "source_sha256": "e27759e33bf6cfafb22ee2587cb11862f86634cc98d774fdc55e342814dd81ce",
+    "published_sha256": "4c831692bfcaf97a3e0392215e67eb0d954936c8a8d8ef8b1eb8b6a01f2639a1",
+    "normalized_ast_sha256": "4829bcd5b56a178de8d10ffb58589c8f6815156fb3b880718bcd4b3c3ba5c825"
+  },
+  "src/qwen36/runtime/native_nz_storage.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/runtime/native_nz_storage.py",
+    "source_sha256": "9e3dd5eec673f9884748539ec5a6184138b54f4f93ff0e47405e0e6dd92b2d3c",
+    "published_sha256": "9ae3ba742ed8aaf1c4fbb54874e6a2f2e72f71f2e1457897e61a050f7f6226a6",
+    "normalized_ast_sha256": "054b96365150858fc5afa298ba49ee3e82ee74c150249c05e83ce49ca15016a6"
+  },
+  "src/qwen36/runtime/native_nz_weights.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/runtime/native_nz_weights.py",
+    "source_sha256": "d98c34d28a57ac85a17c88f477ac8cb437614c130aeaf9453e4486571b91ffe0",
+    "published_sha256": "c22183472e11ee2c3443edc04857ab1f14feee130107e00da78ed17cfd8c9087",
+    "normalized_ast_sha256": "f7c8b535bb4408db8fd35b57825e571b7dda15bc22aafd3a5c3b719a3b8a62e5"
+  },
+  "src/qwen36/runtime/native_nz_worker.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/runtime/native_nz_worker.py",
+    "source_sha256": "f2a16b41165b327c41e06ddbd92d1792b98b8c2dab512f70b8f9ea348a466f55",
+    "published_sha256": "a462509a8a952632ceb68ced47d79a9d0c347b753a72cd57c5202ce2a466ea50",
+    "normalized_ast_sha256": "ec75f99401e30e4a5c64d531a468321e6ab0e1c2a555b2763fde4e3e07cbefd1"
+  },
+  "src/qwen36/runtime/prefill_worker.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/runtime/prefill_worker.py",
+    "source_sha256": "9452aeb5a72d1d7ec594c79bcc3827e396ec2f318f32d5f78a57feeb112f2933",
+    "published_sha256": "af50a9ae8ff4fe8f25bfe7d1ffd83d818859fe6dff16fca69193aff1eae3c78d",
+    "normalized_ast_sha256": "acabe41c2cf637b9b23623d17c84ebf3a659e3a290435442d3aa61a051d9239b"
+  },
+  "src/qwen36/runtime/serve.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/runtime/serve.py",
+    "source_sha256": "116c29070aab471ebe8fc99fec24359e014273d1406cabb245af541ce067f6a4",
+    "published_sha256": "e9c4772a62a9119a5b815c7ec5d3891a4bc63ff151aea944e44da6a15843fd49",
+    "normalized_ast_sha256": "f640701f2cf182ce29c82ebad776e235447e2e490ef591fc579b39277ab41b75"
+  },
+  "src/qwen36/runtime/worker_lifecycle.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/runtime/worker_lifecycle.py",
+    "source_sha256": "c17a852ad4f280ef8ef3da63c18d2ba700ec9afff52cd54830735362411a9493",
+    "published_sha256": "33ee4c9dd94167163dbaa7b97e01bfb5f5d7bb8e4aec2c711a96706bdc1b918e",
+    "normalized_ast_sha256": "a86de0dc22af1c2f11110a04aa671850143793e56c0a50f5ce71bb9d7d915f38"
+  },
+  "src/qwen36/tools/__init__.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/tools/__init__.py",
+    "source_sha256": "d4ebb9c7567a7c42a6c1ce09b327a983f791b71aae7d8fb11a4da4713f268a06",
+    "published_sha256": "eb16c98d121f0825a5b49d231c94320f4d45dee2958ad28c990f530148775740",
+    "normalized_ast_sha256": "c359023aa26fc7803ecc1305ae56776246da684f4b161345d9069410b0030ed0"
+  },
+  "src/qwen36/tools/analyze_comm_profile.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/tools/analyze_comm_profile.py",
+    "source_sha256": "d6a7181e57bfb7f1ea54d5c6f1f9608acbea81223c33d6ae5303c80c16fb3ad9",
+    "published_sha256": "86981ab90ea515ad82464d19888db8f90a850e494ca58a9d870f8cedd82db75a",
+    "normalized_ast_sha256": "b04082afd778664b1a806c7ddb7e7054dd75b30f86d98b1c9aa971e08df9f33e"
+  },
+  "src/qwen36/tools/analyze_profiles.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/tools/analyze_profiles.py",
+    "source_sha256": "0d8e1e0e484f2c754ec10cbc1626b9e4ee51b99fce4a5d05393f89429374342f",
+    "published_sha256": "000b9dc34ce15f19c5b3c1af7804ce44a464cce27516682119dfe3e45c80007e",
+    "normalized_ast_sha256": "0976064098e70e8dd030b352649b614c3f9774eb8d227e8ff882a23fdea9301e"
+  },
+  "src/qwen36/tools/audit_operators.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/tools/audit_operators.py",
+    "source_sha256": "69a825154791f05490de65f25454446387744c2c8d3a059e51a7fbb3dae8575b",
+    "published_sha256": "f471d655b4450d011479786402042f702788ec7b2f25c97f8eba06b71ccba937",
+    "normalized_ast_sha256": "41c4bc7ae6f2129feec0f696b205b5457997a30f3a24f33a8c9c467a8e17c51e"
+  },
+  "src/qwen36/tools/audit_tuning_parameters.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/tools/audit_tuning_parameters.py",
+    "source_sha256": "f78c397939972f9fe792458350b55b92aeadd21be956a83eec962fa76323ed50",
+    "published_sha256": "db9ea167a9b87089fcdc26ee04fab9ac7f20878efb44eb24cf6abf80060c5d88",
+    "normalized_ast_sha256": "e8866444fa49c78c644bb3edd38ce614db99253e06887d4fae2a4d410e9e5705"
+  },
+  "src/qwen36/tools/bench_comm_pair.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/tools/bench_comm_pair.py",
+    "source_sha256": "999d0ed514c2774259dc05f15a19bfe14de268f36cb43ca2e8767d4cfdd07a7c",
+    "published_sha256": "1236b3a9dd92e794073391743856a1570ce8e83b0be7d217ee6f24d1c4904b6f",
+    "normalized_ast_sha256": "2190e26ebe770e0d21892a19263ee2a34105e1d4d286e4d624c94d5895a51cdb"
+  },
+  "src/qwen36/tools/bench_down_pair.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/tools/bench_down_pair.py",
+    "source_sha256": "244d4bd9a6b1f9fbeec6f67f4021632939f35b9d0b3caefee312aad44f10925b",
+    "published_sha256": "46255109bac0b698eb9aff798f027506be6d67f61d3539c991c3f158a0b96c1f",
+    "normalized_ast_sha256": "c8f43a5f5089a3ad84c79833f463a12de6c2ac9c57ebf492aaec2143304ccf6c"
+  },
+  "src/qwen36/tools/bench_qk_diagnosis.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/tools/bench_qk_diagnosis.py",
+    "source_sha256": "056a68ac457415fe27ed17cb075e432a7b622d68ad4facb9124f7b276c25fea7",
+    "published_sha256": "f5631acfd95cdf3fa645f2bdff6efa28926c98443584f80b4d4ee67df89041aa",
+    "normalized_ast_sha256": "8e87440a288e63bd84e41f835e15fec53a421eab4bbb5e198af75c68ca3c060e"
+  },
+  "src/qwen36/tools/bench_request_audit.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/tools/bench_request_audit.py",
+    "source_sha256": "dd87062ca057fe7a223b6a4854326179e5e62a46bb0965615142e367a62cbe49",
+    "published_sha256": "6c950e982bce7186443e7fc9b9fcb7a987ebe6edb8cd1572e969543156391831",
+    "normalized_ast_sha256": "78de904630301d36ff9e1bab2f213524eb95882238da38ab499a9b8d8fca9311"
+  },
+  "src/qwen36/tools/benchmark_stream.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/tools/benchmark_stream.py",
+    "source_sha256": "cf914f150be2fabe350d5b57400688e749601556ed18c6b5297bc3a4b29573ab",
+    "published_sha256": "991bc40f27dcd395b69d2ef56fba82a01de086e0c92bad021329e9e12cd41225",
+    "normalized_ast_sha256": "ad726738845eb5db8e31b9e4137968c04f5f9010c829c44b99bcd14f65bdff89"
+  },
+  "src/qwen36/tools/checkpoint_contract.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/tools/checkpoint_contract.py",
+    "source_sha256": "9b17c71a384eaf060c1688471655b7ea0aab30c05bc4b4bf8dcebe3bc01c3a5c",
+    "published_sha256": "70354f362d4def17023a0f98738a11bb990215cc347b0eefa1cd2d8f507f13d8",
+    "normalized_ast_sha256": "181175a2a46ce83015845c1326ae446cfc355a27230e85b2bb0e3ae7aa6e7d20"
+  },
+  "src/qwen36/tools/compare_native_norm_math.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/tools/compare_native_norm_math.py",
+    "source_sha256": "f5aeea5312992c191b8eb9133fbf4b5f1051e04913ea9b42141e8160f42ef402",
+    "published_sha256": "2559f8cc9f383f8e83e797ccd6838957a9c465ee2b998fa534a2e5be30c3da2d",
+    "normalized_ast_sha256": "57bbd2a4d079103da984c45d27d85ecf33de9546fdf4e433fb6a134cd622885a"
+  },
+  "src/qwen36/tools/compile_comm_probe.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/tools/compile_comm_probe.py",
+    "source_sha256": "359c9815634cdb94626c3d32602e44cedd208f463abad79e2803b1cb8f88053c",
+    "published_sha256": "6273835b33faf1cbdf442d615eec6486b6bbb2720bbc9c4eb47bc008058e0e9d",
+    "normalized_ast_sha256": "514e8935b9812d3dfd4c7d9f646f1ef9b969be789ac8ca40eede35d01d61286c"
+  },
+  "src/qwen36/tools/compile_down_probe.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/tools/compile_down_probe.py",
+    "source_sha256": "3cf69cfaff37d5272c507069be7ad6e88166c8f71fbfe930bc28a0444aea7480",
+    "published_sha256": "2d0aa8d8278cfca88af3a6aeb61de37ff7f6da65d64de34704f8cab74eb4e646",
+    "normalized_ast_sha256": "59fa791525d20e3aca8926c0474ffa6ad3dddacd7f2a9cefb46d44c3eb610c03"
+  },
+  "src/qwen36/tools/compile_even_probe.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/tools/compile_even_probe.py",
+    "source_sha256": "1ad421fbf0eb028fc04d1bd952ed4df980d1054dcd1ecd2c74f728b00ad1aed6",
+    "published_sha256": "120e1a4019193ecd898c3e3e73078c791c448366c156b010c1f10f3876b3e412",
+    "normalized_ast_sha256": "ed988eab2101b0bb8047d41ccb1addd82fccf6fa8c481a2daa0e0f1fd4e63a73"
+  },
+  "src/qwen36/tools/compile_qk_probe.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/tools/compile_qk_probe.py",
+    "source_sha256": "534a30e1100a19a1902f4c6129b3b9ac6158917020b6422e28b432e3a767b994",
+    "published_sha256": "30c423b6391a9af4f29a1a308d4f0d093e22b3561a3671cdeb6a3a2d1bf94a60",
+    "normalized_ast_sha256": "49efc1a1aa3ef09e230fadee1120b67b10fafb7cee76254665d70388f19d8f62"
+  },
+  "src/qwen36/tools/device_trace.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/tools/device_trace.py",
+    "source_sha256": "d0be3f0f3050c64dcfd51eafaf9320d390f4b68c7b1a208cfa28f3b1cd788c13",
+    "published_sha256": "a674c95548f2bef89d15b7cefb33a95a82135b8c82b79b6901833b1bd3cf004b",
+    "normalized_ast_sha256": "d8fd6d0caeac5c9b9f533aaf00a913d5ddff99c2c83641c292049ddcd11d4c4f"
+  },
+  "src/qwen36/tools/idle_guard.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/tools/idle_guard.py",
+    "source_sha256": "9bdb7bd44e3e4c924c32244cc6399dc29e271501a9aa68c126d4823d27780f1a",
+    "published_sha256": "9ec862e57eacaf40a0602d8a925453f4082cc7a1c08fed30cba36c9de214bc50",
+    "normalized_ast_sha256": "3f51e36083cab7704bfed1ea39bc23dfe2ba5bc03c3d839fca0522e44896a3c3"
+  },
+  "src/qwen36/tools/itl_metrics.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/tools/itl_metrics.py",
+    "source_sha256": "4db404775a343e7f600a89d67f220e42a6b886aee6d4baa7172bffa90df4945f",
+    "published_sha256": "c617da034fe017d9f8444a67369983a10142702e53161bf8b2efbe70fe2f9124",
+    "normalized_ast_sha256": "efe9dafdea085d5badc65b3f9299f587309ff0600ba22fa9ed6d7cbadb8099a8"
+  },
+  "src/qwen36/tools/join_trace_itl.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/tools/join_trace_itl.py",
+    "source_sha256": "2b20acd2a43ace7d075c90f94c52fdce3935eb871ef3bd43a777c35bdadf733c",
+    "published_sha256": "186d9b2aa7a09e8c50781fc49c2c55c8862509a0b0553c31fa0826ef73d7993a",
+    "normalized_ast_sha256": "ec80018ec3cc015079812e8d56d97446dc20b6bf88c261b9d99a7d6a2a691f22"
+  },
+  "src/qwen36/tools/norm_math_probe.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/tools/norm_math_probe.py",
+    "source_sha256": "2b24d00e1f5303d0106580bb31c5bb0223b94f7adc96e7ecd5f30c11c1dee5cc",
+    "published_sha256": "3b60a752632c932d4a5bc266c15c046ae8115ebb098f5c4a508a81a550cb3e9d",
+    "normalized_ast_sha256": "7527a44139b8df1762d8ed5f95d0c7f3835d43b04e7bc6a538d0bfd04f127bb8"
+  },
+  "src/qwen36/tools/prepare_real_text.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/tools/prepare_real_text.py",
+    "source_sha256": "18a59e4f5248663999821023c18611fd2e572549acceab643ca63fad686e6797",
+    "published_sha256": "f089e6a353aa99573d57be41a4a928547856f1ebadf803191a2e7df2ce3da411",
+    "normalized_ast_sha256": "f46128c5fbacb5bf55f9a92c48641d24d8d44a7bbe4f2c0fe6e061cc3b14338b"
+  },
+  "src/qwen36/tools/run_formal_pair.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/tools/run_formal_pair.py",
+    "source_sha256": "b436a7942bd4bb2b239c54d6913830545a22f3e9635549ca5a75812715ec3152",
+    "published_sha256": "f7ff9800cff222f5a8b0b31bf70ffe13712dbdc7a123fcd61b25a68d1d400d33",
+    "normalized_ast_sha256": "884e864e1f0bbc5a5a2f0695c6b1712e4e8c547469b402d4ccfb20ea7b6158c0"
+  },
+  "src/qwen36/tools/summarize_formal_pair.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/tools/summarize_formal_pair.py",
+    "source_sha256": "7231b9c53ca7a119566500eafdb2eb8c31d370831b1af8f55ed9c4ed765dc074",
+    "published_sha256": "de81f5bfd380f0dfe04a2300c2561aca54e61ed2fef12eb1e0df788ebe1ee48a",
+    "normalized_ast_sha256": "bd9e82797f708b13a042b53a58ae440f3d660dd5301f022f6d85a4645ebb6f15"
+  },
+  "src/qwen36/tools/validate_refactor.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/tools/validate_refactor.py",
+    "source_sha256": "f1d95e4b7f8587c7dbe92fd58b357cbd0a2056ed87dc1338e8535b3b61706d39",
+    "published_sha256": "973f1ee94a043dd5b0de18111bae4232c76a66999425520b77100c4896292bb5",
+    "normalized_ast_sha256": "038c38f7e48e9e7ddd7e2019edfc6eeee9ff01fbeba85bb8ccbd1f0b88e8b092"
+  },
+  "src/qwen36/tuning.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen36/tuning.py",
+    "source_sha256": "79a24b6d20a4fa68e1ca18470832d825051efa0bc08d86ae249b3a1c2d141d77",
+    "published_sha256": "55ff53ce044cf9e78475262db51cd49b6b326f913f170c363671b5334ce2d7bd",
+    "normalized_ast_sha256": "71ab52cdf55d795d7475747361a1e763ba66af19f219fff1a0b2bfca9149e423"
+  },
+  "src/qwen38_runtime/__init__.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/__init__.py",
+    "source_sha256": "8241f7f5f9dc109d5fb799aad96b05980b5d728e7ef3715ce6be4fa26fc4639d",
+    "published_sha256": "7cd2a1d55604f6504cfdb6b3149f8dd53265c8c14a8141b286d6d0f3d30320b4",
+    "normalized_ast_sha256": "d6ebdde2f4d0566895f24408253184549a1bef55f1003806ca1497d015a7117e"
+  },
+  "src/qwen38_runtime/adapter.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/adapter.py",
+    "source_sha256": "0bea573a1ee4f5a64c1689af40f187d9a3531b051a2d0f40a73ccd7ac2f4d6f8",
+    "published_sha256": "a0b8a8ff66d99368146f8c482ef6ae0e07b26393b9f02a6b3e0d24fef83313bd",
+    "normalized_ast_sha256": "56030999e80f1dae864b2528e71c248ca5e4c19693bf9ad4a6b098d380551449"
+  },
+  "src/qwen38_runtime/adaptive_metadata.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/adaptive_metadata.py",
+    "source_sha256": "f94353323e925ccf697658c0ac403010ef39d951b26a1d6750b076dbbef5e38d",
+    "published_sha256": "d8cfcdb21258697ec4d84b2dd1adcf789f403135d4ba4e3379971501123de000",
+    "normalized_ast_sha256": "4dda4eed8ba665ca4cef9be0363d1c3e7423a6673fad0ca782ff16f3c8d89bd0"
+  },
+  "src/qwen38_runtime/artifacts.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/artifacts.py",
+    "source_sha256": "a282ce990664c721378edf83027e87fd9796ccdaf86c6f7d07614a766e26c03f",
+    "published_sha256": "fe8a3a06164c801647a4a6a7ff47490aa0ace724db7f668f646274b73cdd83b3",
+    "normalized_ast_sha256": "cdcc3ab269c02c0ec3f3126ebf718950e75b5671a4f0f93abc3cef9bce187267"
+  },
+  "src/qwen38_runtime/bank_layout.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/bank_layout.py",
+    "source_sha256": "eecb15796699b36f38b2181b4fb2c5a41955adeb8e80d37f33ca8b98c1d3668b",
+    "published_sha256": "86af411bb3dbae5f561a8ba7a5e0e9080d69009f48fa0220aee6e3bfc626a6c6",
+    "normalized_ast_sha256": "87409dbe4b553a55873b3e50aa5401108e5a087f4117d94501f18e0d313d299c"
+  },
+  "src/qwen38_runtime/borrowed_comm.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/borrowed_comm.py",
+    "source_sha256": "f86199f56dd92d806c45736bf7021e1d94d67e8aad766819786f608627246676",
+    "published_sha256": "0adebbfdf407759232d943a6b57b90fe11e78d5d4a524633296542bbbf9e18fe",
+    "normalized_ast_sha256": "9a75f92936ae6316c6338f44f01d36ac9ac6d33d68a3d979b171057c3cbaff7e"
+  },
+  "src/qwen38_runtime/borrowed_runtime.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/borrowed_runtime.py",
+    "source_sha256": "0583a2e786bd8628095923e6b4b3f1543b4d4e2b74f85ed913457cdda80ad2cb",
+    "published_sha256": "1e381b8883247368925288da390147f77046ad80d8f0f40ee2f762d3278ac25f",
+    "normalized_ast_sha256": "4add4a1a2ac3441c921041a50739c70b4ca4adee0fd3df77ed569b5b277c1cad"
+  },
+  "src/qwen38_runtime/captured_metadata.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/captured_metadata.py",
+    "source_sha256": "d2e219ffd82e6628e82d5b727aec67449780f8ab1806a6d2677f7614cb0f6512",
+    "published_sha256": "11c44f6022ffb926eef158e7c92490d36d9117cdb242970ee1ff086e802f757e",
+    "normalized_ast_sha256": "c6eb1d5fad8853d9ef7098c83ecaa8d19a803e792bb001737b5ddc12e68ffb45"
+  },
+  "src/qwen38_runtime/compact_inputs.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/compact_inputs.py",
+    "source_sha256": "8a76bbdd13df22b4124b765786f0937e163380ae8c2bda44f6d1dc23bbfc0eeb",
+    "published_sha256": "ee08f03ba117d37a2d148fe793e6e776bd6bb686466c0036ff34d2c78271400b",
+    "normalized_ast_sha256": "5994c4e7e528f781dddbf6e9706b9e9947364a0ea57bdaf84be7705f9119ebd1"
+  },
+  "src/qwen38_runtime/compact_worker.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/compact_worker.py",
+    "source_sha256": "70a7ae4ca5094fa957a3bab15da90b82d285445070e119194a982fe40593f197",
+    "published_sha256": "d226dbc3f4da603ea83e0152466b351007a717527fa034a28b93fbcbec79c678",
+    "normalized_ast_sha256": "cf0e303b8bf97f30a3838d010a6accbd0a78a48cc0ba5f074b5767a4f0ae787c"
+  },
+  "src/qwen38_runtime/config.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/config.py",
+    "source_sha256": "b875a6dae7bd1b329165ec59e3298c480318ab3ec9e7cbde5904d8f622553f9c",
+    "published_sha256": "47fcd793ca5b573b97db10f4a70c2a6208d3edcb23cdded70379b1d7487d5407",
+    "normalized_ast_sha256": "9f113a80801b702cca043da5a53b628ee806fce020813813878578c220605a86"
+  },
+  "src/qwen38_runtime/cpu_output_trace.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/cpu_output_trace.py",
+    "source_sha256": "0093d6a9333602e68f53201fccb35c0c6f3bd3159caa605425ba8ec0e233e2db",
+    "published_sha256": "f7407687395774bdecdc33ccd9ea60d43f7becfbfdf87ff355941f830af981b0",
+    "normalized_ast_sha256": "2159132612f87e9c9f8ee9227218742e252d0ad8ff1182b6ccbda787777fbf57"
+  },
+  "src/qwen38_runtime/device_plan_layout.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/device_plan_layout.py",
+    "source_sha256": "0462cb1bfc241048c7aaf518a8a17e91db0ca915435cc22bb6c1a0f845bdcb0d",
+    "published_sha256": "65e6e62c98d425689d8bfbd83a407506379c400f263b83a08fb9550edcd99194",
+    "normalized_ast_sha256": "acf0accd935931045ee9e0e31abc9ff90e4bc6ba91cf7a8f5d14b8e1c2ec5dcc"
+  },
+  "src/qwen38_runtime/engine_exit_observer.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/engine_exit_observer.py",
+    "source_sha256": "b580da8d63b2c5050bcc5388b863fae55c0554cd6eeae1670e3fdb0f5ef9eaa8",
+    "published_sha256": "3ba0f4167e2ac1622e255fb644edad777619eb3fd7c58aa99ecfe90835f06073",
+    "normalized_ast_sha256": "3e9b0ed2fff19a339c1357125abcb22b09cee157eac6945c7e15fc1950978566"
+  },
+  "src/qwen38_runtime/executor.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/executor.py",
+    "source_sha256": "b0082c7c15e6b2b44bfc887e3da66765ea4f8aef16a5d7d55c0e7ae2928f3369",
+    "published_sha256": "65629fa79e2caed5f542b31d2996f8316e0a46431e6d728c85e94883cdd1a795",
+    "normalized_ast_sha256": "ac9f7d27535c53528325eeb2ef02c845aaaa7df71c909cd9959fddb41a3ac28d"
+  },
+  "src/qwen38_runtime/fast_recovery_worker.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/fast_recovery_worker.py",
+    "source_sha256": "a087d59c65f72e64ce25f53d8c24e388a9541babd658548167a78a7a39bf40b4",
+    "published_sha256": "1b21018ac6bef3c491cc26899517e03830cc6de2dd48b786b92c41548947d360",
+    "normalized_ast_sha256": "e4752881be33b7d06b8c18d9d2dc3d23e31cb0259d2812677620ce5cf835a5a8"
+  },
+  "src/qwen38_runtime/framework_contract.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/framework_contract.py",
+    "source_sha256": "fe8c7337a0d0e4d6bc06b40619bb8878d3a17d5a3eda80df868612da4307ba34",
+    "published_sha256": "390903f511694fdff370c12776282b474c7f9971128567d0b88184352ca1fe2f",
+    "normalized_ast_sha256": "5f06e0c3f26d6889f061430873fade87648530aa6396b52f4e70522195387d9c"
+  },
+  "src/qwen38_runtime/gdn_metadata_fast.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/gdn_metadata_fast.py",
+    "source_sha256": "77f1f8d231f69b233e7a3a95f33ff132280f8d1b132ccd0652233c629fc48e01",
+    "published_sha256": "752bbc48a68138cd21bc18239e5c035dd0d40cde75e9b6d649bdad1b532d294d",
+    "normalized_ast_sha256": "43cd2edbb1d5bb24c8827387d6c343dafc28fe0960ce7456b1ddf64af53b3b39"
+  },
+  "src/qwen38_runtime/geometry.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/geometry.py",
+    "source_sha256": "d2c12b95e638cc051467f3cb890bea0c34116be4b2406b3cada781bc041fa0f7",
+    "published_sha256": "f33425d702c7a08a493b99c9614dde1ffd8742790d2a139d2ef269491ac51f44",
+    "normalized_ast_sha256": "9654d07e9e8a6de70df08cf098d8eb938a31538699016d31ef3b0c790fdf4ca8"
+  },
+  "src/qwen38_runtime/host_graph_runtime.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/host_graph_runtime.py",
+    "source_sha256": "b038b9c9cbfd9df80805f09ea874bc251b0957ff0f42f51745f24cacf0cea004",
+    "published_sha256": "7ce10886bfc26d10489f46f68f6972221d36bc003c1d47d1c4445d91f1087346",
+    "normalized_ast_sha256": "eb9146abfdd24cc77d5be8531d451d9d7b68fd94dbc8e33a376c552ca6385396"
+  },
+  "src/qwen38_runtime/host_stage_trace.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/host_stage_trace.py",
+    "source_sha256": "6cf688965a9fc71fce729db251734e134969c466925faa196a9a349fdb9c6456",
+    "published_sha256": "65d5f952123e3483929ea21c17a2e0787320a72469fef27592e855c6c39c5afc",
+    "normalized_ast_sha256": "dc312c528729dc1ac69c54938ffcb04f3f478a9963d4ec95dffe2dcba5307391"
+  },
+  "src/qwen38_runtime/host_trace_worker.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/host_trace_worker.py",
+    "source_sha256": "b35d1b8e0bd5d6f2ab458fd2c311a5acd4d65fb97ffdcecaa08a3999cb584368",
+    "published_sha256": "bd33dd113c73b3ae5ea5d618e83ae7b2333a40e313928d41ab47956b80490458",
+    "normalized_ast_sha256": "40358a0db9e89e497f3a655eb36d2f92a5239791d8322fae36fc5cd62f213a04"
+  },
+  "src/qwen38_runtime/http_server.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/http_server.py",
+    "source_sha256": "eca443300a8df30f34b8652fb4531adf136b93ca7a6f6a5af17ef71d38181feb",
+    "published_sha256": "25307c7bd2858d54686b60c52322e1a600ab57be2e9fb6a1477d1183a4726202",
+    "normalized_ast_sha256": "5a7648917ccce4a7ddb7bf35b82da36bb25f064bebfcd4c94bf4cf87e9cefc30"
+  },
+  "src/qwen38_runtime/metadata.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/metadata.py",
+    "source_sha256": "8b3c0c7a28fd29dc6d65111cfc1f12313e54537fcab4c117e16b54f6a008bcfd",
+    "published_sha256": "d8885cc4515653f76c9ca9d581cc7f2389584e0fc81cfc216dd6b10bc945ee2f",
+    "normalized_ast_sha256": "b3aeda2645317f54746634905bf833c01258f4e7a215ce728914f6cadd1bb51c"
+  },
+  "src/qwen38_runtime/model_layout.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/model_layout.py",
+    "source_sha256": "5a37081ba30d0c22f70fd36cef5b20babbe15d7455abdaf685df4799ad3fe79c",
+    "published_sha256": "6cc9c5aa1580e5b5c047a302dbd114999044a444469d5294f4e824c96bf422b8",
+    "normalized_ast_sha256": "5ef07c008162643feb69ba7595c2d533d9986ea729f189c7b6d408b8e956b012"
+  },
+  "src/qwen38_runtime/mtp_async_merged_graph.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/mtp_async_merged_graph.py",
+    "source_sha256": "56703494c09b0b1490a08c6839ad52e58207005f08419761f41b9cf6f839524e",
+    "published_sha256": "1327345550dcf979a74cd5ae07300281dcf546ded0a40464466a0c4000fc0caa",
+    "normalized_ast_sha256": "40bbb9224cdd3feb31cab88cf4bc36249af0bc68998a2336d9bf679916a253a3"
+  },
+  "src/qwen38_runtime/mtp_graph_validation.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/mtp_graph_validation.py",
+    "source_sha256": "f8e8db47269939f764ee721dcaf71607a950fe0f2f84eba406f9237cc8581397",
+    "published_sha256": "5391f99a701382f6fcf3049dbc1603b37c486e62bb0391e0546fab07ae6845d7",
+    "normalized_ast_sha256": "6529925e4a952edfa80ea975a3e3456e3e1366271ec21a31ce63e02ce609f9f0"
+  },
+  "src/qwen38_runtime/mtp_subbatch_validation.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/mtp_subbatch_validation.py",
+    "source_sha256": "717de7a17070c093a725799ef241a1cc758f0fec14cff7a8ffb932e8bbf1a1b8",
+    "published_sha256": "48ff30221e2e40fe8936d864db03ae51c9f910668d6b2c6b2ae2b79ce1f3727a",
+    "normalized_ast_sha256": "da9e752bb9fac5a7bc3b9d46ae1e1cc27f0cc59af6635731bb52fde19ae38ed7"
+  },
+  "src/qwen38_runtime/native_compiled_view.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/native_compiled_view.py",
+    "source_sha256": "274b25427233e1bd392f23472a2072fb93056280a0b04fd4993fdc7da400a391",
+    "published_sha256": "d413dd5f0bba65f35bb8a1cadd7d02a03005d7dd50a26eab24e510d4e11235a1",
+    "normalized_ast_sha256": "52b2fe34e314a9b621c96e3c1285e869d5b169234d8adeeaf6ef0aed32908007"
+  },
+  "src/qwen38_runtime/native_nz_storage.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/native_nz_storage.py",
+    "source_sha256": "b2aa90eeb372513e2ee2115afd3bb94658dc8efe21afd84c934f81addd0d37ea",
+    "published_sha256": "0f01238e3c8f7231f8666f774436cfe9b68087ff9267194a0f3fc32219bb24bb",
+    "normalized_ast_sha256": "ebf8abbd3564161a1d0a18dba0d1499e2aba935ee1a0bdccb857f3058d701f95"
+  },
+  "src/qwen38_runtime/native_nz_weights.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/native_nz_weights.py",
+    "source_sha256": "100acc44f32da341838535751c1782bb0c22921aac2a7d7faa0855bec0f67356",
+    "published_sha256": "8dc9f98e5bbe7b4d3e2bbb77a509568f0e8d05150a64f8ba1cc0f4e0b549be0e",
+    "normalized_ast_sha256": "d54f0c4900a5b62d3bce63a6382ec01d4fc32666deeded36b178637abd38fd75"
+  },
+  "src/qwen38_runtime/native_nz_worker.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/native_nz_worker.py",
+    "source_sha256": "1ab00c85a3cb692e81feff018f564edd448b3c297c2fc618b767b165c78647a1",
+    "published_sha256": "a31de38f2eb842988cd5345917894bf50b9d71241c7e8a8e78c532487521ab21",
+    "normalized_ast_sha256": "dbfe2d30749d0dc03523b18b48b61da6a4c11ebc447755026cdb378e5bd19de3"
+  },
+  "src/qwen38_runtime/preloaded_weights.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/preloaded_weights.py",
+    "source_sha256": "db995d66981a458ce7c48f457f01ebdd4620463152b6f1026bfae551ce36074d",
+    "published_sha256": "7b6731c66e3d8bceec8613b6e57772a3d9c34cc5652186c5157fa8b905e9ca38",
+    "normalized_ast_sha256": "2efaf278e50d67563c0aa7f45fe09ac53301abf3e61df5ad57808c6a8d9e7ed1"
+  },
+  "src/qwen38_runtime/ragged_layout.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/ragged_layout.py",
+    "source_sha256": "6dd9d789d0c55d26ae6b5d51ea2817d0491a27dd67e10d8b2c025cbd23e703c7",
+    "published_sha256": "9e1785e7db72d902b8a9d3a38a59a6cd89baf7eb7cfa5225db72e33bf688051f",
+    "normalized_ast_sha256": "b0fb3f7ece591f49a20bb114b327a71472ad538df587a53fee302d8959fde20b"
+  },
+  "src/qwen38_runtime/ragged_metadata.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/ragged_metadata.py",
+    "source_sha256": "289084527e4b88f627125efe8869b6965456154e6702916de0b56d993d4dab47",
+    "published_sha256": "8fe4353a0a839204f8bf9e47af56f0140859026e6302d3a4365e89df6d0a51f8",
+    "normalized_ast_sha256": "455824ffc8cce2fec5e23137390ac31a7cb3f8275d51567e6dee6a934e91cc25"
+  },
+  "src/qwen38_runtime/request_audit.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/request_audit.py",
+    "source_sha256": "3c786e365901b246755625c747543428e22bbe6aa982a46e20308276eb5dff16",
+    "published_sha256": "8b5579e8c36b2c91c8fdf5448606fc3010eac99b791fda639220187a5c9f7c4f",
+    "normalized_ast_sha256": "e94cafa8826619da6c6f99925469e977b5fc16adf0890e8654cd43d57a646d99"
+  },
+  "src/qwen38_runtime/resources.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/resources.py",
+    "source_sha256": "97e392456365e1e7481195e88ccdb89890be64e3a9b974ff841014ea6bd17100",
+    "published_sha256": "f2f0d31454c18b71a3175e5ad3be75f6e18f06b8fd846a6e4ea59a34eb19b840",
+    "normalized_ast_sha256": "279e70540bf432a5a7bdf7a0d18147466f0e7cf928964481fbef31b13c10a14e"
+  },
+  "src/qwen38_runtime/route_trace.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/route_trace.py",
+    "source_sha256": "41d22485ce96bcce8ae1f38ebe903423bfc34d367cc5c4da5cc532fd1e77853b",
+    "published_sha256": "5e54eea205d2bb4a5415b03c07983d6af0fa319cc9c791a6cf80a408742179bc",
+    "normalized_ast_sha256": "d8fa251726e8dbee75ef1811a01882197ba69f807aaa048c605c6712b54d9c32"
+  },
+  "src/qwen38_runtime/routing.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/routing.py",
+    "source_sha256": "4f2311d9d3b8cb2e4c9b874e77ff0898b8f286841fa1f261b342d7a57e3e7c15",
+    "published_sha256": "a43c842ff2b9a76d5e6ccc7315842b0b97609f67e8abdbbd20519f496da52531",
+    "normalized_ast_sha256": "254a971d2aef70685af9f751c129825989163e23f63aa48a8a5e408d6f16a95e"
+  },
+  "src/qwen38_runtime/runtime_factory.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/runtime_factory.py",
+    "source_sha256": "890cf79f3a6b2674c78330966721973892f4f9bcd5b44da9e40d11bb86f92dd9",
+    "published_sha256": "8c52564f89ff6bb94f2bf6a4d7dac883ea18bdd465136c28faa8ee9e70e81d23",
+    "normalized_ast_sha256": "1cf71431da12d70540accb12716a88a901ab467547da8abf38a808c6ce2bdaa1"
+  },
+  "src/qwen38_runtime/serve.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/serve.py",
+    "source_sha256": "8c232849575bab4fb7b9d74a34e25939b109e0211856031475cb1b5078d4351f",
+    "published_sha256": "918bcccd2a5a0d09411a4a06c2afd1085990586e6fafac985a2183bbd627b6c6",
+    "normalized_ast_sha256": "12ab6ff7e86997d8ba6a4775c39566eee01b082e74df163050b900717a9ed03d"
+  },
+  "src/qwen38_runtime/spec_cache_worker.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/spec_cache_worker.py",
+    "source_sha256": "0f6f7e83e7229843eea1e38db0f204a2183f49fcccad458fe1ddaaae8225118c",
+    "published_sha256": "0b37f803d55a605b0b50c1d3ddabfc3274dc9cfae9352cc8fe18441be29cf5c3",
+    "normalized_ast_sha256": "1673ec3716a5117d6b064f1c06d843835fffdce8f7a9c6a679ce289fc44617ff"
+  },
+  "src/qwen38_runtime/spec_indices_cache.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/spec_indices_cache.py",
+    "source_sha256": "8c4b1afcd3c7e8e8388a1ba66321df471bcdfcf9961edfeeda15e329be11d53f",
+    "published_sha256": "bc0548097684fb90ffe24ac0ae0ed941db903bb08ab3091c724b75a810ce7929",
+    "normalized_ast_sha256": "a1bad66b4cbaeebb19a35d5987afdc099787f369dadce24188cd3b1f4a9015b2"
+  },
+  "src/qwen38_runtime/stable_compact_worker.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/stable_compact_worker.py",
+    "source_sha256": "9451f3c096b71637a302fd9ad634fbbd1dc640f0dc9b27dd664097260fc082ec",
+    "published_sha256": "45bd0c677b3fcd434bc4069e42954f0a0c020bf893373e4e573dadc686b92c6e",
+    "normalized_ast_sha256": "c1b85c51855798ada840a6c7fff243e25c30d236c296e4869ff4577fec0cf49c"
+  },
+  "src/qwen38_runtime/stable_hccl_worker.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/stable_hccl_worker.py",
+    "source_sha256": "f72c50ab69e8669a375aeb0a3ea9565c0e5b92c9e08d947a75985ab1e99f3468",
+    "published_sha256": "562dd11cd5e2d1fd54e35c3f9df0a94354262b1f8ad54932b761ea3f2527d90f",
+    "normalized_ast_sha256": "bd8c90ed872d8b9b76afe84e3f5baff023ce2244f33a57b69c3080d42ea794fa"
+  },
+  "src/qwen38_runtime/stats.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/stats.py",
+    "source_sha256": "84f2bd93a4523585d776475c7cdb2ad588a5df53a2aea34ff76e92f4dacbae0f",
+    "published_sha256": "6f13a2873bfada79c098069d8125792842d974837860891764248f5a768f6293",
+    "normalized_ast_sha256": "6588dc24fee46d48d5bebb96aedc143d032a35a1b105c75f22954a4e11ed2e93"
+  },
+  "src/qwen38_runtime/stream_completion.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/stream_completion.py",
+    "source_sha256": "3b5b40e323a799338fe5523927452664664de6eea202e3daa0442bf025c3bb1d",
+    "published_sha256": "41da7fa445ff9833cd11611b0491fcbbdb9a4160fd8fb9d67f82021e2f7a9479",
+    "normalized_ast_sha256": "64cb525e2a3c2014df4298c19a2f3c2d9efad3cb18d08c9823e87f6aed357192"
+  },
+  "src/qwen38_runtime/weight_loading.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/weight_loading.py",
+    "source_sha256": "fc75d764fc4e15bde67d39401cbcf83b219abbeaded7ea5c151eaea72e7191ae",
+    "published_sha256": "693fe0d939712fbaf6e66a541eda94dab941cf0ffac075be926d189c96b0b67e",
+    "normalized_ast_sha256": "541b3c07285e23617a5f45203876c8eb154aca1ac064a9f63de10d01cbb81288"
+  },
+  "src/qwen38_runtime/weight_validation.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/weight_validation.py",
+    "source_sha256": "c35b7f0b2e46bf68a70297664f1c545b7e623569fe600b2672c7d723a37bc9d7",
+    "published_sha256": "069df2433e788e6e1c55312e61f087784f19d71aa13404d2d1bf3cfd50f1c48c",
+    "normalized_ast_sha256": "0e435584d744529e26414161e569eef600e4c22dadc5c4496ca82cc3223d5181"
+  },
+  "src/qwen38_runtime/worker_lifecycle.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_runtime/worker_lifecycle.py",
+    "source_sha256": "4d004bfad97f0e424bf52af54121b47eefd359af4218b6f7f9350f1ff99005b3",
+    "published_sha256": "55182c5efff58ae376f4a686b09aa7e2d5176c20d7f898e6e348f1c0341eff70",
+    "normalized_ast_sha256": "a08477966fada0163bc977e2e811b924a0688ef04f9421c9aabba0fc4c45b5d5"
+  },
+  "src/qwen38_validation/__init__.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_validation/__init__.py",
+    "source_sha256": "87cbb859b2a7cba04744929058acaa2d7e4217d2161aee9ecde723b223dc8690",
+    "published_sha256": "96e7b3ba2ffd017e7be1949030aa12adaded08b3af5969c3dbb939ed9c8bd3b9",
+    "normalized_ast_sha256": "dcc09dafbcf9f8e98f426616733afe66f59f126440beac50da0256ce3acd3133"
+  },
+  "src/qwen38_validation/byte_compare.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_validation/byte_compare.py",
+    "source_sha256": "b925ff1f620e02964c5a3f1f26bc7fe99c30362811a0f2f8e046d1aec7ca0b0a",
+    "published_sha256": "64811f9bda53c524cef46334a56875ff17cfa3a0674448a1b5d6550f9aaf81d1",
+    "normalized_ast_sha256": "e9b9285ff39cf8661f28b21d283459bdcd3ecd5aaaf65b44e1a92971ed5bdfa9"
+  },
+  "src/qwen38_validation/direct_stress.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_validation/direct_stress.py",
+    "source_sha256": "c365f00395e03981d7b4d3d43dc1d32dc09234fac3c7e82559944cdf14cecffc",
+    "published_sha256": "4992d44c00d833fa4d7d0014beb66fb75082d65b3aed6357bc9d66027a9a0671",
+    "normalized_ast_sha256": "34697312c1cdef2cf8fabb839ea98268b666f95daa0f29331ee4a1a0e829cdd4"
+  },
+  "src/qwen38_validation/fixture_export.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_validation/fixture_export.py",
+    "source_sha256": "fdb9aa9175aaebab50d6fd3f7358ea0e188daa4db0da9aca8e0600051e01714f",
+    "published_sha256": "0ecb76606b0f79d5fc708673834cd686fb91bccf5b075f8726fda6825b818a7b",
+    "normalized_ast_sha256": "70a19eb8773753433a81619b5c251b55fed7eedf4857dfd1ccba02bef790f756"
+  },
+  "src/qwen38_validation/fixture_target.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_validation/fixture_target.py",
+    "source_sha256": "6d112f015bafec33f949dd01a577cf1b7c9e58ac427bd566ed060f333972eedc",
+    "published_sha256": "52564a1b22cf751036d13c4ddaf21041f1615189171690cb2790df24aabd4b89",
+    "normalized_ast_sha256": "ab8d84ddbf0f3a4ca37d989733cc293276cbae5fe23bfd9f977bb1c9ece35eb8"
+  },
+  "src/qwen38_validation/kernel_pair.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_validation/kernel_pair.py",
+    "source_sha256": "1bd6481c3fce8e5c22f2d47edd9fb2b17eb21255be50211664cf40ae64cdcd9b",
+    "published_sha256": "fd53473cad2799daf6582804a80852f3dda541d090f23e64b4f28178ca641b0a",
+    "normalized_ast_sha256": "c118930013a71b09ec9deecf4fd868d6a13a1e24a0bc42861962cdbad17c0f9e"
+  },
+  "src/qwen38_validation/legacy_runtime.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_validation/legacy_runtime.py",
+    "source_sha256": "dbff346cbdff3b4b45aa49a29f8e640cd62a2ae961bc1b3d31b96cab00e025e9",
+    "published_sha256": "51b58ff04f612ccd4dbbe0b765f5d5e2613af98c402295de86f3f8c11e85de76",
+    "normalized_ast_sha256": "de001affd42acb45f113291a659e942452d1c7cbc4aeb1aaf6615dac29050433"
+  },
+  "src/qwen38_validation/retired_pair.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/src/qwen38_validation/retired_pair.py",
+    "source_sha256": "e970acba3f9c6f5377f4c51a537aec9d9dbdeeff1f0f531b4cbcd09ec794055e",
+    "published_sha256": "b6dba2142a500d4c52a7999ddbe530e3b6a7fe3beca7d3cfaafdf1aa09a148b5",
+    "normalized_ast_sha256": "90cdd4f672ab50e4f3d6255734d0c528413bc068cd3adc6b3760ea42a94eae21"
+  },
+  "integration/vllm_ascend/pypto/__init__.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/integration/vllm_ascend/pypto/__init__.py",
+    "source_sha256": "00ea06617f926fe450aed6cdc1d237735e3098b6f707acf15a8ec7addf577773",
+    "published_sha256": "1240b91ad7040b2b7e4e836e8f71effacfcec72024fbf4d689317d3f6dbc0015",
+    "normalized_ast_sha256": "37388cb58ebfe3e35fea0543fa4cab239b98b479da78df049f40af932d042112"
+  },
+  "integration/vllm_ascend/pypto/qwen3_8_cache.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/integration/vllm_ascend/pypto/qwen3_8_cache.py",
+    "source_sha256": "9c25034aa5b9e4565c9d201dd8e56acd134b394f5a26488c0c514162c5e5273c",
+    "published_sha256": "e9ff6f3fd74db15c34b3ba57603d0f835fe90e526c17427e4e78e4d6d134b038",
+    "normalized_ast_sha256": "f4b01733927b1913361274702f05bd3398d958165829c919faee787ab52e0da0"
+  },
+  "integration/vllm_ascend/pypto/qwen3_8_mpmd.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/integration/vllm_ascend/pypto/qwen3_8_mpmd.py",
+    "source_sha256": "034246bc985d4c04bcb096077bfd4e8948666e8ea7a08617be07aa1026916e73",
+    "published_sha256": "a660c4174867f65e76b56502513bfb52cc2538804209733ccb5cb89a87214e46",
+    "normalized_ast_sha256": "3543b4693a36a1098850b8bc928887694ed59a6deb7d3dfd0339de01f55a77b6"
+  },
+  "integration/vllm_ascend/pypto/qwen3_8_stats.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/integration/vllm_ascend/pypto/qwen3_8_stats.py",
+    "source_sha256": "56f77e43e341eb8416e387bc81693d3cf0d8dfe4579f06b3d4830e8dadf0f34a",
+    "published_sha256": "37a95b5c404c93ff163757bebfaea5b8af4f5da2e125ba8f1ed2f9349b588322",
+    "normalized_ast_sha256": "4b7f256372bbda64a16278cf8fce1b83cb9c7f356051be84463670eb31c8cf1d"
+  },
+  "bootstrap/sitecustomize.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/bootstrap/sitecustomize.py",
+    "source_sha256": "89d262d301c7dddf3a1c15c9a9bdc9302dfa5aa70cadcbc8cacfbe9eaef7acb9",
+    "published_sha256": "909167256cc350925e4c2f068ec7854f122bc4948581137483c44bb4fac656b9",
+    "normalized_ast_sha256": "ed201ef571b42f7979adbc9fe31b9d5f906a6353515b738bac025bccca5611fc"
+  },
+  "vendor_overlay/model_runner_extension.patch": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/vendor_overlay/model_runner_extension.patch",
+    "source_sha256": "e5872d34ea8bb33a3713588c41df26f0abf57034833b5696e7fe7a3cec966691",
+    "published_sha256": "e5872d34ea8bb33a3713588c41df26f0abf57034833b5696e7fe7a3cec966691"
+  },
+  "vendor_overlay/model_runner_v1.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/vendor_overlay/model_runner_v1.py",
+    "source_sha256": "a23eef465ad9ef80bc256c28d4e36c52e1667a543d8c668cefe5007bb434f813",
+    "published_sha256": "5bbef52b40b069a9dcc97f5ec208d78d20293bceb2e6d7f5a99c40c5cd783594",
+    "normalized_ast_sha256": "e5bdc47b13e719e05f39a27a39845fb8e2aadbec8122a2f0c520a789bfe6f76b"
+  },
+  "vendor_overlay/provenance.json": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/vendor_overlay/provenance.json",
+    "source_sha256": "70511fc5f91bbcbbf7575bc640cb1f783d9dd10af8adc50a943a8fb4eddce32f",
+    "published_sha256": "70511fc5f91bbcbbf7575bc640cb1f783d9dd10af8adc50a943a8fb4eddce32f"
+  },
+  "dsl/qwen36_attention_dsl/__init__.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/src/qwen36_attention_dsl/__init__.py",
+    "source_sha256": "1d65f23a0d0b59d5a32572865e6b2143e1910e72e4b24fa264cdaa01fc8e03be",
+    "published_sha256": "b10b6734f9ab58a36d912c19d29824727b498f14629329bed0dcf74ebc1a2203",
+    "normalized_ast_sha256": "3752c62903003766047e0be09532a9f2ff556e37995df428a81d308f29bd02ff"
+  },
+  "dsl/qwen36_attention_dsl/paged_attention.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/src/qwen36_attention_dsl/paged_attention.py",
+    "source_sha256": "1ffa83a97ade18f5750b08dd73f1a46959773c160a96a948ed47c649066cbbfa",
+    "published_sha256": "403c892c9665f3f9d91873d0c0ef39c6924279bf3c9282d8b636db1404132cdc",
+    "normalized_ast_sha256": "0972fa17f1457e2f8f97cc23b02f4ff8d156edb15eb790f05538fe45a4319e27"
+  },
+  "dsl/qwen36_attention_dsl/softmax.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/src/qwen36_attention_dsl/softmax.py",
+    "source_sha256": "a800b6ef751dfdb2ac8f2b38e852f9e0a10adbc546800cfc9a1fee29c41a361e",
+    "published_sha256": "48189596dde455ecb63ca1442e6e0fa58b77a36c7f470ac5177aa853661c618a",
+    "normalized_ast_sha256": "7ac32853803cc54a39c9b35b5dc46928b6569b72c22df37f0f15d875dbac0e9e"
+  },
+  "dsl/qwen36_attention_dsl/softmax_explicit.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/src/qwen36_attention_dsl/softmax_explicit.py",
+    "source_sha256": "909060fc9c0d9d847bebe06ab7d9cf04582d9f2d0fe32c95f1ac061ec12a2f6c",
+    "published_sha256": "69cca646831123042e032413352e0ae24aae7544719bd4e9c74c71f9a4fd0007",
+    "normalized_ast_sha256": "de58d2dd0c00132687e6a015a2ff8d5b24c805a9d633822a649346758296097e"
+  },
+  "dsl/qwen36_fusion/__init__.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/spmd_fusion_20261029/src/qwen36_fusion/__init__.py",
+    "source_sha256": "4fc07ae1cd0e4a0a10c27e2715f2124dee215a05ab87fb41f6d0063edeb22ff1",
+    "published_sha256": "39989bc45e9279f93b44f83ef4beb85f8e4d0cd06066a0aed7d62b09dc34358b",
+    "normalized_ast_sha256": "8e64fecdb74696a67c9feaff92300da1263ad4c73fcd87a75e505bd40ecac175"
+  },
+  "dsl/qwen36_fusion/gate_quant.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/spmd_fusion_20261029/src/qwen36_fusion/gate_quant.py",
+    "source_sha256": "f09a7eb3a4cbece4135beeef762c2e9661457cca80d1b057b84baa1271e4c56e",
+    "published_sha256": "bb826a36ced47a0ec2cade3658c433146a368eddb636054019d1f6caaf979cd7",
+    "normalized_ast_sha256": "a324c6ac4ec0ed34be783fd58163f55fedd8d45cbd94ec34f02026637ce89d5c"
+  },
+  "static_runtime/orchestration_rank0.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/spmd_fusion_20261029/src/runtime/orchestration_rank0.cpp",
+    "source_sha256": "8559d839dcc971b90cf321985759a6775178ebb728ceab53f6091a7882e07272",
+    "published_sha256": "f363179ede9c113ca8e9ead648c19f64e0d7c808f2e1bd50a2b25070f79d0bda",
+    "cpp_empty_line_whitespace_cleaned": true
+  },
+  "static_runtime/orchestration_rank1.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/spmd_fusion_20261029/src/runtime/orchestration_rank1.cpp",
+    "source_sha256": "8559d839dcc971b90cf321985759a6775178ebb728ceab53f6091a7882e07272",
+    "published_sha256": "f363179ede9c113ca8e9ead648c19f64e0d7c808f2e1bd50a2b25070f79d0bda",
+    "cpp_empty_line_whitespace_cleaned": true
+  },
+  "static_runtime/orchestration_rank2.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/spmd_fusion_20261029/src/runtime/orchestration_rank2.cpp",
+    "source_sha256": "8559d839dcc971b90cf321985759a6775178ebb728ceab53f6091a7882e07272",
+    "published_sha256": "f363179ede9c113ca8e9ead648c19f64e0d7c808f2e1bd50a2b25070f79d0bda",
+    "cpp_empty_line_whitespace_cleaned": true
+  },
+  "static_runtime/orchestration_rank3.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/spmd_fusion_20261029/src/runtime/orchestration_rank3.cpp",
+    "source_sha256": "8559d839dcc971b90cf321985759a6775178ebb728ceab53f6091a7882e07272",
+    "published_sha256": "f363179ede9c113ca8e9ead648c19f64e0d7c808f2e1bd50a2b25070f79d0bda",
+    "cpp_empty_line_whitespace_cleaned": true
+  },
+  "link_contract/rank0/kernel_config.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/spmd_fusion_20261029/build/target_gate_quant_fused/next_levels/rank0/kernel_config.py",
+    "source_sha256": "4d8857f7163bfd88a858cb70764dbc8891b3050bac97596774a18d37ea49e27e",
+    "published_sha256": "d1ba7c801dc77a941be3005eeeb09c6874d60ded6e5c382fb0b1d96b311de8a0",
+    "normalized_ast_sha256": "118c7baf3b2df2b21a4ac772cded9f0e1f66ea7fd77d75777347469964d4c115"
+  },
+  "registered_sources/spmd_fusion_20261029/src/runtime/orchestration_rank0.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/spmd_fusion_20261029/src/runtime/orchestration_rank0.cpp",
+    "source_sha256": "8559d839dcc971b90cf321985759a6775178ebb728ceab53f6091a7882e07272",
+    "published_sha256": "f363179ede9c113ca8e9ead648c19f64e0d7c808f2e1bd50a2b25070f79d0bda",
+    "cpp_empty_line_whitespace_cleaned": true
+  },
+  "link_contract/rank0/logical_compiled_meta.json": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/spmd_fusion_20261029/build/target_gate_quant_fused/next_levels/rank0/logical_compiled_meta.json",
+    "source_sha256": "08aa911a9d3b006306e52720614b8be2abb3837ebb4de5cb04ca77321e482075",
+    "published_sha256": "08aa911a9d3b006306e52720614b8be2abb3837ebb4de5cb04ca77321e482075"
+  },
+  "link_contract/rank0/compiled_meta.json": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/spmd_fusion_20261029/build/target_gate_quant_fused/next_levels/rank0/compiled_meta.json",
+    "source_sha256": "b9164c8658ec1dc78e6d7a2525cf044cc8ecfd4c13be2ad4ee1626f62615571e",
+    "published_sha256": "b9164c8658ec1dc78e6d7a2525cf044cc8ecfd4c13be2ad4ee1626f62615571e"
+  },
+  "link_contract/rank0/direct_link.json": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/spmd_fusion_20261029/build/target_gate_quant_fused/next_levels/rank0/direct_link.json",
+    "source_sha256": "9141a2ddcfc05770222d1a4588c35bbf45f46d14d0134f4989a00382d34133d1",
+    "published_sha256": "9141a2ddcfc05770222d1a4588c35bbf45f46d14d0134f4989a00382d34133d1"
+  },
+  "link_contract/rank1/kernel_config.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/spmd_fusion_20261029/build/target_gate_quant_fused/next_levels/rank1/kernel_config.py",
+    "source_sha256": "653432878debaccbc887583cde8ccf14caec411fde7b2d24ef41a13a86b23421",
+    "published_sha256": "73bbd6c6a5e54486aaebc0ec5dd03d7bc68362eeb187b74a381d685d37579f73",
+    "normalized_ast_sha256": "6de33fbf8425ec3d3a5f2b3e930ef3612739a14fd517029af5461f3cb046ca37"
+  },
+  "registered_sources/spmd_fusion_20261029/src/runtime/orchestration_rank1.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/spmd_fusion_20261029/src/runtime/orchestration_rank1.cpp",
+    "source_sha256": "8559d839dcc971b90cf321985759a6775178ebb728ceab53f6091a7882e07272",
+    "published_sha256": "f363179ede9c113ca8e9ead648c19f64e0d7c808f2e1bd50a2b25070f79d0bda",
+    "cpp_empty_line_whitespace_cleaned": true
+  },
+  "link_contract/rank1/logical_compiled_meta.json": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/spmd_fusion_20261029/build/target_gate_quant_fused/next_levels/rank1/logical_compiled_meta.json",
+    "source_sha256": "08aa911a9d3b006306e52720614b8be2abb3837ebb4de5cb04ca77321e482075",
+    "published_sha256": "08aa911a9d3b006306e52720614b8be2abb3837ebb4de5cb04ca77321e482075"
+  },
+  "link_contract/rank1/compiled_meta.json": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/spmd_fusion_20261029/build/target_gate_quant_fused/next_levels/rank1/compiled_meta.json",
+    "source_sha256": "b9164c8658ec1dc78e6d7a2525cf044cc8ecfd4c13be2ad4ee1626f62615571e",
+    "published_sha256": "b9164c8658ec1dc78e6d7a2525cf044cc8ecfd4c13be2ad4ee1626f62615571e"
+  },
+  "link_contract/rank1/direct_link.json": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/spmd_fusion_20261029/build/target_gate_quant_fused/next_levels/rank1/direct_link.json",
+    "source_sha256": "220b18a470f8cbc4751d9cea27927a0cb5328f9ec47c21b8eb1c05eff5a40807",
+    "published_sha256": "220b18a470f8cbc4751d9cea27927a0cb5328f9ec47c21b8eb1c05eff5a40807"
+  },
+  "link_contract/rank2/kernel_config.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/spmd_fusion_20261029/build/target_gate_quant_fused/next_levels/rank2/kernel_config.py",
+    "source_sha256": "6fdbdf39f17b6e64f3dd2fbc70f17b3736e68f8ffa113323b55b95491be82b5d",
+    "published_sha256": "98f4a470abbaa65d3730e31863c6c5074fbf2eea3127fb83409d7fb8e831969e",
+    "normalized_ast_sha256": "f084b5b60bf6e4cd1ddecb476bca23d727d33d9fec94d731ffe443620f613be9"
+  },
+  "registered_sources/spmd_fusion_20261029/src/runtime/orchestration_rank2.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/spmd_fusion_20261029/src/runtime/orchestration_rank2.cpp",
+    "source_sha256": "8559d839dcc971b90cf321985759a6775178ebb728ceab53f6091a7882e07272",
+    "published_sha256": "f363179ede9c113ca8e9ead648c19f64e0d7c808f2e1bd50a2b25070f79d0bda",
+    "cpp_empty_line_whitespace_cleaned": true
+  },
+  "link_contract/rank2/logical_compiled_meta.json": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/spmd_fusion_20261029/build/target_gate_quant_fused/next_levels/rank2/logical_compiled_meta.json",
+    "source_sha256": "08aa911a9d3b006306e52720614b8be2abb3837ebb4de5cb04ca77321e482075",
+    "published_sha256": "08aa911a9d3b006306e52720614b8be2abb3837ebb4de5cb04ca77321e482075"
+  },
+  "link_contract/rank2/compiled_meta.json": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/spmd_fusion_20261029/build/target_gate_quant_fused/next_levels/rank2/compiled_meta.json",
+    "source_sha256": "b9164c8658ec1dc78e6d7a2525cf044cc8ecfd4c13be2ad4ee1626f62615571e",
+    "published_sha256": "b9164c8658ec1dc78e6d7a2525cf044cc8ecfd4c13be2ad4ee1626f62615571e"
+  },
+  "link_contract/rank2/direct_link.json": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/spmd_fusion_20261029/build/target_gate_quant_fused/next_levels/rank2/direct_link.json",
+    "source_sha256": "e534922eb39f863eeefb8f3523049fa0c7405eb5e6833df65094f9301453f551",
+    "published_sha256": "e534922eb39f863eeefb8f3523049fa0c7405eb5e6833df65094f9301453f551"
+  },
+  "link_contract/rank3/kernel_config.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/spmd_fusion_20261029/build/target_gate_quant_fused/next_levels/rank3/kernel_config.py",
+    "source_sha256": "dc6944a8e75f16959ace6e0fa69aa09f8b09b60472d38aa044c74b30180c2ce8",
+    "published_sha256": "61b0c54935fc893cc239b12651b6b6a59a9203941b6c33ad7d5d2d45c1d67237",
+    "normalized_ast_sha256": "414572b7743306aadd078ff90d502151e720d0b2ae300b62014e9e3a340040fc"
+  },
+  "registered_sources/spmd_fusion_20261029/src/runtime/orchestration_rank3.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/spmd_fusion_20261029/src/runtime/orchestration_rank3.cpp",
+    "source_sha256": "8559d839dcc971b90cf321985759a6775178ebb728ceab53f6091a7882e07272",
+    "published_sha256": "f363179ede9c113ca8e9ead648c19f64e0d7c808f2e1bd50a2b25070f79d0bda",
+    "cpp_empty_line_whitespace_cleaned": true
+  },
+  "link_contract/rank3/logical_compiled_meta.json": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/spmd_fusion_20261029/build/target_gate_quant_fused/next_levels/rank3/logical_compiled_meta.json",
+    "source_sha256": "08aa911a9d3b006306e52720614b8be2abb3837ebb4de5cb04ca77321e482075",
+    "published_sha256": "08aa911a9d3b006306e52720614b8be2abb3837ebb4de5cb04ca77321e482075"
+  },
+  "link_contract/rank3/compiled_meta.json": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/spmd_fusion_20261029/build/target_gate_quant_fused/next_levels/rank3/compiled_meta.json",
+    "source_sha256": "b9164c8658ec1dc78e6d7a2525cf044cc8ecfd4c13be2ad4ee1626f62615571e",
+    "published_sha256": "b9164c8658ec1dc78e6d7a2525cf044cc8ecfd4c13be2ad4ee1626f62615571e"
+  },
+  "link_contract/rank3/direct_link.json": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/spmd_fusion_20261029/build/target_gate_quant_fused/next_levels/rank3/direct_link.json",
+    "source_sha256": "0cfd318aa36542b965e22dc21a3f0c6814d14ac08bce362460f91bfd735a2532",
+    "published_sha256": "0cfd318aa36542b965e22dc21a3f0c6814d14ac08bce362460f91bfd735a2532"
+  },
+  "build_tools/fusion/analyze_fusion_profiles.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/spmd_fusion_20261029/tools/analyze_fusion_profiles.py",
+    "source_sha256": "2b9e28cc92624ef5703d7ac7fb6a5cf4d63d45189783dfde3dcde00ee67f6680",
+    "published_sha256": "c40d486fb573b76de860a8a01e264c05bf7c34bde9a4db307424df6dcf80e934",
+    "normalized_ast_sha256": "3d1b4f2f96cfd10aef4d763251a32cdb8f5be6277ff0f04c2438dc07c97c6af6"
+  },
+  "build_tools/fusion/audit_fusion.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/spmd_fusion_20261029/tools/audit_fusion.py",
+    "source_sha256": "6e9c741de49ba73704b5eb4c4e45f3a51e7697d0959d8aef6878df7b0d472d66",
+    "published_sha256": "5ef4d6eaea27c40ef3e67a9400ade84db1a2f39963ed5b0edd11f4ddbe408b0c",
+    "normalized_ast_sha256": "1089b12856bf83e50506d0c3862292f869308349b39d5b40a6d74f98fcff1b8b"
+  },
+  "build_tools/fusion/build_fused_target.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/spmd_fusion_20261029/tools/build_fused_target.py",
+    "source_sha256": "5b06d97d566e99c110e7a0b0be1fee8629ecc0ed210a691d17dbcfc53e32dc04",
+    "published_sha256": "e6055e75932ca3e8afd23af64102e172f5a728367fde2e4d2ac9c0aa8ddb0f0b",
+    "normalized_ast_sha256": "3c8ef0c464806de42cd74c86af79745f166a50d3f2e31e4b10a1767942791bf2"
+  },
+  "build_tools/fusion/compile_gate_quant.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/spmd_fusion_20261029/tools/compile_gate_quant.py",
+    "source_sha256": "025d167b145fa831729d49119245e621d387b5e384131206e52990b9da3a7084",
+    "published_sha256": "8f83ab3fabe7597687fee0a5f81a885794200d48fa15a37c089b9e07aa78d092",
+    "normalized_ast_sha256": "9a1994dea4174c5ee797b17f39399eb12fab75e524da12a9920404b370790401"
+  },
+  "build_tools/fusion/sync_runtime_metadata.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/spmd_fusion_20261029/tools/sync_runtime_metadata.py",
+    "source_sha256": "4c4184751369aa5bbfe708d1a359bf913462cc9bde90dab6110d1538f451baa6",
+    "published_sha256": "0d716e48207b6c3853cd0484bbc427d1b6ef7851cfcda9a0b28cd7b55a2448e5",
+    "normalized_ast_sha256": "409f96bf03b66a2f530843d815bc0101466da86c17775ad5b564e233ee6456bd"
+  },
+  "build_tools/fusion/validate_fused_plans.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/spmd_fusion_20261029/tools/validate_fused_plans.py",
+    "source_sha256": "a8f4238d89799310573ac74edd339225ae86183d73a1e4c79fd3b1324d6767ff",
+    "published_sha256": "4891c05c04360bddbba335205cd6ef188771213ea831a91b050e1ad652cd65d6",
+    "normalized_ast_sha256": "62312247c7d1d3c5494a27f30ba617155f6c28bfdd5c530b8fd8e22fff420508"
+  },
+  "build_tools/attention/analyze_migration_profiles.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/tools/analyze_migration_profiles.py",
+    "source_sha256": "377f336f706c26e3cb7909da9990479e9ac4a4344ce887f2e8501364192b842d",
+    "published_sha256": "d98c46de87c5209c3951be2d3aab5d17d18c6b45ab0ef796c1b7b45536deb79f",
+    "normalized_ast_sha256": "6ed9b80b113ce0e6342a40560b1a300974260c44071059484b0673596e11e4c5"
+  },
+  "build_tools/attention/audit_buffers.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/tools/audit_buffers.py",
+    "source_sha256": "5e4018cc4f14638e40538ada73e77e8bb38b1de5b4e9cf672b33c139d906bd1d",
+    "published_sha256": "1ad8a41f4d3177e2da62eb73be7314ca4edc5cf18881c71e783df50934cd9f59",
+    "normalized_ast_sha256": "9967aef74c6867958d8f0e8a8ef78cc5baceee0acfcb822b4cf7d56827040477"
+  },
+  "build_tools/attention/build_from_dsl.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/tools/build_from_dsl.py",
+    "source_sha256": "fee44113a39558f9d926cf1e6c993d296f167900fa2732003324932d74208867",
+    "published_sha256": "95d001ac00f58a2c78658c99bb2d485634313461897c84d408bf0e056add66d4",
+    "normalized_ast_sha256": "1831ce44578590a641e9bc5db9b4ba7cd8a373195dd1837f49b8b8ec9910653f"
+  },
+  "build_tools/attention/build_images.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/tools/build_images.py",
+    "source_sha256": "ef1cf98e4caf76419245196af8cbdd57ea202a0f6d5c07c4a512ffb6d536b4a3",
+    "published_sha256": "17f23c173c315cd9201708baafeee3ffbcb52e43ebf69f34f0c272aa6124687d",
+    "normalized_ast_sha256": "df38c95482afb4e8bfaf2127022c79c4ec7378cce54b5f7b2f5837e79a2f6435"
+  },
+  "build_tools/attention/build_target.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/tools/build_target.py",
+    "source_sha256": "cea8f71ecd3fd8345b31e450b185c5c6eac540bb65a15e8b8a72ec041bfe4bf3",
+    "published_sha256": "e32713b4f3b8b45b4634adc913a134770119f31e006e6a64bb087f575f48685b",
+    "normalized_ast_sha256": "8cb21f7ac746f37efabd7e85e5a398d70d92b3442d14395c80d77c7ad821ab27"
+  },
+  "benchmark/run_fast_fused.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/tools/run_fast_fused.py",
+    "source_sha256": "bf311ad3529fcb69ca57fecf48e36e08e767ac6f4340eb4c970e78841290ccbf",
+    "published_sha256": "9ea0bb825db622bf7e71192b1341eb61aa5884a1134455a4634d9cef99a3d312",
+    "normalized_ast_sha256": "cdc96fdb19ed796b8db86eb96e1916b05a5fd06b4cb5073ad193fe96d9f4f61a"
+  },
+  "benchmark/recovery_stage.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/tools/recovery_stage.py",
+    "source_sha256": "b3aeb8d918daaed55631b882a0afe7360961fdca493abf8c0b3fd2f973ca00a0",
+    "published_sha256": "1bcd3e4c2e0bfee225ac6f5648c8019dfee6a484e89d3ed9c10cfc812b5bba97",
+    "normalized_ast_sha256": "b52a5837a2c2072bf996f583f76d2bae86411f1efbbf4ff223fe442fd13b02e9"
+  },
+  "benchmark/report_frozen_bench.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/tools/report_frozen_bench.py",
+    "source_sha256": "4bd50b0d98adeed930725fcbc87a9cf9c7884fb41f006df986032b1ae14aca8c",
+    "published_sha256": "409e693efb333fbee4941798c4e59c5a1cca43cdd2852ea61dc17c1b2a8a5278",
+    "normalized_ast_sha256": "3e972fefcc738f111ff9a98557cfa3dcbc69ee7e13d3e0a404bc44db1612e1e4"
+  },
+  "benchmark/summarize_recovery.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/tools/summarize_recovery.py",
+    "source_sha256": "48cf4906eb5e8db4af176b90061c52963e2d1b95b0fb63f4f28f91362e78932c",
+    "published_sha256": "03629a3e88b483ae564db38f6260afe8c905aecd8d96a6af83f63a4b180b9ee0",
+    "normalized_ast_sha256": "012f8acd5d6680a8d16518df3f54bfd4a6f9a13b56b24c033c338b5fc6b9bc34"
+  },
+  "benchmark/analyze_retired_profiles.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/tools/analyze_retired_profiles.py",
+    "source_sha256": "f423a55d416de25050827f0ad79e259797bbc31a9a76b6070f895d8e6dee8ef2",
+    "published_sha256": "52c2922fee894eeb7da40949a053a60fd01c041dbdee8ae0536860a1a734993a",
+    "normalized_ast_sha256": "3ab355155a2b6d73c01de9671f62c132b490cc7a322fdec08270e7ab39223cee"
+  },
+  "benchmark/check_command_config.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/tools/check_command_config.py",
+    "source_sha256": "91b6aa4ab785d822cadf31ebb7527a26233e08087d3286b5b84e2d7645d1de0f",
+    "published_sha256": "a2eca80db9a356f3e6a031f5e730c560f6396cde284fbec5cd4844ff9eee6de5",
+    "normalized_ast_sha256": "e4d45319707b11867298e7cefac3b1604f3b13a4cfc965acbf919df641d84511"
+  },
+  "benchmark/env_used.sh": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/env_used.sh",
+    "source_sha256": "0376bb286cc56baebf9d45f3c95fbd7bc57e908c653e29e3010aac60d8051b59",
+    "published_sha256": "0376bb286cc56baebf9d45f3c95fbd7bc57e908c653e29e3010aac60d8051b59"
+  },
+  "evidence/LATEST_VERIFIED_RESULT_20261030.json": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/docs/LATEST_VERIFIED_RESULT_20261030.json",
+    "source_sha256": "cd80c4ac6b4ddf754e3380997524c4317c12efab852dda58df54dc4473b30300",
+    "published_sha256": "cd80c4ac6b4ddf754e3380997524c4317c12efab852dda58df54dc4473b30300"
+  },
+  "dependencies/tested_simpler_runtime/src/a2a3/platform/onboard/host/device_runner.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/reference/minimal_replay_validated_v2/simpler_runtime/src/a2a3/platform/onboard/host/device_runner.cpp",
+    "source_sha256": "11303a4c5e822fdbfba104c83f943a5af8ac11f8ffd5026cff6f702d66f6f360",
+    "published_sha256": "11303a4c5e822fdbfba104c83f943a5af8ac11f8ffd5026cff6f702d66f6f360"
+  },
+  "dependencies/tested_simpler_runtime/src/a2a3/platform/onboard/host/device_runner.h": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/reference/minimal_replay_validated_v2/simpler_runtime/src/a2a3/platform/onboard/host/device_runner.h",
+    "source_sha256": "639bee8b79b2e575ce15104c3a48c72bcbcc69ab492e95dcb357ee553b2007f3",
+    "published_sha256": "639bee8b79b2e575ce15104c3a48c72bcbcc69ab492e95dcb357ee553b2007f3"
+  },
+  "dependencies/tested_simpler_runtime/src/a2a3/runtime/host_build_graph/host/runtime_maker.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/reference/minimal_replay_validated_v2/simpler_runtime/src/a2a3/runtime/host_build_graph/host/runtime_maker.cpp",
+    "source_sha256": "74a04975b4c2ca05a79b28f61ca97f1d0d60e585072688c0d16395626d06c58d",
+    "published_sha256": "74a04975b4c2ca05a79b28f61ca97f1d0d60e585072688c0d16395626d06c58d"
+  },
+  "dependencies/tested_simpler_runtime/src/a2a3/runtime/tensormap_and_ringbuffer/aicpu/aicpu_executor.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/reference/minimal_replay_validated_v2/simpler_runtime/src/a2a3/runtime/tensormap_and_ringbuffer/aicpu/aicpu_executor.cpp",
+    "source_sha256": "4d3e0eafce3234fac76be87316fbd57dcec63b7019ee60272164a9fdbe90801f",
+    "published_sha256": "4d3e0eafce3234fac76be87316fbd57dcec63b7019ee60272164a9fdbe90801f"
+  },
+  "dependencies/tested_simpler_runtime/src/a2a3/runtime/tensormap_and_ringbuffer/common/device_program_types.h": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/reference/minimal_replay_validated_v2/simpler_runtime/src/a2a3/runtime/tensormap_and_ringbuffer/common/device_program_types.h",
+    "source_sha256": "739ab5b7dbe495c0e3446373f90c040ebf5be95ee0dab94a02c3f36611783a5b",
+    "published_sha256": "739ab5b7dbe495c0e3446373f90c040ebf5be95ee0dab94a02c3f36611783a5b"
+  },
+  "dependencies/tested_simpler_runtime/src/a2a3/runtime/tensormap_and_ringbuffer/common/intrinsic.h": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/reference/minimal_replay_validated_v2/simpler_runtime/src/a2a3/runtime/tensormap_and_ringbuffer/common/intrinsic.h",
+    "source_sha256": "ba64db445946754e0437c1560c953d24ad617aa69be860d0028a4582e3883045",
+    "published_sha256": "ba64db445946754e0437c1560c953d24ad617aa69be860d0028a4582e3883045"
+  },
+  "dependencies/tested_simpler_runtime/src/a2a3/runtime/tensormap_and_ringbuffer/host/runtime_maker.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/reference/minimal_replay_validated_v2/simpler_runtime/src/a2a3/runtime/tensormap_and_ringbuffer/host/runtime_maker.cpp",
+    "source_sha256": "98ea2f6041b58bf9cfe712b368e9022e1040dda0110b382558fbe8b48e240c51",
+    "published_sha256": "98ea2f6041b58bf9cfe712b368e9022e1040dda0110b382558fbe8b48e240c51"
+  },
+  "dependencies/tested_simpler_runtime/src/a2a3/runtime/tensormap_and_ringbuffer/kernels/device_program/device_program_aic.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/reference/minimal_replay_validated_v2/simpler_runtime/src/a2a3/runtime/tensormap_and_ringbuffer/kernels/device_program/device_program_aic.cpp",
+    "source_sha256": "02d850a872d92be740a937ceac08e963af3e688561849900a85efab606bbed5e",
+    "published_sha256": "02d850a872d92be740a937ceac08e963af3e688561849900a85efab606bbed5e"
+  },
+  "dependencies/tested_simpler_runtime/src/a2a3/runtime/tensormap_and_ringbuffer/kernels/device_program/device_program_aiv.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/reference/minimal_replay_validated_v2/simpler_runtime/src/a2a3/runtime/tensormap_and_ringbuffer/kernels/device_program/device_program_aiv.cpp",
+    "source_sha256": "c0d23b57336c3f9e973b56fa2e34cd6ae302ab1f6e237725b2f5588858b0e68d",
+    "published_sha256": "c0d23b57336c3f9e973b56fa2e34cd6ae302ab1f6e237725b2f5588858b0e68d"
+  },
+  "dependencies/tested_simpler_runtime/src/a2a3/runtime/tensormap_and_ringbuffer/kernels/device_program/device_program_body.h": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/reference/minimal_replay_validated_v2/simpler_runtime/src/a2a3/runtime/tensormap_and_ringbuffer/kernels/device_program/device_program_body.h",
+    "source_sha256": "171224d9bd79a9070477c95d3424e95db5e6882c32f0b3796f2a49a50ddc61cc",
+    "published_sha256": "171224d9bd79a9070477c95d3424e95db5e6882c32f0b3796f2a49a50ddc61cc"
+  },
+  "dependencies/tested_simpler_runtime/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/orchestrator.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/reference/minimal_replay_validated_v2/simpler_runtime/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/orchestrator.cpp",
+    "source_sha256": "e80098c491a0f85f264ad63ce249af95aaf4edbdd7036fd2aa186ad079036a65",
+    "published_sha256": "e80098c491a0f85f264ad63ce249af95aaf4edbdd7036fd2aa186ad079036a65"
+  },
+  "dependencies/tested_simpler_runtime/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/runtime.h": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/reference/minimal_replay_validated_v2/simpler_runtime/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/runtime.h",
+    "source_sha256": "022d66a97ad51234ab01b55d01296801904a5e14aeb4c2a6cafeb476efd64868",
+    "published_sha256": "022d66a97ad51234ab01b55d01296801904a5e14aeb4c2a6cafeb476efd64868"
+  },
+  "dependencies/tested_simpler_runtime/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/runtime_types.h": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/reference/minimal_replay_validated_v2/simpler_runtime/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/runtime_types.h",
+    "source_sha256": "6cbd2b806c6cc46570cdf77b544195169fe536ec42795b0cacf3f28d4df84917",
+    "published_sha256": "6cbd2b806c6cc46570cdf77b544195169fe536ec42795b0cacf3f28d4df84917"
+  },
+  "dependencies/tested_simpler_runtime/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/scheduler/scheduler.h": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/reference/minimal_replay_validated_v2/simpler_runtime/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/scheduler/scheduler.h",
+    "source_sha256": "a75873d350667e188adb68808db0f7a02e6143c9bffb9dee4da7a6585c6a290e",
+    "published_sha256": "a75873d350667e188adb68808db0f7a02e6143c9bffb9dee4da7a6585c6a290e"
+  },
+  "dependencies/tested_simpler_runtime/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/scheduler/scheduler_cold_path.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/reference/minimal_replay_validated_v2/simpler_runtime/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/scheduler/scheduler_cold_path.cpp",
+    "source_sha256": "c08a2c177f9f2039f807c370fe1abf69b794e2868a0f531693124ba5bac421d0",
+    "published_sha256": "c08a2c177f9f2039f807c370fe1abf69b794e2868a0f531693124ba5bac421d0"
+  },
+  "dependencies/tested_simpler_runtime/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/scheduler/scheduler_context.h": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/reference/minimal_replay_validated_v2/simpler_runtime/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/scheduler/scheduler_context.h",
+    "source_sha256": "78f75c3afab5fdef604d51c7c0b1e025379ea597ffd2664184fb5cc6fe0eb552",
+    "published_sha256": "78f75c3afab5fdef604d51c7c0b1e025379ea597ffd2664184fb5cc6fe0eb552"
+  },
+  "dependencies/tested_simpler_runtime/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/scheduler/scheduler_dispatch.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/reference/minimal_replay_validated_v2/simpler_runtime/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/scheduler/scheduler_dispatch.cpp",
+    "source_sha256": "8b631ebbe9f7fa6b46f6ee265f24725328bf165a5d892178d0b00e95954989f3",
+    "published_sha256": "8b631ebbe9f7fa6b46f6ee265f24725328bf165a5d892178d0b00e95954989f3"
+  },
+  "dependencies/tested_simpler_runtime/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/shared/runtime.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/reference/minimal_replay_validated_v2/simpler_runtime/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/shared/runtime.cpp",
+    "source_sha256": "10b172e01c30be8854c057c1de938b7791726d0d47f0a5ae187e11b1f8894cdb",
+    "published_sha256": "10b172e01c30be8854c057c1de938b7791726d0d47f0a5ae187e11b1f8894cdb"
+  },
+  "dependencies/tested_simpler_runtime/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/shared/runtime_init.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/reference/minimal_replay_validated_v2/simpler_runtime/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/shared/runtime_init.cpp",
+    "source_sha256": "11040e7cd9f903803ceb2166b956ddca015273f48d453eb55e8dbc3ffd3dcb5a",
+    "published_sha256": "11040e7cd9f903803ceb2166b956ddca015273f48d453eb55e8dbc3ffd3dcb5a"
+  },
+  "dependencies/tested_simpler_runtime/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/submit_types.h": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/reference/minimal_replay_validated_v2/simpler_runtime/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/submit_types.h",
+    "source_sha256": "c5188c4e29feb73a01fd3d18d68e59c6683a96be3f8cfd158d7220793b7a2415",
+    "published_sha256": "c5188c4e29feb73a01fd3d18d68e59c6683a96be3f8cfd158d7220793b7a2415"
+  },
+  "dependencies/tested_simpler_runtime/src/a5/runtime/tensormap_and_ringbuffer/runtime/submit_types.h": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/reference/minimal_replay_validated_v2/simpler_runtime/src/a5/runtime/tensormap_and_ringbuffer/runtime/submit_types.h",
+    "source_sha256": "eb5b2b3cee4f1e8a7bc9dd7a7ed8202563a2083d7b01d069ca8985e0398c8f9a",
+    "published_sha256": "eb5b2b3cee4f1e8a7bc9dd7a7ed8202563a2083d7b01d069ca8985e0398c8f9a"
+  },
+  "dependencies/tested_simpler_runtime/src/common/aicpu_loader/host/load_aicpu_op.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/reference/minimal_replay_validated_v2/simpler_runtime/src/common/aicpu_loader/host/load_aicpu_op.cpp",
+    "source_sha256": "4d9b5947de185e16c7d34019e8d4d2b21784e906c09927674918467bf5efb6f1",
+    "published_sha256": "4d9b5947de185e16c7d34019e8d4d2b21784e906c09927674918467bf5efb6f1"
+  },
+  "dependencies/tested_simpler_runtime/src/common/aicpu_loader/host/load_aicpu_op.h": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/reference/minimal_replay_validated_v2/simpler_runtime/src/common/aicpu_loader/host/load_aicpu_op.h",
+    "source_sha256": "63e3ed68ab9df11249d6b46c46eaa183711e934c6763be74e7c8822474ec0de2",
+    "published_sha256": "63e3ed68ab9df11249d6b46c46eaa183711e934c6763be74e7c8822474ec0de2"
+  },
+  "dependencies/tested_simpler_runtime/src/common/hierarchical/worker_manager.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/reference/minimal_replay_validated_v2/simpler_runtime/src/common/hierarchical/worker_manager.cpp",
+    "source_sha256": "dca88c9537630f6ac1e3cae4cca138fae2ed2589f3fa1a091daae94b57d78b97",
+    "published_sha256": "dca88c9537630f6ac1e3cae4cca138fae2ed2589f3fa1a091daae94b57d78b97"
+  },
+  "dependencies/tested_simpler_runtime/src/common/hierarchical/worker_manager.h": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/reference/minimal_replay_validated_v2/simpler_runtime/src/common/hierarchical/worker_manager.h",
+    "source_sha256": "b90f47435a6d8a05cbf9bd72ba29b16e6547a09faf90699f148e635375de9a7f",
+    "published_sha256": "b90f47435a6d8a05cbf9bd72ba29b16e6547a09faf90699f148e635375de9a7f"
+  },
+  "dependencies/tested_simpler_runtime/src/common/host_build_graph/runtime.h": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/reference/minimal_replay_validated_v2/simpler_runtime/src/common/host_build_graph/runtime.h",
+    "source_sha256": "1e73483d7f4d40b7fa630b20844de816ed92f60198f6814c2aa059a4d708a8c7",
+    "published_sha256": "1e73483d7f4d40b7fa630b20844de816ed92f60198f6814c2aa059a4d708a8c7"
+  },
+  "dependencies/tested_simpler_runtime/src/common/host_build_graph/shared/runtime.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/reference/minimal_replay_validated_v2/simpler_runtime/src/common/host_build_graph/shared/runtime.cpp",
+    "source_sha256": "6094c02a3cbdc54c8f747e4f8d79d995aad44221fd46f7e12beccf3dd8932c7c",
+    "published_sha256": "6094c02a3cbdc54c8f747e4f8d79d995aad44221fd46f7e12beccf3dd8932c7c"
+  },
+  "dependencies/tested_simpler_runtime/src/common/host_build_graph/submit_types.h": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/reference/minimal_replay_validated_v2/simpler_runtime/src/common/host_build_graph/submit_types.h",
+    "source_sha256": "92e8536fc6fd03d9bdffd0bbde105f97dd24b90e8768500eba6624c966d0cfa2",
+    "published_sha256": "92e8536fc6fd03d9bdffd0bbde105f97dd24b90e8768500eba6624c966d0cfa2"
+  },
+  "dependencies/tested_simpler_runtime/src/common/platform/onboard/host/c_api_shared.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/reference/minimal_replay_validated_v2/simpler_runtime/src/common/platform/onboard/host/c_api_shared.cpp",
+    "source_sha256": "fab618bf13af9290fcdf5f1393b21c3f13a82397ec5b5ddcd11efe91df268050",
+    "published_sha256": "fab618bf13af9290fcdf5f1393b21c3f13a82397ec5b5ddcd11efe91df268050"
+  },
+  "dependencies/tested_simpler_runtime/src/common/platform/onboard/host/device_runner_base.h": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/reference/minimal_replay_validated_v2/simpler_runtime/src/common/platform/onboard/host/device_runner_base.h",
+    "source_sha256": "777b0e582a11820dd7b42fdec95abc0cec9e92ee54c10b4bc487debf061a20d8",
+    "published_sha256": "777b0e582a11820dd7b42fdec95abc0cec9e92ee54c10b4bc487debf061a20d8"
+  },
+  "dependencies/tested_simpler_runtime/src/common/worker/chip_worker.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/reference/minimal_replay_validated_v2/simpler_runtime/src/common/worker/chip_worker.cpp",
+    "source_sha256": "068a1fa5e2bbb756d8f8d31c50eded8d9d0ca78513f0189466e31638dc42c7dd",
+    "published_sha256": "068a1fa5e2bbb756d8f8d31c50eded8d9d0ca78513f0189466e31638dc42c7dd"
+  },
+  "dependencies/tested_simpler_runtime/src/common/worker/chip_worker.h": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/reference/minimal_replay_validated_v2/simpler_runtime/src/common/worker/chip_worker.h",
+    "source_sha256": "a601059991a4e302f0b62620d64362192f7df6a83aab4967578430662e1d6aa3",
+    "published_sha256": "a601059991a4e302f0b62620d64362192f7df6a83aab4967578430662e1d6aa3"
+  },
+  "dependencies/tested_simpler_runtime/src/common/worker/native_run_context.h": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/reference/minimal_replay_validated_v2/simpler_runtime/src/common/worker/native_run_context.h",
+    "source_sha256": "86a1c6a4fc1c8053b2efe6e63859d57c1ae9ba808fc13d145a1cd3c69557d20b",
+    "published_sha256": "86a1c6a4fc1c8053b2efe6e63859d57c1ae9ba808fc13d145a1cd3c69557d20b"
+  },
+  "dependencies/tested_simpler_runtime/src/common/worker/runtime_c_api.h": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/reference/minimal_replay_validated_v2/simpler_runtime/src/common/worker/runtime_c_api.h",
+    "source_sha256": "551e8f07e54aa79f643e6633bca9e40c43d4dec2248931664d5a97ad8e3fbdec",
+    "published_sha256": "551e8f07e54aa79f643e6633bca9e40c43d4dec2248931664d5a97ad8e3fbdec"
+  },
+  "dependencies/tested_simpler_runtime/LICENSE": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/restore_16ms_20261030/evidence/fast_fused_compact_10k_06/source_snapshot/reference/minimal_replay_validated_v2/simpler_runtime/LICENSE",
+    "source_sha256": "1da223da275e2e92a5866501c22289a23abebf3df588ca3e9946287969c16bb7",
+    "published_sha256": "1da223da275e2e92a5866501c22289a23abebf3df588ca3e9946287969c16bb7"
+  },
+  "dependencies/pypto_untracked/tests/ut/codegen/test_static_block_mapping_codegen.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/hybrid_static_schedule_20261015/pypto/tests/ut/codegen/test_static_block_mapping_codegen.py",
+    "source_sha256": "4d759a4c47104222937ce6819db45a08dca1325a088f3e8e21c320e8af379704",
+    "published_sha256": "5e7695bd70780901dcc804aeb302af83224243b451a77846e24b0f2e89474e5b",
+    "normalized_ast_sha256": "46b6276469a971209a6b8e00394fb8c2d4e41f1479719c7920f9b44009deefde"
+  },
+  "dependencies/simpler_untracked/simpler_setup/device_program.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/simpler_setup/device_program.py",
+    "source_sha256": "5f577f8e88640757a41e4af90d71acfb9e92e44b4eecea82fd59793e063f6d7b",
+    "published_sha256": "db3e39c47418e8b0505da0bfa0cdcd5aac92f4db2461275f2b88ea3a9a07fb1d",
+    "normalized_ast_sha256": "9ce0487e11e84e59cdb04337557ed91744f663d08eef5dd5ba2ef6c2a5fc1587"
+  },
+  "dependencies/simpler_untracked/simpler_setup/static_program.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/simpler_setup/static_program.py",
+    "source_sha256": "493b92ce8a86fa47c431a6231b226d0ce40fd051d9eaa93a2cf5bfb7ee72523b",
+    "published_sha256": "e944204ea5dc38ac804305ee733787e4b4ff33df092dbfd7bb706e6ce692ab6d",
+    "normalized_ast_sha256": "eaa8b5852a604c9d2606abbfcc36c1f2ed08d5cbbd911943dda640d9e481677f"
+  },
+  "dependencies/simpler_untracked/src/a2a3/runtime/tensormap_and_ringbuffer/common/device_program_types.h": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/src/a2a3/runtime/tensormap_and_ringbuffer/common/device_program_types.h",
+    "source_sha256": "739ab5b7dbe495c0e3446373f90c040ebf5be95ee0dab94a02c3f36611783a5b",
+    "published_sha256": "739ab5b7dbe495c0e3446373f90c040ebf5be95ee0dab94a02c3f36611783a5b"
+  },
+  "dependencies/simpler_untracked/src/a2a3/runtime/tensormap_and_ringbuffer/kernels/device_program/device_program_aic.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/src/a2a3/runtime/tensormap_and_ringbuffer/kernels/device_program/device_program_aic.cpp",
+    "source_sha256": "02d850a872d92be740a937ceac08e963af3e688561849900a85efab606bbed5e",
+    "published_sha256": "02d850a872d92be740a937ceac08e963af3e688561849900a85efab606bbed5e"
+  },
+  "dependencies/simpler_untracked/src/a2a3/runtime/tensormap_and_ringbuffer/kernels/device_program/device_program_aiv.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/src/a2a3/runtime/tensormap_and_ringbuffer/kernels/device_program/device_program_aiv.cpp",
+    "source_sha256": "c0d23b57336c3f9e973b56fa2e34cd6ae302ab1f6e237725b2f5588858b0e68d",
+    "published_sha256": "c0d23b57336c3f9e973b56fa2e34cd6ae302ab1f6e237725b2f5588858b0e68d"
+  },
+  "dependencies/simpler_untracked/src/a2a3/runtime/tensormap_and_ringbuffer/kernels/device_program/device_program_body.h": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/src/a2a3/runtime/tensormap_and_ringbuffer/kernels/device_program/device_program_body.h",
+    "source_sha256": "171224d9bd79a9070477c95d3424e95db5e6882c32f0b3796f2a49a50ddc61cc",
+    "published_sha256": "171224d9bd79a9070477c95d3424e95db5e6882c32f0b3796f2a49a50ddc61cc"
+  },
+  "dependencies/simpler_untracked/tests/st/a2a3/tensormap_and_ringbuffer/device_attention_model/kernels/program.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/tests/st/a2a3/tensormap_and_ringbuffer/device_attention_model/kernels/program.cpp",
+    "source_sha256": "9b3f7fe2fc642ab993b9190fe79308f6de52d7c88c68bafe98e7991eab20d39d",
+    "published_sha256": "9b3f7fe2fc642ab993b9190fe79308f6de52d7c88c68bafe98e7991eab20d39d"
+  },
+  "dependencies/simpler_untracked/tests/st/a2a3/tensormap_and_ringbuffer/device_attention_model/test_device_attention_model.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/tests/st/a2a3/tensormap_and_ringbuffer/device_attention_model/test_device_attention_model.py",
+    "source_sha256": "fea6b21b938021053196fd05e0c6e0c946bece76e544df7a2dfcfd578409c45f",
+    "published_sha256": "4d535717080aacd7e4e34ab0b6e11a13361fddb712c510bcf451c94d575fff6f",
+    "normalized_ast_sha256": "e12ae094226173b9b48df7f3b66c1a351ac724f03996eb2e530ec4993a9f80bc"
+  },
+  "dependencies/simpler_untracked/tests/st/a2a3/tensormap_and_ringbuffer/device_program/kernels/orchestration/program.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/tests/st/a2a3/tensormap_and_ringbuffer/device_program/kernels/orchestration/program.cpp",
+    "source_sha256": "5e42a7b95d5dda148d8fedf3350cd99a4797c5ecfcbe6c1403ce0c6bf767f07a",
+    "published_sha256": "5e42a7b95d5dda148d8fedf3350cd99a4797c5ecfcbe6c1403ce0c6bf767f07a"
+  },
+  "dependencies/simpler_untracked/tests/st/a2a3/tensormap_and_ringbuffer/device_program/test_device_program.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/tests/st/a2a3/tensormap_and_ringbuffer/device_program/test_device_program.py",
+    "source_sha256": "92110aece798c4b29224d513bb3926ee7ab989c02de31571fd0fd338d8347217",
+    "published_sha256": "2096953fe5ee0558dff4690dab76b51213196f24fbb0230397a0ee783fd931a2",
+    "normalized_ast_sha256": "6501467de1ea0eb1d8f86ee7cba04ddf49e65e8a28762964e0201363eabee104"
+  },
+  "dependencies/simpler_untracked/tests/st/a2a3/tensormap_and_ringbuffer/rope_append/kernels/aiv/append.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/tests/st/a2a3/tensormap_and_ringbuffer/rope_append/kernels/aiv/append.cpp",
+    "source_sha256": "4ab46865df60fbd8374b96270d703dc52cc37b6d71d2d1e58de64378dd2abbfb",
+    "published_sha256": "4ab46865df60fbd8374b96270d703dc52cc37b6d71d2d1e58de64378dd2abbfb"
+  },
+  "dependencies/simpler_untracked/tests/st/a2a3/tensormap_and_ringbuffer/rope_append/kernels/aiv/fused.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/tests/st/a2a3/tensormap_and_ringbuffer/rope_append/kernels/aiv/fused.cpp",
+    "source_sha256": "76764069d13296315357765c587b4aba80ad6c5f72db3cb2b150d52e9c00311c",
+    "published_sha256": "76764069d13296315357765c587b4aba80ad6c5f72db3cb2b150d52e9c00311c"
+  },
+  "dependencies/simpler_untracked/tests/st/a2a3/tensormap_and_ringbuffer/rope_append/kernels/aiv/norm.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/tests/st/a2a3/tensormap_and_ringbuffer/rope_append/kernels/aiv/norm.cpp",
+    "source_sha256": "7dd522e53a210f58e1784385d7a97b87a8018e2b9ae8aeae03e8900aff67b1b5",
+    "published_sha256": "7dd522e53a210f58e1784385d7a97b87a8018e2b9ae8aeae03e8900aff67b1b5"
+  },
+  "dependencies/simpler_untracked/tests/st/a2a3/tensormap_and_ringbuffer/rope_append/kernels/aiv/static.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/tests/st/a2a3/tensormap_and_ringbuffer/rope_append/kernels/aiv/static.cpp",
+    "source_sha256": "78fdfe22c1592b44038bfc7e52d7caee54fb9a81273099bbe30f00b922d166b2",
+    "published_sha256": "78fdfe22c1592b44038bfc7e52d7caee54fb9a81273099bbe30f00b922d166b2"
+  },
+  "dependencies/simpler_untracked/tests/st/a2a3/tensormap_and_ringbuffer/rope_append/kernels/orchestration/program.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/tests/st/a2a3/tensormap_and_ringbuffer/rope_append/kernels/orchestration/program.cpp",
+    "source_sha256": "b9df6d24956c41fec41e0afa840c519cc09488317ffc7391acbb97b8acec892f",
+    "published_sha256": "b9df6d24956c41fec41e0afa840c519cc09488317ffc7391acbb97b8acec892f"
+  },
+  "dependencies/simpler_untracked/tests/st/a2a3/tensormap_and_ringbuffer/rope_append/test_rope_append.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/tests/st/a2a3/tensormap_and_ringbuffer/rope_append/test_rope_append.py",
+    "source_sha256": "1fdd28681a7c79b0b3dad510a2b48adc816ecab46c326b20f77d5bcf7373cac8",
+    "published_sha256": "9870587c24521fce408bcb73008eddbeb4854497b92fa33d9e9392d903065af0",
+    "normalized_ast_sha256": "06a6e55a9f032a306bb17b36e19570300b46491142ad292a0a384b4914c36e27"
+  },
+  "dependencies/simpler_untracked/tests/st/a2a3/tensormap_and_ringbuffer/static_fork_join/copy.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/tests/st/a2a3/tensormap_and_ringbuffer/static_fork_join/copy.cpp",
+    "source_sha256": "7e4e3325c75ee1d350ee4c0a4041c5fff5a5fdaa8a10978ede8b14e6a4986d45",
+    "published_sha256": "7e4e3325c75ee1d350ee4c0a4041c5fff5a5fdaa8a10978ede8b14e6a4986d45"
+  },
+  "dependencies/simpler_untracked/tests/st/a2a3/tensormap_and_ringbuffer/static_fork_join/kernels/aic.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/tests/st/a2a3/tensormap_and_ringbuffer/static_fork_join/kernels/aic.cpp",
+    "source_sha256": "84ef25d0445ecb52edd651a5f1df894ba2df6e7b7aa3363bf0a410c30488eb99",
+    "published_sha256": "84ef25d0445ecb52edd651a5f1df894ba2df6e7b7aa3363bf0a410c30488eb99"
+  },
+  "dependencies/simpler_untracked/tests/st/a2a3/tensormap_and_ringbuffer/static_fork_join/kernels/aiv0.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/tests/st/a2a3/tensormap_and_ringbuffer/static_fork_join/kernels/aiv0.cpp",
+    "source_sha256": "73ef254f3d301f2e8f740cb0c752cd3d7b5b876394786f3a24fd795d4babbec8",
+    "published_sha256": "73ef254f3d301f2e8f740cb0c752cd3d7b5b876394786f3a24fd795d4babbec8"
+  },
+  "dependencies/simpler_untracked/tests/st/a2a3/tensormap_and_ringbuffer/static_fork_join/kernels/aiv1.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/tests/st/a2a3/tensormap_and_ringbuffer/static_fork_join/kernels/aiv1.cpp",
+    "source_sha256": "de400e615d40d6b2720920ede2a86024b99dde96a003cb0f18ce45a5238479d6",
+    "published_sha256": "de400e615d40d6b2720920ede2a86024b99dde96a003cb0f18ce45a5238479d6"
+  },
+  "dependencies/simpler_untracked/tests/st/a2a3/tensormap_and_ringbuffer/static_fork_join/kernels/program.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/tests/st/a2a3/tensormap_and_ringbuffer/static_fork_join/kernels/program.cpp",
+    "source_sha256": "b5a22d9df48d2f4cb26d3961f31667e958c55e4b405bd904bc2fdac1b77d8d1f",
+    "published_sha256": "b5a22d9df48d2f4cb26d3961f31667e958c55e4b405bd904bc2fdac1b77d8d1f"
+  },
+  "dependencies/simpler_untracked/tests/st/a2a3/tensormap_and_ringbuffer/static_fork_join/test_static_fork_join.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/tests/st/a2a3/tensormap_and_ringbuffer/static_fork_join/test_static_fork_join.py",
+    "source_sha256": "59d1e194dfbff82f446030dd6786fefee94a942e3e87bdbb105f62fdea9ae957",
+    "published_sha256": "352ec5157340efe2ec7337691d9a86004b597b9fcfe52228efa355f3b7edf6f8",
+    "normalized_ast_sha256": "99f0ca3ee339901c4df41cba1fadd4498b9537e11ce288cd7e513bcefde21891"
+  },
+  "dependencies/simpler_untracked/tests/st/a2a3/tensormap_and_ringbuffer/static_fork_join_local/copy.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/tests/st/a2a3/tensormap_and_ringbuffer/static_fork_join_local/copy.cpp",
+    "source_sha256": "347b5ec821377f3243084c84929f94462c5e7464aa2ec2afd033638dd68f291f",
+    "published_sha256": "347b5ec821377f3243084c84929f94462c5e7464aa2ec2afd033638dd68f291f"
+  },
+  "dependencies/simpler_untracked/tests/st/a2a3/tensormap_and_ringbuffer/static_fork_join_local/kernels/aic.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/tests/st/a2a3/tensormap_and_ringbuffer/static_fork_join_local/kernels/aic.cpp",
+    "source_sha256": "9487cc5a4fb4e9583f9296e3fcf8373141d61c0e2aa7041f81024e6a24d68333",
+    "published_sha256": "9487cc5a4fb4e9583f9296e3fcf8373141d61c0e2aa7041f81024e6a24d68333"
+  },
+  "dependencies/simpler_untracked/tests/st/a2a3/tensormap_and_ringbuffer/static_fork_join_local/kernels/aiv0.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/tests/st/a2a3/tensormap_and_ringbuffer/static_fork_join_local/kernels/aiv0.cpp",
+    "source_sha256": "c4db14280c15577cac539d8680d0596e279b55fa5dde419924f4fade623a2d0c",
+    "published_sha256": "c4db14280c15577cac539d8680d0596e279b55fa5dde419924f4fade623a2d0c"
+  },
+  "dependencies/simpler_untracked/tests/st/a2a3/tensormap_and_ringbuffer/static_fork_join_local/kernels/aiv1.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/tests/st/a2a3/tensormap_and_ringbuffer/static_fork_join_local/kernels/aiv1.cpp",
+    "source_sha256": "41c1ff27588357e1d31c8d8bf8be5fb85aff67ecdacb83461111cceb5fa3023f",
+    "published_sha256": "41c1ff27588357e1d31c8d8bf8be5fb85aff67ecdacb83461111cceb5fa3023f"
+  },
+  "dependencies/simpler_untracked/tests/st/a2a3/tensormap_and_ringbuffer/static_fork_join_local/kernels/program.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/tests/st/a2a3/tensormap_and_ringbuffer/static_fork_join_local/kernels/program.cpp",
+    "source_sha256": "b5a22d9df48d2f4cb26d3961f31667e958c55e4b405bd904bc2fdac1b77d8d1f",
+    "published_sha256": "b5a22d9df48d2f4cb26d3961f31667e958c55e4b405bd904bc2fdac1b77d8d1f"
+  },
+  "dependencies/simpler_untracked/tests/st/a2a3/tensormap_and_ringbuffer/static_fork_join_local/test_static_fork_join_local.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/tests/st/a2a3/tensormap_and_ringbuffer/static_fork_join_local/test_static_fork_join_local.py",
+    "source_sha256": "090a677c61686e6b5572862e6cb696e357ebbc772debd3a4d31226014f02f24a",
+    "published_sha256": "b83f5e13f9e59b82e9067241044641a4d03b485e128514821b3185aad7e1a1e6",
+    "normalized_ast_sha256": "296b3d1672bab32acbcbd97ff7275f8a6b7d9976ff1859eec1ba9fec598ffbe8"
+  },
+  "dependencies/simpler_untracked/tests/st/a2a3/tensormap_and_ringbuffer/static_mix_progress/kernels/aic.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/tests/st/a2a3/tensormap_and_ringbuffer/static_mix_progress/kernels/aic.cpp",
+    "source_sha256": "39ce7bb4a8db7338fe043d569c24675fa945c657ad9d9c9863c8f926e9e92f3b",
+    "published_sha256": "39ce7bb4a8db7338fe043d569c24675fa945c657ad9d9c9863c8f926e9e92f3b"
+  },
+  "dependencies/simpler_untracked/tests/st/a2a3/tensormap_and_ringbuffer/static_mix_progress/kernels/aiv0.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/tests/st/a2a3/tensormap_and_ringbuffer/static_mix_progress/kernels/aiv0.cpp",
+    "source_sha256": "407a8419ba7f11ac581b9d5be083cb2eb7748919af5fb32abdb01fea56769bcd",
+    "published_sha256": "407a8419ba7f11ac581b9d5be083cb2eb7748919af5fb32abdb01fea56769bcd"
+  },
+  "dependencies/simpler_untracked/tests/st/a2a3/tensormap_and_ringbuffer/static_mix_progress/kernels/aiv1.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/tests/st/a2a3/tensormap_and_ringbuffer/static_mix_progress/kernels/aiv1.cpp",
+    "source_sha256": "b3f9ff1a2ecfadb2015ba42d8d173e24dce0498f4d8f1295c287486ecffc3420",
+    "published_sha256": "b3f9ff1a2ecfadb2015ba42d8d173e24dce0498f4d8f1295c287486ecffc3420"
+  },
+  "dependencies/simpler_untracked/tests/st/a2a3/tensormap_and_ringbuffer/static_mix_progress/kernels/blocker.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/tests/st/a2a3/tensormap_and_ringbuffer/static_mix_progress/kernels/blocker.cpp",
+    "source_sha256": "5a4601d38190f64e994864968a917f8d4ff0973caae97660ee4af7fc16a2f824",
+    "published_sha256": "5a4601d38190f64e994864968a917f8d4ff0973caae97660ee4af7fc16a2f824"
+  },
+  "dependencies/simpler_untracked/tests/st/a2a3/tensormap_and_ringbuffer/static_mix_progress/kernels/marker.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/tests/st/a2a3/tensormap_and_ringbuffer/static_mix_progress/kernels/marker.cpp",
+    "source_sha256": "48901168dbed53ac6886b9d1706d9fd2e770751720c0c96693ca434b9dfaf268",
+    "published_sha256": "48901168dbed53ac6886b9d1706d9fd2e770751720c0c96693ca434b9dfaf268"
+  },
+  "dependencies/simpler_untracked/tests/st/a2a3/tensormap_and_ringbuffer/static_mix_progress/kernels/program.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/tests/st/a2a3/tensormap_and_ringbuffer/static_mix_progress/kernels/program.cpp",
+    "source_sha256": "81579c16442d3ecd2100b9890a1accda4925f3e27e478bba976b74c2608bd5dd",
+    "published_sha256": "81579c16442d3ecd2100b9890a1accda4925f3e27e478bba976b74c2608bd5dd"
+  },
+  "dependencies/simpler_untracked/tests/st/a2a3/tensormap_and_ringbuffer/static_mix_progress/test_static_mix_progress.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/tests/st/a2a3/tensormap_and_ringbuffer/static_mix_progress/test_static_mix_progress.py",
+    "source_sha256": "1328d3647a620d4d205ee58c605256882a69041bc7605fed716c9c01b1f95b0d",
+    "published_sha256": "0be7c9a39dc699b462917d6b5d8452166156d2ece37591789107185f2178fcbc",
+    "normalized_ast_sha256": "a1991aa7621259ea3db954416700abb2707e33b08264a33d838d5ef36c7fada2"
+  },
+  "dependencies/simpler_untracked/tests/st/a2a3/tensormap_and_ringbuffer/static_model_mlp/kernels/program.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/tests/st/a2a3/tensormap_and_ringbuffer/static_model_mlp/kernels/program.cpp",
+    "source_sha256": "47dbbb63c3a981c77e3a655859541ac27871a52a495c6033753a7b91b6366926",
+    "published_sha256": "47dbbb63c3a981c77e3a655859541ac27871a52a495c6033753a7b91b6366926"
+  },
+  "dependencies/simpler_untracked/tests/st/a2a3/tensormap_and_ringbuffer/static_model_mlp/kernels/region_aic.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/tests/st/a2a3/tensormap_and_ringbuffer/static_model_mlp/kernels/region_aic.cpp",
+    "source_sha256": "6393f50817e0194aa0302eb8776c08bb1fb69ab2ae8691a7d90a30fe8ca4b50c",
+    "published_sha256": "6393f50817e0194aa0302eb8776c08bb1fb69ab2ae8691a7d90a30fe8ca4b50c"
+  },
+  "dependencies/simpler_untracked/tests/st/a2a3/tensormap_and_ringbuffer/static_model_mlp/kernels/region_aiv.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/tests/st/a2a3/tensormap_and_ringbuffer/static_model_mlp/kernels/region_aiv.cpp",
+    "source_sha256": "a9c7a227ca702e54f4147e6d9bda7455ac428306ed7f238b5320486cbec82d70",
+    "published_sha256": "a9c7a227ca702e54f4147e6d9bda7455ac428306ed7f238b5320486cbec82d70"
+  },
+  "dependencies/simpler_untracked/tests/st/a2a3/tensormap_and_ringbuffer/static_model_mlp/test_static_model_mlp.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/tests/st/a2a3/tensormap_and_ringbuffer/static_model_mlp/test_static_model_mlp.py",
+    "source_sha256": "40ec5708f426a534b62e8ffef1fe6e7a0d83202795d7a899cf3999aabad19029",
+    "published_sha256": "7281cefa0a3ae59a7f4ada76fa3b4ae2e0480dd1dd1ee7e38a8fa360c8394e70",
+    "normalized_ast_sha256": "bf235b0c83af234b782ca4a8e4e2be3d9c36993e5cc83ee7916ee16a9f2fdbf5"
+  },
+  "dependencies/simpler_untracked/tests/st/a2a3/tensormap_and_ringbuffer/static_program/kernels/aic/project.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/tests/st/a2a3/tensormap_and_ringbuffer/static_program/kernels/aic/project.cpp",
+    "source_sha256": "4d071b9fa000d2ba83990319d0bead3cbf2e8e8167f614a0d40c5e56ead38b08",
+    "published_sha256": "4d071b9fa000d2ba83990319d0bead3cbf2e8e8167f614a0d40c5e56ead38b08"
+  },
+  "dependencies/simpler_untracked/tests/st/a2a3/tensormap_and_ringbuffer/static_program/kernels/aic/region.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/tests/st/a2a3/tensormap_and_ringbuffer/static_program/kernels/aic/region.cpp",
+    "source_sha256": "a20433851e402d92479c070321cf3a175fcdc266b28ed8e1750519be08f7cabd",
+    "published_sha256": "a20433851e402d92479c070321cf3a175fcdc266b28ed8e1750519be08f7cabd"
+  },
+  "dependencies/simpler_untracked/tests/st/a2a3/tensormap_and_ringbuffer/static_program/kernels/aic/sequence.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/tests/st/a2a3/tensormap_and_ringbuffer/static_program/kernels/aic/sequence.cpp",
+    "source_sha256": "6894d1028693ca90563c7446ff9c08879b5eebfffb8d279774252946f3938bdb",
+    "published_sha256": "6894d1028693ca90563c7446ff9c08879b5eebfffb8d279774252946f3938bdb"
+  },
+  "dependencies/simpler_untracked/tests/st/a2a3/tensormap_and_ringbuffer/static_program/kernels/orchestration/program.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/tests/st/a2a3/tensormap_and_ringbuffer/static_program/kernels/orchestration/program.cpp",
+    "source_sha256": "f4080b074072e15feda85bbad72dad57c9bbda99953f6757bf7efbd8996dac2f",
+    "published_sha256": "f4080b074072e15feda85bbad72dad57c9bbda99953f6757bf7efbd8996dac2f"
+  },
+  "dependencies/simpler_untracked/tests/st/a2a3/tensormap_and_ringbuffer/static_program/test_static_program.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/tests/st/a2a3/tensormap_and_ringbuffer/static_program/test_static_program.py",
+    "source_sha256": "3a98be810d7ef48a94ac11313c01b2721fcc2372264168d78bf6d36eb8c3c97f",
+    "published_sha256": "c6d3a2a65c236f14febde82b0dbc580fbc67703ba71c024dcb7ac3d2abbddf4e",
+    "normalized_ast_sha256": "a8110bede373bc5b2654cf033d8be0dbe553839da65bdaccff04c52f70f81ca0"
+  },
+  "dependencies/simpler_untracked/tests/ut/py/test_device_program.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/tests/ut/py/test_device_program.py",
+    "source_sha256": "0b7a98359dcc2eda5dbc2a2f8db9d9c8b7e634353b8f6c01ed912da7ef31f1f0",
+    "published_sha256": "d62ee21c2e7c3676fbf84d8c5c139a7e276a6f3e313efbd85b894acdfa45cb0e",
+    "normalized_ast_sha256": "958da5e23c80b53e797a58e6c0d38c69a5171b1ac24b50e18fa7b8c1578a4754"
+  },
+  "dependencies/simpler_untracked/tests/ut/py/test_static_program.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/tests/ut/py/test_static_program.py",
+    "source_sha256": "45193ba34e7de7a3fd6153b11b85c5bfa5236b09b3a2681e3b35013a3cdf07ea",
+    "published_sha256": "ed8a0ccdea35f7b1e9d0e0bb3802d116771e180ceb53b450664408b059761735",
+    "normalized_ast_sha256": "5a1deb8b9b5c2978430806e4b309e5e8b387ee6e138c40568f13547bba04ff8b"
+  },
+  "dependencies/simpler_untracked/tests/ut/py/test_worker/test_mailbox_wakeup.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/tests/ut/py/test_worker/test_mailbox_wakeup.py",
+    "source_sha256": "a87d0fd625517765387e50ff9c1c35b21c34f66fbdb9057aee598c53b137dbbe",
+    "published_sha256": "084bc482ff5bc2544edd30899b7e96db476def4d9b0b6d2b0df9a084970ffd7f",
+    "normalized_ast_sha256": "75ce3efdb97bb412b9661ec7a0335d8e99794435c92ea9ab3b7a181a2cb57e88"
+  },
+  "dependencies/vllm_ascend_untracked/examples/pypto_qwen38_benchmark.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-pto/vllm-ascend/examples/pypto_qwen38_benchmark.py",
+    "source_sha256": "f693dbda937c25c4e4e56cdff78d2f4d4001672fdc9e014f1d1e30aa2eb9fa26",
+    "published_sha256": "95f816ffa8deb900c648cdfd07fb94e0853e6a787fbf46fafef602a643e210e6",
+    "normalized_ast_sha256": "2deeb04653f47db4d6187bcd7fe9bf73b972f89af0ccf2cb1eb19882389d6e38"
+  },
+  "dependencies/vllm_ascend_untracked/tests/e2e/pypto/conftest.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-pto/vllm-ascend/tests/e2e/pypto/conftest.py",
+    "source_sha256": "576cb6b16fb7c6dcdfaf663f67e5187bdb0bf48cbff2789b9657f1548e0d945b",
+    "published_sha256": "8a311284f8ecaebe698c10bd2e7bffe346bc528ba63940e9a192219ca197320e",
+    "normalized_ast_sha256": "40e82c744442dd40c438b5c669e4d8b6f23f36d5b416853e42a1cd672321298b"
+  },
+  "dependencies/vllm_ascend_untracked/tests/e2e/pypto/test_qwen38_native_cache.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-pto/vllm-ascend/tests/e2e/pypto/test_qwen38_native_cache.py",
+    "source_sha256": "03cdb71d037ea31f20173cf4f0e640c90923ab173e1ae9566916b3f53d2d5133",
+    "published_sha256": "4ef8210ea02091862127714abc33854fec2908fe2949e3e63d89abad862d93aa",
+    "normalized_ast_sha256": "56317ee1dcb4f74868a6aa863b563553567e3cff28a434666cfee4a18541e8e5"
+  },
+  "dependencies/vllm_ascend_untracked/tests/ut/pypto/test_qwen3_8_cache.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-pto/vllm-ascend/tests/ut/pypto/test_qwen3_8_cache.py",
+    "source_sha256": "4376b4d37fd2e0e8bc7749169cdfff9cef4f534ade193226510e94b5b1a7a23d",
+    "published_sha256": "fb547804c7c27a6268f587bed4227658ca1d09aa76c55cbe9d2376d9ad8ab444",
+    "normalized_ast_sha256": "18a9a7b77cb50c59d2c8885e51c43ac46d1adaedda678e3ce4a6b2ec2aefcde3"
+  },
+  "dependencies/vllm_ascend_untracked/tests/ut/pypto/test_qwen3_8_gdn_metadata.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-pto/vllm-ascend/tests/ut/pypto/test_qwen3_8_gdn_metadata.py",
+    "source_sha256": "b105f943593b0919be41c4ee93df16f14a9774567e967e88d0e1dd898a95c555",
+    "published_sha256": "4fbf2539b5b4f3b25fe305ceb7b226cafaa6afa309ee7537a5b7bb29608b4931",
+    "normalized_ast_sha256": "407b0f89507333bea2cd4abc254ee551e428702ed30bc35a71f81face0ae557e"
+  },
+  "dependencies/vllm_ascend_untracked/tests/ut/pypto/test_qwen3_8_mlp.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-pto/vllm-ascend/tests/ut/pypto/test_qwen3_8_mlp.py",
+    "source_sha256": "2a0751fc2132ff8458c31a24944781066f1a00d6a8514526e817a3dffc58cdc2",
+    "published_sha256": "c327b8d0c7c73b6553b0ebe584099395877c9b83ff33b62c4510174ed9784ebc",
+    "normalized_ast_sha256": "4d96cd875d27202f8d1c3cf17c0881631a6c6eb08e655d79f36ff703aaf52fd5"
+  },
+  "dependencies/vllm_ascend_untracked/tests/ut/pypto/test_qwen3_8_mpmd.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-pto/vllm-ascend/tests/ut/pypto/test_qwen3_8_mpmd.py",
+    "source_sha256": "521bf57afa2a4ddbb0d455176b3daf91ec812969e25fba47affc8840d9f97edd",
+    "published_sha256": "a6c37a6f04c589d85c8dce0b39d39bf7d3517f98356376f29e943ea4709f7ad7",
+    "normalized_ast_sha256": "0b3d2606a1ebacafa920cefb6eb69ad75e4df554a82399f5f39cfe5e4991c7a3"
+  },
+  "dependencies/vllm_ascend_untracked/tests/ut/pypto/test_qwen3_8_mpmd_graph.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-pto/vllm-ascend/tests/ut/pypto/test_qwen3_8_mpmd_graph.py",
+    "source_sha256": "e72825f3e5141fb57eabf10c85a336e6830f6fd92ef71fe4398c390a3618af63",
+    "published_sha256": "2ea8d22c58d2304a2c5c4afd38b28d6b6234c74dc597acbcbce427d135e61e09",
+    "normalized_ast_sha256": "4acc95c7feb2962227902f905357c3b8bf14410d6b8727125e73bec8b87b34a1"
+  },
+  "dependencies/vllm_ascend_untracked/tests/ut/pypto/test_qwen3_8_weight_phases.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-pto/vllm-ascend/tests/ut/pypto/test_qwen3_8_weight_phases.py",
+    "source_sha256": "67cd1814b0c9d3d660dd21c872d291e1cce122524a9e60fdeec5c18692d3b7b7",
+    "published_sha256": "f81711f282b92fcc0c6068e2ef7ec7e288f098f0b7c78146789465562d3a2e24",
+    "normalized_ast_sha256": "41c430c71d5211e3202a67571c04dbf885daef25eef34b629fc21781b86c98b9"
+  },
+  "dependencies/vllm_ascend_untracked/vllm_ascend/patch/worker/patch_qwen3_8_pypto.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-pto/vllm-ascend/vllm_ascend/patch/worker/patch_qwen3_8_pypto.py",
+    "source_sha256": "87db7083ce81371c0623f88c292fafd637cbe0c4001a2649fbeb705b141b0b56",
+    "published_sha256": "663c0a1e0f50d6e8698faf92360a6ac9900314faae7045cc6295efe0a61a37ce",
+    "normalized_ast_sha256": "5e53575838f170469619691aa06a1ff8bfc6af1c2cf15b792f18b1d2ddd54d82"
+  },
+  "dependencies/vllm_ascend_untracked/vllm_ascend/pypto/qwen3_8_cache.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-pto/vllm-ascend/vllm_ascend/pypto/qwen3_8_cache.py",
+    "source_sha256": "581395652e83013fe9389fcb31b105545c9bf64742cde6c1aa37f1eb22b289b1",
+    "published_sha256": "3b93d77551ec1c06151d7b82b111425ccddaad5cb7e9ec9de44867667147c334",
+    "normalized_ast_sha256": "f587ae08733eb134f3e602bfbde3626b00d4b3a6c60289ee467b18d6e9a3732d"
+  },
+  "dependencies/vllm_ascend_untracked/vllm_ascend/pypto/qwen3_8_gdn.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-pto/vllm-ascend/vllm_ascend/pypto/qwen3_8_gdn.py",
+    "source_sha256": "afc6c890497703aa7c4bdc463bf27540f5c0939eb40780a1a2d04241131e5c10",
+    "published_sha256": "284041a0360a27c9ac3e87ead10da9619d2ae9ef790bc76f626d00bc16c15138",
+    "normalized_ast_sha256": "65381329f4937cb861b73680c4bf36747d5241ce5c90885430f0cf2254574b93"
+  },
+  "dependencies/vllm_ascend_untracked/vllm_ascend/pypto/qwen3_8_graph.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-pto/vllm-ascend/vllm_ascend/pypto/qwen3_8_graph.py",
+    "source_sha256": "32c82afa9c60629121f754a89f419081d6788f7a77cc53698081d622a435b3e2",
+    "published_sha256": "185b40d8a0762370a27b604d8f9cccaae749b3c2a657d90c289be0fcc54ca10e",
+    "normalized_ast_sha256": "9dba7620425b9bf4614e6b43fc1d3b3df8f0ca138b446f862c04baa56bab4381"
+  },
+  "dependencies/vllm_ascend_untracked/vllm_ascend/pypto/qwen3_8_mlp.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-pto/vllm-ascend/vllm_ascend/pypto/qwen3_8_mlp.py",
+    "source_sha256": "c3068e091f0d14a6267224a15c8b599f804386a09c9e91acdb8f1f50cd5f5fe3",
+    "published_sha256": "94462121aa1a584f2526c0edc0487a4cadbf0053ed3e7c906efaebf01a4ef571",
+    "normalized_ast_sha256": "dd05bd7e16cb36b389c9a313074cc42746918f3c60a8837bce4bb027e7e25156"
+  },
+  "dependencies/vllm_ascend_untracked/vllm_ascend/pypto/qwen3_8_model.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-pto/vllm-ascend/vllm_ascend/pypto/qwen3_8_model.py",
+    "source_sha256": "4a824442edfd8f0461ce78cb9fdaae28c92a6e920d94b1219d3cd0605a90c259",
+    "published_sha256": "d5c8c7d923dfb89ff31e84e4b4937d1e1536bdbe542e3f565f8340e4b7688dda",
+    "normalized_ast_sha256": "bb76cf440248c0fdfbbfccd8259b057df135339c248aea79033b73037e90c56b"
+  },
+  "dependencies/vllm_ascend_untracked/vllm_ascend/pypto/qwen3_8_mpmd.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-pto/vllm-ascend/vllm_ascend/pypto/qwen3_8_mpmd.py",
+    "source_sha256": "9b5504d11ad0bfb94025cfaa7fc526fc0703177a4b03aa03adae7fe50f16954f",
+    "published_sha256": "1673cb6969a93cd368884f3e59aa962b7f8053c500487677a37845fb2ddd06b3",
+    "normalized_ast_sha256": "71e033144622a5b7bd0d8296839013d3b80911dca6d12b757f1405a127d76fe4"
+  },
+  "dependencies/vllm_ascend_untracked/vllm_ascend/pypto/qwen3_8_mpmd_graph.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-pto/vllm-ascend/vllm_ascend/pypto/qwen3_8_mpmd_graph.py",
+    "source_sha256": "f7da42f5ec1b7e8bdd5b9e232ccfd48972cadf5010960601ea0f201d39ee69c3",
+    "published_sha256": "c2d72249d1f54e05def1b72f4836ce38b264fd6b91406cfd3f8fc6c6fa34808a",
+    "normalized_ast_sha256": "583e31328f79c8799612d5592c452ab8981015d49c5af6efea387b130dcfe57e"
+  },
+  "dependencies/vllm_ascend_untracked/vllm_ascend/pypto/qwen3_8_shared_weight_phases.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-pto/vllm-ascend/vllm_ascend/pypto/qwen3_8_shared_weight_phases.py",
+    "source_sha256": "7a6657e1f061933c214fb8d5ee3346c7d384b3ae43cadfec1037df0e9174ae0c",
+    "published_sha256": "5a362ca259631187e37cdf10632a9cbcfc59a44306f477f1c1c33e5ea9f27513",
+    "normalized_ast_sha256": "11af4a8508b725dfb05fef9303e7e9e078109c9384d6f294d6d50c1ae8b939e3"
+  },
+  "dependencies/vllm_ascend_untracked/vllm_ascend/pypto/qwen3_8_shared_weights.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-pto/vllm-ascend/vllm_ascend/pypto/qwen3_8_shared_weights.py",
+    "source_sha256": "77fad0e41f270ce0f6633ef17da79bb9333c4edf87a8281c5e520fd7cad47e23",
+    "published_sha256": "9424dc123efa6530e4e3b95f094025180bf4aaad95fd20faefcd503b0b5a59a4",
+    "normalized_ast_sha256": "8363429654e7d50032439548d2f3f60ab3382829dc556f6972f814893c8e880d"
+  },
+  "dependencies/vllm_ascend_untracked/vllm_ascend/pypto/qwen3_8_stats.py": {
+    "source": "/home/g00893677/pto-dev/qwen3_8_27b-pto/vllm-ascend/vllm_ascend/pypto/qwen3_8_stats.py",
+    "source_sha256": "18019227eb6a818d5c4632f5e7857244a22d563ae2a439f673c7270c5b668483",
+    "published_sha256": "270699066019b73912ab31f41d20edeffdad18101e8a3edc62e8e9417cbedfc4",
+    "normalized_ast_sha256": "3348f81dd3324e3e43dd7288cd7bcc8650cbb779004e9b4b1f7e29f6e9d5652f"
+  },
+  "registered_sources/attention_dsl_20261029/selected_inputs/target_dsl_explicit_v1/next_levels/rank0/gdn_wide_overrides/project_z_kernel.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank0/gdn_wide_overrides/project_z_kernel.cpp",
+    "source_sha256": "9cb943416e47e6ea4ab142586e6da2bc4b60672dbba9ce92ab5deb3f910485d2",
+    "published_sha256": "9cb943416e47e6ea4ab142586e6da2bc4b60672dbba9ce92ab5deb3f910485d2"
+  },
+  "registered_sources/attention_dsl_20261029/selected_inputs/target_dsl_explicit_v1/next_levels/rank0/gdn_wide_overrides/project_gdn_kernel.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank0/gdn_wide_overrides/project_gdn_kernel.cpp",
+    "source_sha256": "f6137c35d3852f0fba3f38f99a4c787eb7bc7ad383daf433912616e671d0553e",
+    "published_sha256": "f6137c35d3852f0fba3f38f99a4c787eb7bc7ad383daf433912616e671d0553e"
+  },
+  "registered_sources/attention_dsl_20261029/selected_inputs/target_dsl_explicit_v1/next_levels/rank0/ragged_overrides/causal_conv_qk_norm.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank0/ragged_overrides/causal_conv_qk_norm.cpp",
+    "source_sha256": "7acd23d23f98d9d2effd927d43b1983430ceec2ffe3aa41fdaaabfd536fdb7f9",
+    "published_sha256": "7acd23d23f98d9d2effd927d43b1983430ceec2ffe3aa41fdaaabfd536fdb7f9"
+  },
+  "registered_sources/attention_dsl_20261029/selected_inputs/target_dsl_explicit_v1/next_levels/rank0/outer_update_override/recurrent_kernel.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank0/outer_update_override/recurrent_kernel.cpp",
+    "source_sha256": "93c6cd847abb9551878121392056622bdbe87aafc4fb93150e815b4278f10032",
+    "published_sha256": "93c6cd847abb9551878121392056622bdbe87aafc4fb93150e815b4278f10032"
+  },
+  "registered_sources/attention_dsl_20261029/selected_inputs/target_dsl_explicit_v1/next_levels/rank0/outer_update_override/GdnOuterFp32.hpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank0/outer_update_override/GdnOuterFp32.hpp",
+    "source_sha256": "aeeb1abaf35c7f3d72b9ca4597aa648c26fb4fe929456eb6f865a916f63964f1",
+    "published_sha256": "aeeb1abaf35c7f3d72b9ca4597aa648c26fb4fe929456eb6f865a916f63964f1"
+  },
+  "registered_sources/attention_dsl_20261029/selected_inputs/target_dsl_explicit_v1/next_levels/rank0/peer_prefetch_override/reduce_add_norm_quant_kernel.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank0/peer_prefetch_override/reduce_add_norm_quant_kernel.cpp",
+    "source_sha256": "cb478994fa0255970fc45f121476f97a2dee1aa0d38b20c9b76901964f904e1d",
+    "published_sha256": "cb478994fa0255970fc45f121476f97a2dee1aa0d38b20c9b76901964f904e1d"
+  },
+  "registered_sources/attention_dsl_20261029/selected_inputs/target_dsl_explicit_v1/next_levels/rank0/peer_prefetch_override/reduce_add_norm_kernel.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank0/peer_prefetch_override/reduce_add_norm_kernel.cpp",
+    "source_sha256": "5b10569181cf03c2ee9d283e368c6ce876f28f87c060ec4353336e6a1cc34be8",
+    "published_sha256": "5b10569181cf03c2ee9d283e368c6ce876f28f87c060ec4353336e6a1cc34be8"
+  },
+  "registered_sources/attention_dsl_20261029/selected_inputs/target_dsl_explicit_v1/next_levels/rank0/head_fusion_overrides/conv_valid.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank0/head_fusion_overrides/conv_valid.cpp",
+    "source_sha256": "7acd23d23f98d9d2effd927d43b1983430ceec2ffe3aa41fdaaabfd536fdb7f9",
+    "published_sha256": "7acd23d23f98d9d2effd927d43b1983430ceec2ffe3aa41fdaaabfd536fdb7f9"
+  },
+  "registered_sources/attention_dsl_20261029/selected_inputs/target_dsl_explicit_v1/next_levels/rank0/peer_prefetch_override/reduce_add_kernel.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank0/peer_prefetch_override/reduce_add_kernel.cpp",
+    "source_sha256": "5cd9e597dede91fec9667ce2bc767204099fd21e7c4258784ab77db7913569ad",
+    "published_sha256": "5cd9e597dede91fec9667ce2bc767204099fd21e7c4258784ab77db7913569ad"
+  },
+  "registered_sources/attention_native_fixture_20261029/selected_inputs/target_key_value/next_levels/rank0/native_backend/device_program_aic.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_native_fixture_20261029/build/target_key_value/next_levels/rank0/native_backend/device_program_aic.cpp",
+    "source_sha256": "96968d801bfc88d826204996540afe08666da64f7583dbe287af5c42a47f3479",
+    "published_sha256": "96968d801bfc88d826204996540afe08666da64f7583dbe287af5c42a47f3479"
+  },
+  "registered_sources/attention_native_fixture_20261029/selected_inputs/target_key_value/next_levels/rank0/native_backend/device_program_body.h": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_native_fixture_20261029/build/target_key_value/next_levels/rank0/native_backend/device_program_body.h",
+    "source_sha256": "0b014ecbc65590832e5cb408faa27774f4acdea05ac67d3817aec91efaf02043",
+    "published_sha256": "0b014ecbc65590832e5cb408faa27774f4acdea05ac67d3817aec91efaf02043"
+  },
+  "registered_sources/attention_native_fixture_20261029/selected_inputs/target_key_value/next_levels/rank0/native_backend/softmax_fastmask.hpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_native_fixture_20261029/build/target_key_value/next_levels/rank0/native_backend/softmax_fastmask.hpp",
+    "source_sha256": "48af224b849c1270902ea15ae98554c41bcd0a9bce141bf9295665025dfd190e",
+    "published_sha256": "48af224b849c1270902ea15ae98554c41bcd0a9bce141bf9295665025dfd190e"
+  },
+  "registered_sources/attention_native_fixture_20261029/selected_inputs/target_key_value/next_levels/rank0/native_backend/device_program_aiv.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_native_fixture_20261029/build/target_key_value/next_levels/rank0/native_backend/device_program_aiv.cpp",
+    "source_sha256": "22eb1ab349fe9a1197bdf0da0280f8a5b7a1835ba439d44e816b0b456c6ae835",
+    "published_sha256": "22eb1ab349fe9a1197bdf0da0280f8a5b7a1835ba439d44e816b0b456c6ae835"
+  },
+  "registered_sources/attention_dsl_20261029/selected_inputs/target_dsl_explicit_v1/next_levels/rank1/gdn_wide_overrides/project_z_kernel.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank1/gdn_wide_overrides/project_z_kernel.cpp",
+    "source_sha256": "9cb943416e47e6ea4ab142586e6da2bc4b60672dbba9ce92ab5deb3f910485d2",
+    "published_sha256": "9cb943416e47e6ea4ab142586e6da2bc4b60672dbba9ce92ab5deb3f910485d2"
+  },
+  "registered_sources/attention_dsl_20261029/selected_inputs/target_dsl_explicit_v1/next_levels/rank1/gdn_wide_overrides/project_gdn_kernel.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank1/gdn_wide_overrides/project_gdn_kernel.cpp",
+    "source_sha256": "f6137c35d3852f0fba3f38f99a4c787eb7bc7ad383daf433912616e671d0553e",
+    "published_sha256": "f6137c35d3852f0fba3f38f99a4c787eb7bc7ad383daf433912616e671d0553e"
+  },
+  "registered_sources/attention_dsl_20261029/selected_inputs/target_dsl_explicit_v1/next_levels/rank1/ragged_overrides/causal_conv_qk_norm.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank1/ragged_overrides/causal_conv_qk_norm.cpp",
+    "source_sha256": "7acd23d23f98d9d2effd927d43b1983430ceec2ffe3aa41fdaaabfd536fdb7f9",
+    "published_sha256": "7acd23d23f98d9d2effd927d43b1983430ceec2ffe3aa41fdaaabfd536fdb7f9"
+  },
+  "registered_sources/attention_dsl_20261029/selected_inputs/target_dsl_explicit_v1/next_levels/rank1/outer_update_override/recurrent_kernel.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank1/outer_update_override/recurrent_kernel.cpp",
+    "source_sha256": "93c6cd847abb9551878121392056622bdbe87aafc4fb93150e815b4278f10032",
+    "published_sha256": "93c6cd847abb9551878121392056622bdbe87aafc4fb93150e815b4278f10032"
+  },
+  "registered_sources/attention_dsl_20261029/selected_inputs/target_dsl_explicit_v1/next_levels/rank1/outer_update_override/GdnOuterFp32.hpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank1/outer_update_override/GdnOuterFp32.hpp",
+    "source_sha256": "aeeb1abaf35c7f3d72b9ca4597aa648c26fb4fe929456eb6f865a916f63964f1",
+    "published_sha256": "aeeb1abaf35c7f3d72b9ca4597aa648c26fb4fe929456eb6f865a916f63964f1"
+  },
+  "registered_sources/attention_dsl_20261029/selected_inputs/target_dsl_explicit_v1/next_levels/rank1/peer_prefetch_override/reduce_add_norm_quant_kernel.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank1/peer_prefetch_override/reduce_add_norm_quant_kernel.cpp",
+    "source_sha256": "cb478994fa0255970fc45f121476f97a2dee1aa0d38b20c9b76901964f904e1d",
+    "published_sha256": "cb478994fa0255970fc45f121476f97a2dee1aa0d38b20c9b76901964f904e1d"
+  },
+  "registered_sources/attention_dsl_20261029/selected_inputs/target_dsl_explicit_v1/next_levels/rank1/peer_prefetch_override/reduce_add_norm_kernel.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank1/peer_prefetch_override/reduce_add_norm_kernel.cpp",
+    "source_sha256": "5b10569181cf03c2ee9d283e368c6ce876f28f87c060ec4353336e6a1cc34be8",
+    "published_sha256": "5b10569181cf03c2ee9d283e368c6ce876f28f87c060ec4353336e6a1cc34be8"
+  },
+  "registered_sources/attention_dsl_20261029/selected_inputs/target_dsl_explicit_v1/next_levels/rank1/head_fusion_overrides/conv_valid.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank1/head_fusion_overrides/conv_valid.cpp",
+    "source_sha256": "7acd23d23f98d9d2effd927d43b1983430ceec2ffe3aa41fdaaabfd536fdb7f9",
+    "published_sha256": "7acd23d23f98d9d2effd927d43b1983430ceec2ffe3aa41fdaaabfd536fdb7f9"
+  },
+  "registered_sources/attention_dsl_20261029/selected_inputs/target_dsl_explicit_v1/next_levels/rank1/peer_prefetch_override/reduce_add_kernel.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank1/peer_prefetch_override/reduce_add_kernel.cpp",
+    "source_sha256": "5cd9e597dede91fec9667ce2bc767204099fd21e7c4258784ab77db7913569ad",
+    "published_sha256": "5cd9e597dede91fec9667ce2bc767204099fd21e7c4258784ab77db7913569ad"
+  },
+  "registered_sources/attention_native_fixture_20261029/selected_inputs/target_key_value/next_levels/rank1/native_backend/device_program_aic.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_native_fixture_20261029/build/target_key_value/next_levels/rank1/native_backend/device_program_aic.cpp",
+    "source_sha256": "96968d801bfc88d826204996540afe08666da64f7583dbe287af5c42a47f3479",
+    "published_sha256": "96968d801bfc88d826204996540afe08666da64f7583dbe287af5c42a47f3479"
+  },
+  "registered_sources/attention_native_fixture_20261029/selected_inputs/target_key_value/next_levels/rank1/native_backend/device_program_body.h": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_native_fixture_20261029/build/target_key_value/next_levels/rank1/native_backend/device_program_body.h",
+    "source_sha256": "0b014ecbc65590832e5cb408faa27774f4acdea05ac67d3817aec91efaf02043",
+    "published_sha256": "0b014ecbc65590832e5cb408faa27774f4acdea05ac67d3817aec91efaf02043"
+  },
+  "registered_sources/attention_native_fixture_20261029/selected_inputs/target_key_value/next_levels/rank1/native_backend/softmax_fastmask.hpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_native_fixture_20261029/build/target_key_value/next_levels/rank1/native_backend/softmax_fastmask.hpp",
+    "source_sha256": "48af224b849c1270902ea15ae98554c41bcd0a9bce141bf9295665025dfd190e",
+    "published_sha256": "48af224b849c1270902ea15ae98554c41bcd0a9bce141bf9295665025dfd190e"
+  },
+  "registered_sources/attention_native_fixture_20261029/selected_inputs/target_key_value/next_levels/rank1/native_backend/device_program_aiv.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_native_fixture_20261029/build/target_key_value/next_levels/rank1/native_backend/device_program_aiv.cpp",
+    "source_sha256": "22eb1ab349fe9a1197bdf0da0280f8a5b7a1835ba439d44e816b0b456c6ae835",
+    "published_sha256": "22eb1ab349fe9a1197bdf0da0280f8a5b7a1835ba439d44e816b0b456c6ae835"
+  },
+  "registered_sources/attention_dsl_20261029/selected_inputs/target_dsl_explicit_v1/next_levels/rank2/gdn_wide_overrides/project_z_kernel.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank2/gdn_wide_overrides/project_z_kernel.cpp",
+    "source_sha256": "9cb943416e47e6ea4ab142586e6da2bc4b60672dbba9ce92ab5deb3f910485d2",
+    "published_sha256": "9cb943416e47e6ea4ab142586e6da2bc4b60672dbba9ce92ab5deb3f910485d2"
+  },
+  "registered_sources/attention_dsl_20261029/selected_inputs/target_dsl_explicit_v1/next_levels/rank2/gdn_wide_overrides/project_gdn_kernel.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank2/gdn_wide_overrides/project_gdn_kernel.cpp",
+    "source_sha256": "f6137c35d3852f0fba3f38f99a4c787eb7bc7ad383daf433912616e671d0553e",
+    "published_sha256": "f6137c35d3852f0fba3f38f99a4c787eb7bc7ad383daf433912616e671d0553e"
+  },
+  "registered_sources/attention_dsl_20261029/selected_inputs/target_dsl_explicit_v1/next_levels/rank2/ragged_overrides/causal_conv_qk_norm.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank2/ragged_overrides/causal_conv_qk_norm.cpp",
+    "source_sha256": "7acd23d23f98d9d2effd927d43b1983430ceec2ffe3aa41fdaaabfd536fdb7f9",
+    "published_sha256": "7acd23d23f98d9d2effd927d43b1983430ceec2ffe3aa41fdaaabfd536fdb7f9"
+  },
+  "registered_sources/attention_dsl_20261029/selected_inputs/target_dsl_explicit_v1/next_levels/rank2/outer_update_override/recurrent_kernel.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank2/outer_update_override/recurrent_kernel.cpp",
+    "source_sha256": "93c6cd847abb9551878121392056622bdbe87aafc4fb93150e815b4278f10032",
+    "published_sha256": "93c6cd847abb9551878121392056622bdbe87aafc4fb93150e815b4278f10032"
+  },
+  "registered_sources/attention_dsl_20261029/selected_inputs/target_dsl_explicit_v1/next_levels/rank2/outer_update_override/GdnOuterFp32.hpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank2/outer_update_override/GdnOuterFp32.hpp",
+    "source_sha256": "aeeb1abaf35c7f3d72b9ca4597aa648c26fb4fe929456eb6f865a916f63964f1",
+    "published_sha256": "aeeb1abaf35c7f3d72b9ca4597aa648c26fb4fe929456eb6f865a916f63964f1"
+  },
+  "registered_sources/attention_dsl_20261029/selected_inputs/target_dsl_explicit_v1/next_levels/rank2/peer_prefetch_override/reduce_add_norm_quant_kernel.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank2/peer_prefetch_override/reduce_add_norm_quant_kernel.cpp",
+    "source_sha256": "cb478994fa0255970fc45f121476f97a2dee1aa0d38b20c9b76901964f904e1d",
+    "published_sha256": "cb478994fa0255970fc45f121476f97a2dee1aa0d38b20c9b76901964f904e1d"
+  },
+  "registered_sources/attention_dsl_20261029/selected_inputs/target_dsl_explicit_v1/next_levels/rank2/peer_prefetch_override/reduce_add_norm_kernel.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank2/peer_prefetch_override/reduce_add_norm_kernel.cpp",
+    "source_sha256": "5b10569181cf03c2ee9d283e368c6ce876f28f87c060ec4353336e6a1cc34be8",
+    "published_sha256": "5b10569181cf03c2ee9d283e368c6ce876f28f87c060ec4353336e6a1cc34be8"
+  },
+  "registered_sources/attention_dsl_20261029/selected_inputs/target_dsl_explicit_v1/next_levels/rank2/head_fusion_overrides/conv_valid.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank2/head_fusion_overrides/conv_valid.cpp",
+    "source_sha256": "7acd23d23f98d9d2effd927d43b1983430ceec2ffe3aa41fdaaabfd536fdb7f9",
+    "published_sha256": "7acd23d23f98d9d2effd927d43b1983430ceec2ffe3aa41fdaaabfd536fdb7f9"
+  },
+  "registered_sources/attention_dsl_20261029/selected_inputs/target_dsl_explicit_v1/next_levels/rank2/peer_prefetch_override/reduce_add_kernel.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank2/peer_prefetch_override/reduce_add_kernel.cpp",
+    "source_sha256": "5cd9e597dede91fec9667ce2bc767204099fd21e7c4258784ab77db7913569ad",
+    "published_sha256": "5cd9e597dede91fec9667ce2bc767204099fd21e7c4258784ab77db7913569ad"
+  },
+  "registered_sources/attention_native_fixture_20261029/selected_inputs/target_key_value/next_levels/rank2/native_backend/device_program_aic.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_native_fixture_20261029/build/target_key_value/next_levels/rank2/native_backend/device_program_aic.cpp",
+    "source_sha256": "96968d801bfc88d826204996540afe08666da64f7583dbe287af5c42a47f3479",
+    "published_sha256": "96968d801bfc88d826204996540afe08666da64f7583dbe287af5c42a47f3479"
+  },
+  "registered_sources/attention_native_fixture_20261029/selected_inputs/target_key_value/next_levels/rank2/native_backend/device_program_body.h": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_native_fixture_20261029/build/target_key_value/next_levels/rank2/native_backend/device_program_body.h",
+    "source_sha256": "0b014ecbc65590832e5cb408faa27774f4acdea05ac67d3817aec91efaf02043",
+    "published_sha256": "0b014ecbc65590832e5cb408faa27774f4acdea05ac67d3817aec91efaf02043"
+  },
+  "registered_sources/attention_native_fixture_20261029/selected_inputs/target_key_value/next_levels/rank2/native_backend/softmax_fastmask.hpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_native_fixture_20261029/build/target_key_value/next_levels/rank2/native_backend/softmax_fastmask.hpp",
+    "source_sha256": "48af224b849c1270902ea15ae98554c41bcd0a9bce141bf9295665025dfd190e",
+    "published_sha256": "48af224b849c1270902ea15ae98554c41bcd0a9bce141bf9295665025dfd190e"
+  },
+  "registered_sources/attention_native_fixture_20261029/selected_inputs/target_key_value/next_levels/rank2/native_backend/device_program_aiv.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_native_fixture_20261029/build/target_key_value/next_levels/rank2/native_backend/device_program_aiv.cpp",
+    "source_sha256": "22eb1ab349fe9a1197bdf0da0280f8a5b7a1835ba439d44e816b0b456c6ae835",
+    "published_sha256": "22eb1ab349fe9a1197bdf0da0280f8a5b7a1835ba439d44e816b0b456c6ae835"
+  },
+  "registered_sources/attention_dsl_20261029/selected_inputs/target_dsl_explicit_v1/next_levels/rank3/gdn_wide_overrides/project_z_kernel.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank3/gdn_wide_overrides/project_z_kernel.cpp",
+    "source_sha256": "9cb943416e47e6ea4ab142586e6da2bc4b60672dbba9ce92ab5deb3f910485d2",
+    "published_sha256": "9cb943416e47e6ea4ab142586e6da2bc4b60672dbba9ce92ab5deb3f910485d2"
+  },
+  "registered_sources/attention_dsl_20261029/selected_inputs/target_dsl_explicit_v1/next_levels/rank3/gdn_wide_overrides/project_gdn_kernel.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank3/gdn_wide_overrides/project_gdn_kernel.cpp",
+    "source_sha256": "f6137c35d3852f0fba3f38f99a4c787eb7bc7ad383daf433912616e671d0553e",
+    "published_sha256": "f6137c35d3852f0fba3f38f99a4c787eb7bc7ad383daf433912616e671d0553e"
+  },
+  "registered_sources/attention_dsl_20261029/selected_inputs/target_dsl_explicit_v1/next_levels/rank3/ragged_overrides/causal_conv_qk_norm.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank3/ragged_overrides/causal_conv_qk_norm.cpp",
+    "source_sha256": "7acd23d23f98d9d2effd927d43b1983430ceec2ffe3aa41fdaaabfd536fdb7f9",
+    "published_sha256": "7acd23d23f98d9d2effd927d43b1983430ceec2ffe3aa41fdaaabfd536fdb7f9"
+  },
+  "registered_sources/attention_dsl_20261029/selected_inputs/target_dsl_explicit_v1/next_levels/rank3/outer_update_override/recurrent_kernel.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank3/outer_update_override/recurrent_kernel.cpp",
+    "source_sha256": "93c6cd847abb9551878121392056622bdbe87aafc4fb93150e815b4278f10032",
+    "published_sha256": "93c6cd847abb9551878121392056622bdbe87aafc4fb93150e815b4278f10032"
+  },
+  "registered_sources/attention_dsl_20261029/selected_inputs/target_dsl_explicit_v1/next_levels/rank3/outer_update_override/GdnOuterFp32.hpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank3/outer_update_override/GdnOuterFp32.hpp",
+    "source_sha256": "aeeb1abaf35c7f3d72b9ca4597aa648c26fb4fe929456eb6f865a916f63964f1",
+    "published_sha256": "aeeb1abaf35c7f3d72b9ca4597aa648c26fb4fe929456eb6f865a916f63964f1"
+  },
+  "registered_sources/attention_dsl_20261029/selected_inputs/target_dsl_explicit_v1/next_levels/rank3/peer_prefetch_override/reduce_add_norm_quant_kernel.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank3/peer_prefetch_override/reduce_add_norm_quant_kernel.cpp",
+    "source_sha256": "cb478994fa0255970fc45f121476f97a2dee1aa0d38b20c9b76901964f904e1d",
+    "published_sha256": "cb478994fa0255970fc45f121476f97a2dee1aa0d38b20c9b76901964f904e1d"
+  },
+  "registered_sources/attention_dsl_20261029/selected_inputs/target_dsl_explicit_v1/next_levels/rank3/peer_prefetch_override/reduce_add_norm_kernel.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank3/peer_prefetch_override/reduce_add_norm_kernel.cpp",
+    "source_sha256": "5b10569181cf03c2ee9d283e368c6ce876f28f87c060ec4353336e6a1cc34be8",
+    "published_sha256": "5b10569181cf03c2ee9d283e368c6ce876f28f87c060ec4353336e6a1cc34be8"
+  },
+  "registered_sources/attention_dsl_20261029/selected_inputs/target_dsl_explicit_v1/next_levels/rank3/head_fusion_overrides/conv_valid.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank3/head_fusion_overrides/conv_valid.cpp",
+    "source_sha256": "7acd23d23f98d9d2effd927d43b1983430ceec2ffe3aa41fdaaabfd536fdb7f9",
+    "published_sha256": "7acd23d23f98d9d2effd927d43b1983430ceec2ffe3aa41fdaaabfd536fdb7f9"
+  },
+  "registered_sources/attention_dsl_20261029/selected_inputs/target_dsl_explicit_v1/next_levels/rank3/peer_prefetch_override/reduce_add_kernel.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank3/peer_prefetch_override/reduce_add_kernel.cpp",
+    "source_sha256": "5cd9e597dede91fec9667ce2bc767204099fd21e7c4258784ab77db7913569ad",
+    "published_sha256": "5cd9e597dede91fec9667ce2bc767204099fd21e7c4258784ab77db7913569ad"
+  },
+  "registered_sources/attention_native_fixture_20261029/selected_inputs/target_key_value/next_levels/rank3/native_backend/device_program_aic.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_native_fixture_20261029/build/target_key_value/next_levels/rank3/native_backend/device_program_aic.cpp",
+    "source_sha256": "96968d801bfc88d826204996540afe08666da64f7583dbe287af5c42a47f3479",
+    "published_sha256": "96968d801bfc88d826204996540afe08666da64f7583dbe287af5c42a47f3479"
+  },
+  "registered_sources/attention_native_fixture_20261029/selected_inputs/target_key_value/next_levels/rank3/native_backend/device_program_body.h": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_native_fixture_20261029/build/target_key_value/next_levels/rank3/native_backend/device_program_body.h",
+    "source_sha256": "0b014ecbc65590832e5cb408faa27774f4acdea05ac67d3817aec91efaf02043",
+    "published_sha256": "0b014ecbc65590832e5cb408faa27774f4acdea05ac67d3817aec91efaf02043"
+  },
+  "registered_sources/attention_native_fixture_20261029/selected_inputs/target_key_value/next_levels/rank3/native_backend/softmax_fastmask.hpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_native_fixture_20261029/build/target_key_value/next_levels/rank3/native_backend/softmax_fastmask.hpp",
+    "source_sha256": "48af224b849c1270902ea15ae98554c41bcd0a9bce141bf9295665025dfd190e",
+    "published_sha256": "48af224b849c1270902ea15ae98554c41bcd0a9bce141bf9295665025dfd190e"
+  },
+  "registered_sources/attention_native_fixture_20261029/selected_inputs/target_key_value/next_levels/rank3/native_backend/device_program_aiv.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_native_fixture_20261029/build/target_key_value/next_levels/rank3/native_backend/device_program_aiv.cpp",
+    "source_sha256": "22eb1ab349fe9a1197bdf0da0280f8a5b7a1835ba439d44e816b0b456c6ae835",
+    "published_sha256": "22eb1ab349fe9a1197bdf0da0280f8a5b7a1835ba439d44e816b0b456c6ae835"
+  },
+  "build_tools/attention/repack_dsl_child.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/tools/repack_dsl_child.cpp",
+    "source_sha256": "372746693ecc83df69c5d5a04befbfbcbbae0ace0021ac49718632fba0e08fe7",
+    "published_sha256": "372746693ecc83df69c5d5a04befbfbcbbae0ace0021ac49718632fba0e08fe7"
+  },
+  "build_tools/extract_callable_children.cpp": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/kernel_tuning_20261027/tools/extract_callable_children.cpp",
+    "source_sha256": "3a412bea727a4dd2e684258a9d9189c7ee9c83876cfb621ef61960a112e97c99",
+    "published_sha256": "3a412bea727a4dd2e684258a9d9189c7ee9c83876cfb621ef61960a112e97c99"
+  },
+  "link_contract/cache_dimensions_rank1.json": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/spmd_fusion_20261029/build/target_gate_quant_fused/cache_dimensions_rank1.json",
+    "source_sha256": "c97a7ffb3d036da9eb4c10fcd3a03a9eddecfa3ce51791980ded61f52832219b",
+    "published_sha256": "c97a7ffb3d036da9eb4c10fcd3a03a9eddecfa3ce51791980ded61f52832219b"
+  },
+  "link_contract/dsl_attention_manifest.json": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/spmd_fusion_20261029/build/target_gate_quant_fused/dsl_attention_manifest.json",
+    "source_sha256": "c2e2279c5514f5e4939dbc5064eac37c790fdda90c0b757d83dfeabe5e92ade5",
+    "published_sha256": "c2e2279c5514f5e4939dbc5064eac37c790fdda90c0b757d83dfeabe5e92ade5"
+  },
+  "link_contract/build_contract.json": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/spmd_fusion_20261029/build/target_gate_quant_fused/build_contract.json",
+    "source_sha256": "b851a0123792242e8abc2fbd2fdba1f7ca0ef3c6a7e0ba39e3998517cb760a9a",
+    "published_sha256": "b851a0123792242e8abc2fbd2fdba1f7ca0ef3c6a7e0ba39e3998517cb760a9a"
+  },
+  "link_contract/images.json": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/spmd_fusion_20261029/build/target_gate_quant_fused/images.json",
+    "source_sha256": "3c4929d7a6ded86e9b09d5c452ee705c777e9e7384f9aef2a52cf34f6efd4209",
+    "published_sha256": "3c4929d7a6ded86e9b09d5c452ee705c777e9e7384f9aef2a52cf34f6efd4209"
+  },
+  "link_contract/fusion_manifest.json": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/spmd_fusion_20261029/build/target_gate_quant_fused/fusion_manifest.json",
+    "source_sha256": "9d0578237059b6f6e6055f19be71d8afaf2ad69f3266d5c65e3e62146b9e9f51",
+    "published_sha256": "9d0578237059b6f6e6055f19be71d8afaf2ad69f3266d5c65e3e62146b9e9f51"
+  },
+  "link_contract/cache_dimensions_rank2.json": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/spmd_fusion_20261029/build/target_gate_quant_fused/cache_dimensions_rank2.json",
+    "source_sha256": "c97a7ffb3d036da9eb4c10fcd3a03a9eddecfa3ce51791980ded61f52832219b",
+    "published_sha256": "c97a7ffb3d036da9eb4c10fcd3a03a9eddecfa3ce51791980ded61f52832219b"
+  },
+  "link_contract/cache_dimensions_rank0.json": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/spmd_fusion_20261029/build/target_gate_quant_fused/cache_dimensions_rank0.json",
+    "source_sha256": "c97a7ffb3d036da9eb4c10fcd3a03a9eddecfa3ce51791980ded61f52832219b",
+    "published_sha256": "c97a7ffb3d036da9eb4c10fcd3a03a9eddecfa3ce51791980ded61f52832219b"
+  },
+  "link_contract/cache_dimensions_rank3.json": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/spmd_fusion_20261029/build/target_gate_quant_fused/cache_dimensions_rank3.json",
+    "source_sha256": "c97a7ffb3d036da9eb4c10fcd3a03a9eddecfa3ce51791980ded61f52832219b",
+    "published_sha256": "c97a7ffb3d036da9eb4c10fcd3a03a9eddecfa3ce51791980ded61f52832219b"
+  },
+  "link_contract/images.inherited_reference.json": {
+    "source": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/spmd_fusion_20261029/build/target_gate_quant_fused/images.inherited_reference.json",
+    "source_sha256": "399bf3efd4bdc50066fd644efbdcc1c2d819849934e8000b70ff101b90e7b6bc",
+    "published_sha256": "399bf3efd4bdc50066fd644efbdcc1c2d819849934e8000b70ff101b90e7b6bc"
+  }
+}

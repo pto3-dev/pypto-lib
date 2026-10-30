@@ -1,0 +1,2483 @@
+{
+  "schema": 2,
+  "supported_execution_modes": [
+    "program"
+  ],
+  "params": [
+    {
+      "name": "control_i64",
+      "direction": "In",
+      "shape": [
+        72
+      ],
+      "dtype": "int64",
+      "layout": "ND"
+    },
+    {
+      "name": "control_i32",
+      "direction": "InOut",
+      "shape": [
+        8165
+      ],
+      "dtype": "int32",
+      "layout": "ND"
+    },
+    {
+      "name": "native_metadata",
+      "direction": "In",
+      "shape": [
+        64,
+        8136
+      ],
+      "dtype": "int32",
+      "layout": "ND"
+    },
+    {
+      "name": "embedding",
+      "direction": "In",
+      "shape": [
+        62080,
+        5120
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "final_norm",
+      "direction": "In",
+      "shape": [
+        1,
+        5120
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "lm_head",
+      "direction": "In",
+      "shape": [
+        62080,
+        5120
+      ],
+      "dtype": "bfloat16",
+      "layout": "NZ"
+    },
+    {
+      "name": "weights0",
+      "direction": "In",
+      "shape": [
+        441216
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "weights1",
+      "direction": "In",
+      "shape": [
+        441216
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "weights2",
+      "direction": "In",
+      "shape": [
+        441216
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "weights3",
+      "direction": "In",
+      "shape": [
+        441216
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "weights4",
+      "direction": "In",
+      "shape": [
+        441216
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "weights5",
+      "direction": "In",
+      "shape": [
+        441216
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "weights6",
+      "direction": "In",
+      "shape": [
+        441216
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "weights7",
+      "direction": "In",
+      "shape": [
+        441216
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "weights8",
+      "direction": "In",
+      "shape": [
+        441216
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "weights9",
+      "direction": "In",
+      "shape": [
+        441216
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "weights10",
+      "direction": "In",
+      "shape": [
+        441216
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "weights11",
+      "direction": "In",
+      "shape": [
+        441216
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "weights12",
+      "direction": "In",
+      "shape": [
+        441216
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "weights13",
+      "direction": "In",
+      "shape": [
+        441216
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "weights14",
+      "direction": "In",
+      "shape": [
+        441216
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "weights15",
+      "direction": "In",
+      "shape": [
+        441216
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "float_weights",
+      "direction": "In",
+      "shape": [
+        1152
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_hidden",
+      "direction": "InOut",
+      "shape": [
+        24,
+        5120
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_residual",
+      "direction": "InOut",
+      "shape": [
+        24,
+        5120
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_norm",
+      "direction": "InOut",
+      "shape": [
+        24,
+        5120
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_attention",
+      "direction": "InOut",
+      "shape": [
+        24,
+        5120
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_mixed",
+      "direction": "InOut",
+      "shape": [
+        24,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_z",
+      "direction": "InOut",
+      "shape": [
+        24,
+        1536
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_a",
+      "direction": "InOut",
+      "shape": [
+        24,
+        12
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_b",
+      "direction": "InOut",
+      "shape": [
+        24,
+        12
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_convolved",
+      "direction": "InOut",
+      "shape": [
+        24,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_q",
+      "direction": "InOut",
+      "shape": [
+        24,
+        4,
+        128
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_k",
+      "direction": "InOut",
+      "shape": [
+        24,
+        4,
+        128
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_v",
+      "direction": "InOut",
+      "shape": [
+        24,
+        12,
+        128
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_gdn_core",
+      "direction": "InOut",
+      "shape": [
+        24,
+        12,
+        128
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_gdn_normal",
+      "direction": "InOut",
+      "shape": [
+        288,
+        128
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_packed_q",
+      "direction": "InOut",
+      "shape": [
+        24,
+        3072
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_full_q",
+      "direction": "InOut",
+      "shape": [
+        24,
+        6,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_full_gate",
+      "direction": "InOut",
+      "shape": [
+        24,
+        1536
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_full_k",
+      "direction": "InOut",
+      "shape": [
+        24,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_full_v",
+      "direction": "InOut",
+      "shape": [
+        24,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_full_qn",
+      "direction": "InOut",
+      "shape": [
+        144,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_full_kn",
+      "direction": "InOut",
+      "shape": [
+        24,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_full_qr",
+      "direction": "InOut",
+      "shape": [
+        24,
+        6,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_full_kr",
+      "direction": "InOut",
+      "shape": [
+        24,
+        1,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_full_core",
+      "direction": "InOut",
+      "shape": [
+        24,
+        6,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_gated",
+      "direction": "InOut",
+      "shape": [
+        24,
+        1536
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_mlp_norm",
+      "direction": "InOut",
+      "shape": [
+        24,
+        5120
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_mlp_gate",
+      "direction": "InOut",
+      "shape": [
+        24,
+        4352
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_mlp_up",
+      "direction": "InOut",
+      "shape": [
+        24,
+        4352
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_mlp_act",
+      "direction": "InOut",
+      "shape": [
+        24,
+        4352
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_mlp_down",
+      "direction": "InOut",
+      "shape": [
+        24,
+        5120
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_head_norm",
+      "direction": "InOut",
+      "shape": [
+        24,
+        5120
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_logits",
+      "direction": "InOut",
+      "shape": [
+        24,
+        62080
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_mlp_packed",
+      "direction": "InOut",
+      "shape": [
+        24,
+        8704
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_attention_probability",
+      "direction": "InOut",
+      "shape": [
+        144,
+        43008
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "float_qn",
+      "direction": "InOut",
+      "shape": [
+        24,
+        4,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "float_kn",
+      "direction": "InOut",
+      "shape": [
+        24,
+        4,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "float_alpha",
+      "direction": "InOut",
+      "shape": [
+        24,
+        12
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "float_beta",
+      "direction": "InOut",
+      "shape": [
+        24,
+        12
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "float_partial",
+      "direction": "InOut",
+      "shape": [
+        24,
+        5120
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "float_attention_scores",
+      "direction": "InOut",
+      "shape": [
+        144,
+        43008
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "float_attention_partials",
+      "direction": "InOut",
+      "shape": [
+        4032,
+        256
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l0_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l0_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l1_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l1_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l2_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l2_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l3_keys",
+      "direction": "InOut",
+      "shape": [
+        294912,
+        1,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l3_values",
+      "direction": "InOut",
+      "shape": [
+        294912,
+        1,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l4_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l4_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l5_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l5_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l6_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l6_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l7_keys",
+      "direction": "InOut",
+      "shape": [
+        294912,
+        1,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l7_values",
+      "direction": "InOut",
+      "shape": [
+        294912,
+        1,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l8_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l8_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l9_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l9_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l10_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l10_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l11_keys",
+      "direction": "InOut",
+      "shape": [
+        294912,
+        1,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l11_values",
+      "direction": "InOut",
+      "shape": [
+        294912,
+        1,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l12_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l12_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l13_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l13_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l14_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l14_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l15_keys",
+      "direction": "InOut",
+      "shape": [
+        294912,
+        1,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l15_values",
+      "direction": "InOut",
+      "shape": [
+        294912,
+        1,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l16_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l16_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l17_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l17_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l18_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l18_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l19_keys",
+      "direction": "InOut",
+      "shape": [
+        294912,
+        1,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l19_values",
+      "direction": "InOut",
+      "shape": [
+        294912,
+        1,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l20_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l20_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l21_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l21_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l22_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l22_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l23_keys",
+      "direction": "InOut",
+      "shape": [
+        294912,
+        1,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l23_values",
+      "direction": "InOut",
+      "shape": [
+        294912,
+        1,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l24_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l24_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l25_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l25_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l26_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l26_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l27_keys",
+      "direction": "InOut",
+      "shape": [
+        294912,
+        1,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l27_values",
+      "direction": "InOut",
+      "shape": [
+        294912,
+        1,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l28_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l28_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l29_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l29_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l30_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l30_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l31_keys",
+      "direction": "InOut",
+      "shape": [
+        294912,
+        1,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l31_values",
+      "direction": "InOut",
+      "shape": [
+        294912,
+        1,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l32_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l32_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l33_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l33_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l34_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l34_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l35_keys",
+      "direction": "InOut",
+      "shape": [
+        294912,
+        1,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l35_values",
+      "direction": "InOut",
+      "shape": [
+        294912,
+        1,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l36_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l36_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l37_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l37_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l38_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l38_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l39_keys",
+      "direction": "InOut",
+      "shape": [
+        294912,
+        1,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l39_values",
+      "direction": "InOut",
+      "shape": [
+        294912,
+        1,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l40_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l40_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l41_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l41_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l42_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l42_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l43_keys",
+      "direction": "InOut",
+      "shape": [
+        294912,
+        1,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l43_values",
+      "direction": "InOut",
+      "shape": [
+        294912,
+        1,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l44_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l44_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l45_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l45_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l46_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l46_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l47_keys",
+      "direction": "InOut",
+      "shape": [
+        294912,
+        1,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l47_values",
+      "direction": "InOut",
+      "shape": [
+        294912,
+        1,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l48_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l48_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l49_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l49_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l50_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l50_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l51_keys",
+      "direction": "InOut",
+      "shape": [
+        294912,
+        1,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l51_values",
+      "direction": "InOut",
+      "shape": [
+        294912,
+        1,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l52_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l52_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l53_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l53_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l54_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l54_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l55_keys",
+      "direction": "InOut",
+      "shape": [
+        294912,
+        1,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l55_values",
+      "direction": "InOut",
+      "shape": [
+        294912,
+        1,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l56_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l56_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l57_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l57_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l58_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l58_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l59_keys",
+      "direction": "InOut",
+      "shape": [
+        294912,
+        1,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l59_values",
+      "direction": "InOut",
+      "shape": [
+        294912,
+        1,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l60_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l60_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l61_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l61_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l62_conv_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        8,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l62_recurrent_state",
+      "direction": "InOut",
+      "shape": [
+        192,
+        12,
+        128,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "l63_keys",
+      "direction": "InOut",
+      "shape": [
+        294912,
+        1,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "l63_values",
+      "direction": "InOut",
+      "shape": [
+        294912,
+        1,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "cos",
+      "direction": "In",
+      "shape": [
+        43008,
+        32
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "sin",
+      "direction": "In",
+      "shape": [
+        43008,
+        32
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "out",
+      "direction": "Out",
+      "shape": [
+        24,
+        62080
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "global_logits",
+      "direction": "InOut",
+      "shape": [
+        24,
+        248320
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "hidden_result",
+      "direction": "InOut",
+      "shape": [
+        24,
+        5120
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "softmax_columns",
+      "direction": "In",
+      "shape": [
+        1,
+        1024
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "device_program_storage",
+      "direction": "InOut",
+      "shape": [
+        13645824
+      ],
+      "dtype": "uint8",
+      "layout": "ND"
+    },
+    {
+      "name": "logit_data",
+      "direction": "InOut",
+      "shape": [
+        24,
+        62080
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "logit_signal",
+      "direction": "InOut",
+      "shape": [
+        768,
+        32
+      ],
+      "dtype": "int32",
+      "layout": "ND"
+    },
+    {
+      "name": "data",
+      "direction": "InOut",
+      "shape": [
+        3096,
+        5120
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "signal",
+      "direction": "InOut",
+      "shape": [
+        516,
+        1
+      ],
+      "dtype": "int32",
+      "layout": "ND"
+    },
+    {
+      "name": "bank0_gateup",
+      "direction": "In",
+      "shape": [
+        16,
+        5120,
+        8704
+      ],
+      "dtype": "int8",
+      "layout": "NZ"
+    },
+    {
+      "name": "bank0_down",
+      "direction": "In",
+      "shape": [
+        16,
+        4352,
+        5120
+      ],
+      "dtype": "int8",
+      "layout": "NZ"
+    },
+    {
+      "name": "bank0_out",
+      "direction": "In",
+      "shape": [
+        16,
+        5120,
+        1536
+      ],
+      "dtype": "bfloat16",
+      "layout": "NZ"
+    },
+    {
+      "name": "bank0_qkvz",
+      "direction": "In",
+      "shape": [
+        16,
+        4096,
+        5120
+      ],
+      "dtype": "bfloat16",
+      "layout": "NZ"
+    },
+    {
+      "name": "bank1_gateup",
+      "direction": "In",
+      "shape": [
+        16,
+        5120,
+        8704
+      ],
+      "dtype": "int8",
+      "layout": "NZ"
+    },
+    {
+      "name": "bank1_down",
+      "direction": "In",
+      "shape": [
+        16,
+        4352,
+        5120
+      ],
+      "dtype": "int8",
+      "layout": "NZ"
+    },
+    {
+      "name": "bank1_out",
+      "direction": "In",
+      "shape": [
+        16,
+        5120,
+        1536
+      ],
+      "dtype": "bfloat16",
+      "layout": "NZ"
+    },
+    {
+      "name": "bank1_qkvz",
+      "direction": "In",
+      "shape": [
+        16,
+        4096,
+        5120
+      ],
+      "dtype": "bfloat16",
+      "layout": "NZ"
+    },
+    {
+      "name": "bank2_gateup",
+      "direction": "In",
+      "shape": [
+        16,
+        5120,
+        8704
+      ],
+      "dtype": "int8",
+      "layout": "NZ"
+    },
+    {
+      "name": "bank2_down",
+      "direction": "In",
+      "shape": [
+        16,
+        4352,
+        5120
+      ],
+      "dtype": "int8",
+      "layout": "NZ"
+    },
+    {
+      "name": "bank2_out",
+      "direction": "In",
+      "shape": [
+        16,
+        5120,
+        1536
+      ],
+      "dtype": "bfloat16",
+      "layout": "NZ"
+    },
+    {
+      "name": "bank2_qkvz",
+      "direction": "In",
+      "shape": [
+        16,
+        4096,
+        5120
+      ],
+      "dtype": "bfloat16",
+      "layout": "NZ"
+    },
+    {
+      "name": "bank3_gateup",
+      "direction": "In",
+      "shape": [
+        16,
+        5120,
+        8704
+      ],
+      "dtype": "int8",
+      "layout": "NZ"
+    },
+    {
+      "name": "bank3_down",
+      "direction": "In",
+      "shape": [
+        16,
+        4352,
+        5120
+      ],
+      "dtype": "int8",
+      "layout": "NZ"
+    },
+    {
+      "name": "bank3_out",
+      "direction": "In",
+      "shape": [
+        16,
+        1536,
+        5120
+      ],
+      "dtype": "int8",
+      "layout": "NZ"
+    },
+    {
+      "name": "bank3_qkv",
+      "direction": "In",
+      "shape": [
+        16,
+        5120,
+        3584
+      ],
+      "dtype": "int8",
+      "layout": "NZ"
+    },
+    {
+      "name": "bank0_gateup_scale",
+      "direction": "In",
+      "shape": [
+        16,
+        8704
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "bank0_down_scale",
+      "direction": "In",
+      "shape": [
+        16,
+        5120
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "bank1_gateup_scale",
+      "direction": "In",
+      "shape": [
+        16,
+        8704
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "bank1_down_scale",
+      "direction": "In",
+      "shape": [
+        16,
+        5120
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "bank2_gateup_scale",
+      "direction": "In",
+      "shape": [
+        16,
+        8704
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "bank2_down_scale",
+      "direction": "In",
+      "shape": [
+        16,
+        5120
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "bank3_gateup_scale",
+      "direction": "In",
+      "shape": [
+        16,
+        8704
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "bank3_down_scale",
+      "direction": "In",
+      "shape": [
+        16,
+        5120
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "bank3_out_scale",
+      "direction": "In",
+      "shape": [
+        16,
+        5120
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "bank3_qkv_scale",
+      "direction": "In",
+      "shape": [
+        16,
+        3584
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    }
+  ],
+  "num_return_types": 1,
+  "platform": "a2a3",
+  "backend_type": "Ascend910B"
+}

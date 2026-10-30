@@ -1,0 +1,159 @@
+diff --git a/vllm_ascend/attention/attention_v1.py b/vllm_ascend/attention/attention_v1.py
+index 9c96ee553..951de865a 100644
+--- a/vllm_ascend/attention/attention_v1.py
++++ b/vllm_ascend/attention/attention_v1.py
+@@ -315,7 +315,10 @@ class AscendAttentionMetadataBuilder(AttentionMetadataBuilder[AscendMetadata]):
+             seq_lens_cpu=seq_lens,
+             pypto_seq_lens_device=(
+                 common_attn_metadata.seq_lens[:num_reqs]
+-                if envs_ascend.VLLM_ASCEND_PYPTO_QWEN3_ORIGINAL_GRAPH and attn_state == AscendAttentionState.DecodeOnly
++                if (envs_ascend.VLLM_ASCEND_PYPTO_QWEN3_ORIGINAL_GRAPH
++                    or envs_ascend.VLLM_ASCEND_PYPTO_QWEN38_MODEL
++                    or self.vllm_config.additional_config.get('qwen38_pto_mpmd',{}).get('graph',False))
++                and attn_state == AscendAttentionState.DecodeOnly
+                 else None
+             ),
+             seq_lens_list=seq_lens.tolist(),
+diff --git a/vllm_ascend/compilation/acl_graph.py b/vllm_ascend/compilation/acl_graph.py
+index 579dfda31..7732ac57f 100644
+--- a/vllm_ascend/compilation/acl_graph.py
++++ b/vllm_ascend/compilation/acl_graph.py
+@@ -153,7 +153,8 @@ class ACLGraphWrapper:
+ 
+                 # mind-exploding: carefully manage the reference and memory.
+                 forward_context.capturing = True
+-                with torch.npu.graph(aclgraph, pool=self.graph_pool):
++                with torch.npu.graph(aclgraph, pool=self.graph_pool,
++                                     stream=getattr(self.runnable,"_qwen38_mpmd_capture_stream",None)):
+                     # `output` is managed by pytorch's aclgraph pool
+                     output = self.runnable(*args, **kwargs)
+                     if self.aclgraph_options.weak_ref_output:
+diff --git a/vllm_ascend/envs.py b/vllm_ascend/envs.py
+index d73818c64..364f88335 100644
+--- a/vllm_ascend/envs.py
++++ b/vllm_ascend/envs.py
+@@ -28,6 +28,18 @@ from typing import Any
+ # begin-env-vars-definition
+ 
+ env_variables: dict[str, Callable[[], Any]] = {
++    # Experimental BF16 Qwen3.8-27B PTO GDN core; default off. Requires eager,
++    # TP=1, ordinary inference. Native vLLM cache storage is borrowed directly.
++    # Not sensitive; valid values 0 and 1.
++    "VLLM_ASCEND_PYPTO_QWEN38_GDN": lambda: bool(int(os.getenv("VLLM_ASCEND_PYPTO_QWEN38_GDN", "0"))),
++    # Experimental complete PTO text compute; eager BF16, TP=1, default off.
++    # Requires the optional pypto-lib package; valid values 0 and 1, not sensitive.
++    "VLLM_ASCEND_PYPTO_QWEN38_MODEL": lambda: bool(int(os.getenv("VLLM_ASCEND_PYPTO_QWEN38_MODEL", "0"))),
++    # Fuse the full PTO text path MLP dispatch; default off, values 0/1.
++    # Requires PYPTO_QWEN38_MODEL; BF16 ordinary inference, not sensitive.
++    "VLLM_ASCEND_PYPTO_QWEN38_MLP_FUSION": lambda: bool(int(os.getenv("VLLM_ASCEND_PYPTO_QWEN38_MLP_FUSION", "0"))),
++    # Kernel artifacts for the experimental Qwen3.8 GDN bridge; not sensitive.
++    "VLLM_ASCEND_PYPTO_QWEN38_BUILD_ROOT": lambda: os.getenv("VLLM_ASCEND_PYPTO_QWEN38_BUILD_ROOT", "/tmp/pypto-qwen38-gdn"),
+     # PyPTO-Lib checkout used by the experimental Qwen3-14B Decode bridge.
+     # Defaults to the legacy PYPTO_LIB_ROOT value for compatibility; not sensitive.
+     "VLLM_ASCEND_PYPTO_LIB_ROOT": lambda: os.getenv("VLLM_ASCEND_PYPTO_LIB_ROOT", os.getenv("PYPTO_LIB_ROOT")),
+diff --git a/vllm_ascend/patch/worker/__init__.py b/vllm_ascend/patch/worker/__init__.py
+index 01747e900..d161809ad 100644
+--- a/vllm_ascend/patch/worker/__init__.py
++++ b/vllm_ascend/patch/worker/__init__.py
+@@ -57,3 +57,6 @@ import vllm_ascend.patch.worker.patch_qwen3_c8  # noqa
+ 
+ if envs.VLLM_ASCEND_PYPTO_QWEN3_ORIGINAL_GRAPH:
+     import vllm_ascend.patch.worker.patch_qwen3_pypto_graph  # noqa
++
++if envs.VLLM_ASCEND_PYPTO_QWEN38_GDN or envs.VLLM_ASCEND_PYPTO_QWEN38_MODEL:
++    import vllm_ascend.patch.worker.patch_qwen3_8_pypto  # noqa
+diff --git a/vllm_ascend/patch/worker/patch_qwen3_5.py b/vllm_ascend/patch/worker/patch_qwen3_5.py
+index 9c9a6b39a..aaa233461 100644
+--- a/vllm_ascend/patch/worker/patch_qwen3_5.py
++++ b/vllm_ascend/patch/worker/patch_qwen3_5.py
+@@ -206,7 +206,13 @@ class AscendQwen3_5GatedDeltaNet(Qwen3_5GatedDeltaNet):
+         query_spec, key_spec, value_spec = self.rearrange_mixed_qkv(mixed_qkv_spec)
+         query_non_spec, key_non_spec, value_non_spec = self.rearrange_mixed_qkv(mixed_qkv_non_spec)
+ 
+-        if attn_metadata.num_prefills > 0 or spec_sequence_masks is not None:
++        # The combined sigmoid/recurrent Triton kernel faults for the dense
++        # 27B FP32 state on 910B. Its existing split native path is validated.
++        split_dense_27b = (
++            self.hidden_size == 5120 and self.num_k_heads == 16
++            and self.num_v_heads == 48 and self.head_k_dim == 128
++        )
++        if attn_metadata.num_prefills > 0 or spec_sequence_masks is not None or split_dense_27b:
+             g, beta = fused_gdn_gating_patch(self.A_log, a, b, self.dt_bias)
+             if spec_sequence_masks is not None:
+                 if attn_metadata.num_prefills == 0 and attn_metadata.num_decodes == 0:
+@@ -325,7 +331,9 @@ class AscendQwen3_5GatedDeltaNet(Qwen3_5GatedDeltaNet):
+ class AscendQwen3NextAttention(Qwen3NextAttention):
+     def forward(self, positions: torch.Tensor, output: torch.Tensor, hidden_states: torch.Tensor):
+         qkv, _ = self.qkv_proj(hidden_states)
+-        if "qwen3_5" in self.config.model_type:
++        # The fused Triton tile exceeds UB bounds for the dense 27B shape
++        # (24 Q heads, dimension 256). Keep its existing native split path.
++        if "qwen3_5" in self.config.model_type and not (self.num_heads == 24 and self.head_dim == 256):
+             cos_sin = self.rotary_emb.cos_sin_cache[positions]
+             if cos_sin.device != qkv.device:
+                 cos_sin = cos_sin.to(qkv.device)
+@@ -436,3 +444,34 @@ Qwen3_5GatedDeltaNet.forward = AscendQwen3_5GatedDeltaNet.forward
+ Qwen3_5GatedDeltaNet._forward_core = AscendQwen3_5GatedDeltaNet._forward_core
+ Qwen3NextAttention.forward = AscendQwen3NextAttention.forward
+ Qwen3_5DecoderLayer.forward = AscendQwen3_5DecoderLayer.forward
++
++
++
++def _configure_text_aclgraph_only():
++    """Allow ACLGraph replay without compiling optional PP text inputs."""
++    from vllm.model_executor.models.qwen3_5 import Qwen3_5ForCausalLM
++
++    original = Qwen3_5ForCausalLM.__init__
++
++    def initialize(self, *, vllm_config, prefix=""):
++        original(self, vllm_config=vllm_config, prefix=prefix)
++        mpmd = vllm_config.additional_config.get("qwen38_pto_mpmd")
++        if mpmd:
++            from vllm_ascend.pypto.qwen3_8_mpmd import attach_mpmd
++
++            attach_mpmd(self, vllm_config, mpmd)
++        mlp_root = vllm_config.additional_config.get("qwen38_pto_mlp_build_root")
++        if mlp_root:
++            from vllm_ascend.pypto.qwen3_8_mlp import attach_mlp
++
++            attach_mlp(self, vllm_config, mlp_root)
++        if vllm_config.additional_config.get("qwen38_aclgraph_only", False):
++            text = vllm_config.model_config.hf_text_config
++            if text.hidden_size != 5120 or text.num_hidden_layers != 64:
++                raise ValueError("qwen38_aclgraph_only requires the supported dense 27B checkpoint.")
++            self.model.do_not_compile = True
++
++    Qwen3_5ForCausalLM.__init__ = initialize
++
++
++_configure_text_aclgraph_only()
+diff --git a/vllm_ascend/worker/model_runner_v1.py b/vllm_ascend/worker/model_runner_v1.py
+index 5df036d1a..5587560d9 100644
+--- a/vllm_ascend/worker/model_runner_v1.py
++++ b/vllm_ascend/worker/model_runner_v1.py
+@@ -277,7 +277,12 @@ class NPUModelRunner(GPUModelRunner):
+         self.use_hybrid_blocks: bool = False
+         self.need_accepted_tokens: bool = False
+ 
+-        self.is_multimodal_model = self.model_config.is_multimodal_model
++        # Text-only capture must use the same token-ID input path as real
++        # requests. MM dummy embeddings would otherwise be frozen in the graph.
++        self.is_multimodal_model = self.model_config.is_multimodal_model and not (
++            self.model_config.multimodal_config is not None
++            and self.model_config.multimodal_config.language_model_only
++        )
+         self.block_size = vllm_config.cache_config.block_size
+         # Set up Attention
+         self.use_sparse = hasattr(vllm_config.model_config, "hf_text_config") and hasattr(
+@@ -475,7 +480,10 @@ class NPUModelRunner(GPUModelRunner):
+     def _use_aclgraph(self) -> bool:
+         return (
+             self.compilation_config.cudagraph_mode != CUDAGraphMode.NONE
+-            and self.compilation_config.mode == CompilationMode.VLLM_COMPILE
++            and (
++                self.compilation_config.mode == CompilationMode.VLLM_COMPILE
++                or self.compilation_config.cudagraph_mode.has_full_cudagraphs()
++            )
+             and not self.model_config.enforce_eager
+         )
+ 

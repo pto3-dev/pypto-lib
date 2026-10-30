@@ -1,0 +1,1171 @@
+{
+  "schema": 2,
+  "supported_execution_modes": [
+    "program"
+  ],
+  "params": [
+    {
+      "name": "control_i64",
+      "direction": "In",
+      "shape": [
+        72
+      ],
+      "dtype": "int64",
+      "layout": "ND"
+    },
+    {
+      "name": "control_i32",
+      "direction": "InOut",
+      "shape": [
+        8165
+      ],
+      "dtype": "int32",
+      "layout": "ND"
+    },
+    {
+      "name": "native_metadata",
+      "direction": "In",
+      "shape": [
+        64,
+        8136
+      ],
+      "dtype": "int32",
+      "layout": "ND"
+    },
+    {
+      "name": "embedding",
+      "direction": "In",
+      "shape": [
+        62080,
+        5120
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "final_norm",
+      "direction": "In",
+      "shape": [
+        1,
+        5120
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "lm_head",
+      "direction": "In",
+      "shape": [
+        62080,
+        5120
+      ],
+      "dtype": "bfloat16",
+      "layout": "NZ"
+    },
+    {
+      "name": "weights0",
+      "direction": "In",
+      "shape": [
+        441216
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "weights1",
+      "direction": "In",
+      "shape": [
+        441216
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "weights2",
+      "direction": "In",
+      "shape": [
+        441216
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "weights3",
+      "direction": "In",
+      "shape": [
+        441216
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "weights4",
+      "direction": "In",
+      "shape": [
+        441216
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "weights5",
+      "direction": "In",
+      "shape": [
+        441216
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "weights6",
+      "direction": "In",
+      "shape": [
+        441216
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "weights7",
+      "direction": "In",
+      "shape": [
+        441216
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "weights8",
+      "direction": "In",
+      "shape": [
+        441216
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "weights9",
+      "direction": "In",
+      "shape": [
+        441216
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "weights10",
+      "direction": "In",
+      "shape": [
+        441216
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "weights11",
+      "direction": "In",
+      "shape": [
+        441216
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "weights12",
+      "direction": "In",
+      "shape": [
+        441216
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "weights13",
+      "direction": "In",
+      "shape": [
+        441216
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "weights14",
+      "direction": "In",
+      "shape": [
+        441216
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "weights15",
+      "direction": "In",
+      "shape": [
+        441216
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "float_weights",
+      "direction": "In",
+      "shape": [
+        1152
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_hidden",
+      "direction": "InOut",
+      "shape": [
+        24,
+        5120
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_residual",
+      "direction": "InOut",
+      "shape": [
+        24,
+        5120
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_norm",
+      "direction": "InOut",
+      "shape": [
+        24,
+        5120
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_attention",
+      "direction": "InOut",
+      "shape": [
+        24,
+        5120
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_mixed",
+      "direction": "InOut",
+      "shape": [
+        24,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_z",
+      "direction": "InOut",
+      "shape": [
+        24,
+        1536
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_a",
+      "direction": "InOut",
+      "shape": [
+        24,
+        12
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_b",
+      "direction": "InOut",
+      "shape": [
+        24,
+        12
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_convolved",
+      "direction": "InOut",
+      "shape": [
+        24,
+        2560
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_q",
+      "direction": "InOut",
+      "shape": [
+        24,
+        4,
+        128
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_k",
+      "direction": "InOut",
+      "shape": [
+        24,
+        4,
+        128
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_v",
+      "direction": "InOut",
+      "shape": [
+        24,
+        12,
+        128
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_gdn_core",
+      "direction": "InOut",
+      "shape": [
+        24,
+        12,
+        128
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_gdn_normal",
+      "direction": "InOut",
+      "shape": [
+        288,
+        128
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_packed_q",
+      "direction": "InOut",
+      "shape": [
+        24,
+        3072
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_full_q",
+      "direction": "InOut",
+      "shape": [
+        24,
+        6,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_full_gate",
+      "direction": "InOut",
+      "shape": [
+        24,
+        1536
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_full_k",
+      "direction": "InOut",
+      "shape": [
+        24,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_full_v",
+      "direction": "InOut",
+      "shape": [
+        24,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_full_qn",
+      "direction": "InOut",
+      "shape": [
+        144,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_full_kn",
+      "direction": "InOut",
+      "shape": [
+        24,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_full_qr",
+      "direction": "InOut",
+      "shape": [
+        24,
+        6,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_full_kr",
+      "direction": "InOut",
+      "shape": [
+        24,
+        1,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_full_core",
+      "direction": "InOut",
+      "shape": [
+        24,
+        6,
+        256
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_gated",
+      "direction": "InOut",
+      "shape": [
+        24,
+        1536
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_mlp_norm",
+      "direction": "InOut",
+      "shape": [
+        24,
+        5120
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_mlp_gate",
+      "direction": "InOut",
+      "shape": [
+        24,
+        4352
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_mlp_up",
+      "direction": "InOut",
+      "shape": [
+        24,
+        4352
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_mlp_act",
+      "direction": "InOut",
+      "shape": [
+        24,
+        4352
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_mlp_down",
+      "direction": "InOut",
+      "shape": [
+        24,
+        5120
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_head_norm",
+      "direction": "InOut",
+      "shape": [
+        24,
+        5120
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_logits",
+      "direction": "InOut",
+      "shape": [
+        24,
+        62080
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_mlp_packed",
+      "direction": "InOut",
+      "shape": [
+        24,
+        8704
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "scratch_attention_probability",
+      "direction": "InOut",
+      "shape": [
+        144,
+        43008
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "float_qn",
+      "direction": "InOut",
+      "shape": [
+        24,
+        4,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "float_kn",
+      "direction": "InOut",
+      "shape": [
+        24,
+        4,
+        128
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "float_alpha",
+      "direction": "InOut",
+      "shape": [
+        24,
+        12
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "float_beta",
+      "direction": "InOut",
+      "shape": [
+        24,
+        12
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "float_partial",
+      "direction": "InOut",
+      "shape": [
+        24,
+        5120
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "float_attention_scores",
+      "direction": "InOut",
+      "shape": [
+        144,
+        43008
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "float_attention_partials",
+      "direction": "InOut",
+      "shape": [
+        4032,
+        256
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "cache_pool0",
+      "shape": [
+        154927104
+      ],
+      "dtype": "bfloat16",
+      "direction": "InOut",
+      "layout": "ND"
+    },
+    {
+      "name": "cache_pool1",
+      "shape": [
+        154927104
+      ],
+      "dtype": "bfloat16",
+      "direction": "InOut",
+      "layout": "ND"
+    },
+    {
+      "name": "cache_pool2",
+      "shape": [
+        154927104
+      ],
+      "dtype": "bfloat16",
+      "direction": "InOut",
+      "layout": "ND"
+    },
+    {
+      "name": "cache_pool3",
+      "shape": [
+        154927104
+      ],
+      "dtype": "bfloat16",
+      "direction": "InOut",
+      "layout": "ND"
+    },
+    {
+      "name": "cache_pool4",
+      "shape": [
+        154927104
+      ],
+      "dtype": "bfloat16",
+      "direction": "InOut",
+      "layout": "ND"
+    },
+    {
+      "name": "cache_pool5",
+      "shape": [
+        154927104
+      ],
+      "dtype": "bfloat16",
+      "direction": "InOut",
+      "layout": "ND"
+    },
+    {
+      "name": "cache_pool6",
+      "shape": [
+        154927104
+      ],
+      "dtype": "bfloat16",
+      "direction": "InOut",
+      "layout": "ND"
+    },
+    {
+      "name": "cache_pool7",
+      "shape": [
+        154927104
+      ],
+      "dtype": "bfloat16",
+      "direction": "InOut",
+      "layout": "ND"
+    },
+    {
+      "name": "cache_pool8",
+      "shape": [
+        154927104
+      ],
+      "dtype": "bfloat16",
+      "direction": "InOut",
+      "layout": "ND"
+    },
+    {
+      "name": "cache_pool9",
+      "shape": [
+        154927104
+      ],
+      "dtype": "bfloat16",
+      "direction": "InOut",
+      "layout": "ND"
+    },
+    {
+      "name": "cache_pool10",
+      "shape": [
+        154927104
+      ],
+      "dtype": "bfloat16",
+      "direction": "InOut",
+      "layout": "ND"
+    },
+    {
+      "name": "cache_pool11",
+      "shape": [
+        154927104
+      ],
+      "dtype": "bfloat16",
+      "direction": "InOut",
+      "layout": "ND"
+    },
+    {
+      "name": "cache_pool12",
+      "shape": [
+        154927104
+      ],
+      "dtype": "bfloat16",
+      "direction": "InOut",
+      "layout": "ND"
+    },
+    {
+      "name": "cache_pool13",
+      "shape": [
+        154927104
+      ],
+      "dtype": "bfloat16",
+      "direction": "InOut",
+      "layout": "ND"
+    },
+    {
+      "name": "cache_pool14",
+      "shape": [
+        154927104
+      ],
+      "dtype": "bfloat16",
+      "direction": "InOut",
+      "layout": "ND"
+    },
+    {
+      "name": "cache_pool15",
+      "shape": [
+        154927104
+      ],
+      "dtype": "bfloat16",
+      "direction": "InOut",
+      "layout": "ND"
+    },
+    {
+      "name": "cos",
+      "direction": "In",
+      "shape": [
+        43008,
+        32
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "sin",
+      "direction": "In",
+      "shape": [
+        43008,
+        32
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "out",
+      "direction": "Out",
+      "shape": [
+        24,
+        62080
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "global_logits",
+      "direction": "InOut",
+      "shape": [
+        24,
+        248320
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "hidden_result",
+      "direction": "InOut",
+      "shape": [
+        24,
+        5120
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "softmax_columns",
+      "direction": "In",
+      "shape": [
+        1,
+        1024
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "device_program_storage",
+      "direction": "InOut",
+      "shape": [
+        13645824
+      ],
+      "dtype": "uint8",
+      "layout": "ND"
+    },
+    {
+      "name": "logit_data",
+      "direction": "InOut",
+      "shape": [
+        24,
+        62080
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "logit_signal",
+      "direction": "InOut",
+      "shape": [
+        768,
+        32
+      ],
+      "dtype": "int32",
+      "layout": "ND"
+    },
+    {
+      "name": "data",
+      "direction": "InOut",
+      "shape": [
+        3096,
+        5120
+      ],
+      "dtype": "bfloat16",
+      "layout": "ND"
+    },
+    {
+      "name": "signal",
+      "direction": "InOut",
+      "shape": [
+        516,
+        1
+      ],
+      "dtype": "int32",
+      "layout": "ND"
+    },
+    {
+      "name": "bank0_gateup",
+      "direction": "In",
+      "shape": [
+        16,
+        5120,
+        8704
+      ],
+      "dtype": "int8",
+      "layout": "NZ"
+    },
+    {
+      "name": "bank0_down",
+      "direction": "In",
+      "shape": [
+        16,
+        4352,
+        5120
+      ],
+      "dtype": "int8",
+      "layout": "NZ"
+    },
+    {
+      "name": "bank0_out",
+      "direction": "In",
+      "shape": [
+        16,
+        5120,
+        1536
+      ],
+      "dtype": "bfloat16",
+      "layout": "NZ"
+    },
+    {
+      "name": "bank0_qkvz",
+      "direction": "In",
+      "shape": [
+        16,
+        4096,
+        5120
+      ],
+      "dtype": "bfloat16",
+      "layout": "NZ"
+    },
+    {
+      "name": "bank1_gateup",
+      "direction": "In",
+      "shape": [
+        16,
+        5120,
+        8704
+      ],
+      "dtype": "int8",
+      "layout": "NZ"
+    },
+    {
+      "name": "bank1_down",
+      "direction": "In",
+      "shape": [
+        16,
+        4352,
+        5120
+      ],
+      "dtype": "int8",
+      "layout": "NZ"
+    },
+    {
+      "name": "bank1_out",
+      "direction": "In",
+      "shape": [
+        16,
+        5120,
+        1536
+      ],
+      "dtype": "bfloat16",
+      "layout": "NZ"
+    },
+    {
+      "name": "bank1_qkvz",
+      "direction": "In",
+      "shape": [
+        16,
+        4096,
+        5120
+      ],
+      "dtype": "bfloat16",
+      "layout": "NZ"
+    },
+    {
+      "name": "bank2_gateup",
+      "direction": "In",
+      "shape": [
+        16,
+        5120,
+        8704
+      ],
+      "dtype": "int8",
+      "layout": "NZ"
+    },
+    {
+      "name": "bank2_down",
+      "direction": "In",
+      "shape": [
+        16,
+        4352,
+        5120
+      ],
+      "dtype": "int8",
+      "layout": "NZ"
+    },
+    {
+      "name": "bank2_out",
+      "direction": "In",
+      "shape": [
+        16,
+        5120,
+        1536
+      ],
+      "dtype": "bfloat16",
+      "layout": "NZ"
+    },
+    {
+      "name": "bank2_qkvz",
+      "direction": "In",
+      "shape": [
+        16,
+        4096,
+        5120
+      ],
+      "dtype": "bfloat16",
+      "layout": "NZ"
+    },
+    {
+      "name": "bank3_gateup",
+      "direction": "In",
+      "shape": [
+        16,
+        5120,
+        8704
+      ],
+      "dtype": "int8",
+      "layout": "NZ"
+    },
+    {
+      "name": "bank3_down",
+      "direction": "In",
+      "shape": [
+        16,
+        4352,
+        5120
+      ],
+      "dtype": "int8",
+      "layout": "NZ"
+    },
+    {
+      "name": "bank3_out",
+      "direction": "In",
+      "shape": [
+        16,
+        1536,
+        5120
+      ],
+      "dtype": "int8",
+      "layout": "NZ"
+    },
+    {
+      "name": "bank3_qkv",
+      "direction": "In",
+      "shape": [
+        16,
+        5120,
+        3584
+      ],
+      "dtype": "int8",
+      "layout": "NZ"
+    },
+    {
+      "name": "bank0_gateup_scale",
+      "direction": "In",
+      "shape": [
+        16,
+        8704
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "bank0_down_scale",
+      "direction": "In",
+      "shape": [
+        16,
+        5120
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "bank1_gateup_scale",
+      "direction": "In",
+      "shape": [
+        16,
+        8704
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "bank1_down_scale",
+      "direction": "In",
+      "shape": [
+        16,
+        5120
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "bank2_gateup_scale",
+      "direction": "In",
+      "shape": [
+        16,
+        8704
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "bank2_down_scale",
+      "direction": "In",
+      "shape": [
+        16,
+        5120
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "bank3_gateup_scale",
+      "direction": "In",
+      "shape": [
+        16,
+        8704
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "bank3_down_scale",
+      "direction": "In",
+      "shape": [
+        16,
+        5120
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "bank3_out_scale",
+      "direction": "In",
+      "shape": [
+        16,
+        5120
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    },
+    {
+      "name": "bank3_qkv_scale",
+      "direction": "In",
+      "shape": [
+        16,
+        3584
+      ],
+      "dtype": "fp32",
+      "layout": "ND"
+    }
+  ],
+  "num_return_types": 1,
+  "platform": "a2a3",
+  "backend_type": "Ascend910B"
+}

@@ -1,0 +1,753 @@
+{
+  "kernels": [
+    {
+      "func_id": 0,
+      "name": "embedding{rank}_kernel",
+      "core_type": "aiv",
+      "signature": [
+        "IN",
+        "IN",
+        "INOUT"
+      ],
+      "native_source": null
+    },
+    {
+      "func_id": 1,
+      "name": "reduce_embedding",
+      "core_type": "aiv",
+      "signature": [
+        "IN",
+        "INOUT",
+        "INOUT",
+        "INOUT",
+        "IN"
+      ],
+      "native_source": null
+    },
+    {
+      "func_id": 2,
+      "name": "norm_plain_kernel",
+      "core_type": "aiv",
+      "signature": [
+        "IN",
+        "IN",
+        "IN",
+        "INOUT"
+      ],
+      "native_source": null
+    },
+    {
+      "func_id": 3,
+      "name": "norm_hidden_kernel",
+      "core_type": "aiv",
+      "signature": [
+        "IN",
+        "IN",
+        "IN",
+        "INOUT"
+      ],
+      "native_source": null
+    },
+    {
+      "func_id": 4,
+      "name": "project_z_kernel",
+      "core_type": "aic",
+      "signature": [
+        "IN",
+        "IN",
+        "INOUT"
+      ],
+      "native_source": null
+    },
+    {
+      "func_id": 5,
+      "name": "project_gdn_kernel",
+      "core_type": "aic",
+      "signature": [
+        "IN",
+        "IN",
+        "INOUT"
+      ],
+      "native_source": null
+    },
+    {
+      "func_id": 6,
+      "name": "ba_gates_fused",
+      "core_type": "aiv",
+      "signature": [
+        "INOUT",
+        "INOUT",
+        "IN",
+        "IN",
+        "IN",
+        "IN"
+      ],
+      "native_source": null
+    },
+    {
+      "func_id": 7,
+      "name": "causal_conv_qk_norm",
+      "core_type": "aiv",
+      "signature": [
+        "INOUT",
+        "INOUT",
+        "INOUT",
+        "INOUT",
+        "INOUT",
+        "IN",
+        "IN",
+        "IN",
+        "IN",
+        "IN"
+      ],
+      "native_source": null
+    },
+    {
+      "func_id": 8,
+      "name": "recurrent_kernel",
+      "core_type": "aiv",
+      "signature": [
+        "IN",
+        "IN",
+        "IN",
+        "IN",
+        "IN",
+        "IN",
+        "IN",
+        "IN",
+        "IN",
+        "IN",
+        "INOUT",
+        "IN",
+        "IN",
+        "IN",
+        "INOUT"
+      ],
+      "native_source": null
+    },
+    {
+      "func_id": 9,
+      "name": "norm_gdn_kernel",
+      "core_type": "aiv",
+      "signature": [
+        "IN",
+        "IN",
+        "IN",
+        "INOUT"
+      ],
+      "native_source": null
+    },
+    {
+      "func_id": 10,
+      "name": "greedy_projection_spmd_kernel",
+      "core_type": "aic",
+      "signature": [
+        "IN",
+        "IN",
+        "INOUT"
+      ],
+      "native_source": null
+    },
+    {
+      "func_id": 11,
+      "name": "reduce_add_norm_quant_kernel",
+      "core_type": "aiv",
+      "signature": [
+        "IN",
+        "IN",
+        "INOUT",
+        "IN",
+        "INOUT",
+        "INOUT",
+        "INOUT",
+        "IN",
+        "INOUT",
+        "INOUT"
+      ],
+      "native_source": null
+    },
+    {
+      "func_id": 12,
+      "name": "mlp_fused_kernel_aic",
+      "core_type": "aic",
+      "signature": [
+        "IN",
+        "IN",
+        "INOUT",
+        "IN",
+        "IN",
+        "INOUT"
+      ],
+      "native_source": null
+    },
+    {
+      "func_id": 13,
+      "name": "mlp_fused_kernel_aiv",
+      "core_type": "aiv",
+      "signature": [
+        "IN",
+        "IN",
+        "INOUT",
+        "IN",
+        "IN",
+        "INOUT"
+      ],
+      "native_source": null
+    },
+    {
+      "func_id": 14,
+      "name": "quant_4352",
+      "core_type": "aiv",
+      "signature": [
+        "IN",
+        "INOUT",
+        "INOUT"
+      ],
+      "native_source": null
+    },
+    {
+      "func_id": 15,
+      "name": "project_down_kernel_aic",
+      "core_type": "aic",
+      "signature": [
+        "IN",
+        "IN",
+        "INOUT",
+        "IN",
+        "IN",
+        "INOUT"
+      ],
+      "native_source": null
+    },
+    {
+      "func_id": 16,
+      "name": "project_down_kernel_aiv",
+      "core_type": "aiv",
+      "signature": [
+        "IN",
+        "IN",
+        "INOUT",
+        "IN",
+        "IN",
+        "INOUT"
+      ],
+      "native_source": null
+    },
+    {
+      "func_id": 17,
+      "name": "reduce_add_norm_kernel",
+      "core_type": "aiv",
+      "signature": [
+        "IN",
+        "IN",
+        "INOUT",
+        "IN",
+        "INOUT",
+        "INOUT",
+        "INOUT",
+        "IN"
+      ],
+      "native_source": null
+    },
+    {
+      "func_id": 18,
+      "name": "ba_gates_fused_0",
+      "core_type": "aiv",
+      "signature": [
+        "INOUT",
+        "INOUT",
+        "IN",
+        "IN",
+        "IN",
+        "IN"
+      ],
+      "native_source": null
+    },
+    {
+      "func_id": 19,
+      "name": "causal_conv_qk_norm_0",
+      "core_type": "aiv",
+      "signature": [
+        "INOUT",
+        "INOUT",
+        "INOUT",
+        "INOUT",
+        "INOUT",
+        "IN",
+        "IN",
+        "IN",
+        "IN",
+        "IN"
+      ],
+      "native_source": null
+    },
+    {
+      "func_id": 20,
+      "name": "ba_gates_fused_1",
+      "core_type": "aiv",
+      "signature": [
+        "INOUT",
+        "INOUT",
+        "IN",
+        "IN",
+        "IN",
+        "IN"
+      ],
+      "native_source": null
+    },
+    {
+      "func_id": 21,
+      "name": "causal_conv_qk_norm_1",
+      "core_type": "aiv",
+      "signature": [
+        "INOUT",
+        "INOUT",
+        "INOUT",
+        "INOUT",
+        "INOUT",
+        "IN",
+        "IN",
+        "IN",
+        "IN",
+        "IN"
+      ],
+      "native_source": null
+    },
+    {
+      "func_id": 22,
+      "name": "quant_5120",
+      "core_type": "aiv",
+      "signature": [
+        "IN",
+        "INOUT",
+        "INOUT"
+      ],
+      "native_source": null
+    },
+    {
+      "func_id": 23,
+      "name": "project_qkv_kernel_aic",
+      "core_type": "aic",
+      "signature": [
+        "IN",
+        "IN",
+        "INOUT",
+        "INOUT",
+        "INOUT",
+        "IN",
+        "IN",
+        "INOUT"
+      ],
+      "native_source": null
+    },
+    {
+      "func_id": 24,
+      "name": "project_qkv_kernel_aiv",
+      "core_type": "aiv",
+      "signature": [
+        "IN",
+        "IN",
+        "INOUT",
+        "INOUT",
+        "INOUT",
+        "IN",
+        "IN",
+        "INOUT"
+      ],
+      "native_source": null
+    },
+    {
+      "func_id": 25,
+      "name": "norm_rope_q_kernel",
+      "core_type": "aiv",
+      "signature": [
+        "IN",
+        "IN",
+        "IN",
+        "IN",
+        "IN",
+        "IN",
+        "IN",
+        "IN",
+        "INOUT",
+        "INOUT"
+      ],
+      "native_source": null
+    },
+    {
+      "func_id": 26,
+      "name": "norm_rope_k_append_kernel",
+      "core_type": "aiv",
+      "signature": [
+        "IN",
+        "IN",
+        "IN",
+        "IN",
+        "IN",
+        "IN",
+        "IN",
+        "INOUT",
+        "IN",
+        "IN",
+        "INOUT"
+      ],
+      "native_source": null
+    },
+    {
+      "func_id": 27,
+      "name": "s2_scores",
+      "core_type": "aic",
+      "signature": [
+        "IN",
+        "IN",
+        "INOUT",
+        "IN",
+        "IN"
+      ],
+      "native_source": null
+    },
+    {
+      "func_id": 28,
+      "name": "tiled_softmax",
+      "core_type": "aiv",
+      "signature": [
+        "INOUT",
+        "IN",
+        "IN",
+        "IN"
+      ],
+      "native_source": "tiled_softmax.cpp"
+    },
+    {
+      "func_id": 29,
+      "name": "s2_partial_values",
+      "core_type": "aic",
+      "signature": [
+        "IN",
+        "INOUT",
+        "IN",
+        "IN",
+        "IN"
+      ],
+      "native_source": null
+    },
+    {
+      "func_id": 30,
+      "name": "reduce_values_gate",
+      "core_type": "aiv",
+      "signature": [
+        "INOUT",
+        "IN",
+        "IN"
+      ],
+      "native_source": null
+    },
+    {
+      "func_id": 31,
+      "name": "quant_1536",
+      "core_type": "aiv",
+      "signature": [
+        "IN",
+        "INOUT",
+        "INOUT"
+      ],
+      "native_source": null
+    },
+    {
+      "func_id": 32,
+      "name": "project_attention_out_w8a8_kernel_aic",
+      "core_type": "aic",
+      "signature": [
+        "IN",
+        "IN",
+        "INOUT",
+        "IN",
+        "IN",
+        "INOUT"
+      ],
+      "native_source": null
+    },
+    {
+      "func_id": 33,
+      "name": "project_attention_out_w8a8_kernel_aiv",
+      "core_type": "aiv",
+      "signature": [
+        "IN",
+        "IN",
+        "INOUT",
+        "IN",
+        "IN",
+        "INOUT"
+      ],
+      "native_source": null
+    },
+    {
+      "func_id": 34,
+      "name": "reduce_add_kernel",
+      "core_type": "aiv",
+      "signature": [
+        "IN",
+        "IN",
+        "INOUT",
+        "INOUT",
+        "INOUT",
+        "IN"
+      ],
+      "native_source": null
+    },
+    {
+      "func_id": 35,
+      "name": "publish_hidden",
+      "core_type": "aiv",
+      "signature": [
+        "IN",
+        "INOUT"
+      ],
+      "native_source": null
+    },
+    {
+      "func_id": 36,
+      "name": "project_head_kernel",
+      "core_type": "aic",
+      "signature": [
+        "IN",
+        "IN",
+        "OUT"
+      ],
+      "native_source": null
+    },
+    {
+      "func_id": 37,
+      "name": "gather_logits_kernel",
+      "core_type": "aiv",
+      "signature": [
+        "IN",
+        "INOUT",
+        "INOUT",
+        "INOUT",
+        "IN"
+      ],
+      "native_source": null
+    },
+    {
+      "func_id": 38,
+      "name": "graph_stop_fence",
+      "core_type": "aiv",
+      "signature": [
+        "INOUT"
+      ],
+      "native_source": null
+    },
+    {
+      "func_id": 39,
+      "name": "production_attention_program_aic",
+      "core_type": "aic",
+      "signature": [
+        "IN",
+        "INOUT",
+        "INOUT",
+        "INOUT",
+        "IN",
+        "IN",
+        "IN",
+        "IN",
+        "IN",
+        "INOUT",
+        "INOUT",
+        "IN",
+        "IN",
+        "IN",
+        "INOUT",
+        "INOUT",
+        "IN",
+        "IN",
+        "IN",
+        "INOUT",
+        "IN",
+        "INOUT",
+        "IN",
+        "IN",
+        "INOUT",
+        "IN",
+        "INOUT",
+        "IN",
+        "SCALAR"
+      ],
+      "extra_include_dirs": [
+        "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/src/a2a3/platform/onboard/aicore",
+        "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/src/a2a3/platform/include"
+      ],
+      "native_source": "device_program_aic.cpp"
+    },
+    {
+      "func_id": 40,
+      "name": "production_attention_program_aiv",
+      "core_type": "aiv",
+      "signature": [
+        "IN",
+        "INOUT",
+        "INOUT",
+        "INOUT",
+        "IN",
+        "IN",
+        "IN",
+        "IN",
+        "IN",
+        "INOUT",
+        "INOUT",
+        "IN",
+        "IN",
+        "IN",
+        "INOUT",
+        "INOUT",
+        "IN",
+        "IN",
+        "IN",
+        "INOUT",
+        "IN",
+        "INOUT",
+        "IN",
+        "IN",
+        "INOUT",
+        "IN",
+        "INOUT",
+        "IN",
+        "SCALAR"
+      ],
+      "extra_include_dirs": [
+        "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/src/a2a3/platform/onboard/aicore",
+        "/home/g00893677/pto-dev/qwen3_8_27b-perf/work/aic_fixed_reuse_20261017/simpler/src/a2a3/platform/include"
+      ],
+      "native_source": "device_program_aiv.cpp"
+    }
+  ],
+  "orchestration_signature": [
+    "IN",
+    "INOUT",
+    "IN",
+    "IN",
+    "IN",
+    "IN",
+    "IN",
+    "IN",
+    "IN",
+    "IN",
+    "IN",
+    "IN",
+    "IN",
+    "IN",
+    "IN",
+    "IN",
+    "IN",
+    "IN",
+    "IN",
+    "IN",
+    "IN",
+    "IN",
+    "IN",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "IN",
+    "IN",
+    "OUT",
+    "INOUT",
+    "INOUT",
+    "IN",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "INOUT",
+    "IN",
+    "IN",
+    "IN",
+    "IN",
+    "IN",
+    "IN",
+    "IN",
+    "IN",
+    "IN",
+    "IN",
+    "IN",
+    "IN",
+    "IN",
+    "IN",
+    "IN",
+    "IN",
+    "IN",
+    "IN",
+    "IN",
+    "IN",
+    "IN",
+    "IN",
+    "IN",
+    "IN",
+    "IN",
+    "IN"
+  ],
+  "expected_raw_orchestration_sha256": "610d6551050dcafa82e874a549e6982bf8c772afa53d9e2d53a4d44ee1bfd7ea",
+  "expected_raw_softmax_sha256": "abaa032478b04b5080d528557f28f12629e9cf4ce63fda795cbd5c602be8b418",
+  "abi": "117 typed external parameters; 128 cache aliases share 16 native pools",
+  "minimal_native_sources": [
+    "orchestration.cpp",
+    "tiled_softmax.cpp",
+    "device_program_aic.cpp",
+    "device_program_aiv.cpp",
+    "device_program_body.h"
+  ]
+}

@@ -1,0 +1,27 @@
+--- /home/g00893677/pto-dev/qwen3_8_27b-pto/vllm-ascend/vllm_ascend/worker/model_runner_v1.py
++++ /home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/compact_decode_inputs_20261030/vendor_overlay/model_runner_v1.py
+@@ -572,6 +572,11 @@
+ 
+         return num_reqs_padded
+ 
++    def _prepare_mrope_inputs(self, scheduler_output, total_num_scheduled_tokens):
++        """Default implementation; explicit extension point for device preparation."""
++        self._calc_mrope_positions(scheduler_output)
++        self.mrope_positions.gpu.copy_(self.mrope_positions.cpu, non_blocking=True)
++
+     def _prepare_inputs(
+         self,
+         scheduler_output: "SchedulerOutput",
+@@ -750,11 +755,7 @@
+         # Only relevant for models using M-RoPE (e.g, Qwen2-VL)
+         if self.uses_mrope:
+             # Only relevant for models using M-RoPE (e.g, Qwen2-VL)
+-            self._calc_mrope_positions(scheduler_output)
+-            self.mrope_positions.gpu.copy_(
+-                self.mrope_positions.cpu,
+-                non_blocking=True,
+-            )
++            self._prepare_mrope_inputs(scheduler_output, total_num_scheduled_tokens)
+         elif self.uses_xdrope_dim > 0:
+             self._calc_xdrope_positions(scheduler_output)
+             # Only relevant for models using XD-RoPE (e.g, HunYuan-VL)

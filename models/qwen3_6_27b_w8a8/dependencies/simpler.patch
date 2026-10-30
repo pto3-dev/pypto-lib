@@ -1,0 +1,1751 @@
+diff --git a/docs/investigations/README.md b/docs/investigations/README.md
+index 90a2ac4a..137a1db1 100644
+--- a/docs/investigations/README.md
++++ b/docs/investigations/README.md
+@@ -118,3 +118,5 @@ Newest first.
+ - [2026-06 — a5 AICPU filter gate: Scenario B fail-fast guard not added](2026-06-a5-aicpu-filter-gate-scenario-b-validation.md)
+ - [2026-06 — Sanitizer rollout scope: macOS, TSAN gating, LSan](2026-06-sanitizer-scope.md)
+ - [2026-06 — chip swimlane: defer per-task wmb to rotation](2026-06-chip-swimlane-defer-wmb.md)
++
++- [2026-10 — Shared L0A between gate and up](2026-10-shared-l0a-gate-up.md) — two legal variants preserve output but regress 2.84–3.79%; combined K640 double buffering exceeds backend Right capacity; reduced MTE1 traffic does not reduce the dominant MTE2 weight stream.
+diff --git a/docs/user/reference/python-api.md b/docs/user/reference/python-api.md
+index a38a35a0..486e3b86 100644
+--- a/docs/user/reference/python-api.md
++++ b/docs/user/reference/python-api.md
+@@ -116,6 +116,39 @@ callable is a **Python orchestration function** `f(orch, args, cfg)`, where
+ | `allocate_domain(*, name, workers, window_size, buffers=())` | Context manager returning a handle indexed by domain-local rank |
+ | `alloc_child_tensor(worker_id, shapes, dtype) -> Buffer` | Delegates allocation to the owning Worker; target chip memory is named by the returned handle |
+ 
++## Experimental caller-owned NPU graph execution
++
++`ChipWorker` in `simpler.task_interface` exposes a low-level graph path for
++onboard `a2a3` with `tensormap_and_ringbuffer`. It is not `Worker.submit()` and
++does not support simulation, `host_build_graph`, or diagnostic collectors.
++Use a dedicated worker: preparation reserves the runner until finalization.
++
++| Method | Boundary |
++| ------ | -------- |
++| `prepare_graph_run(handle, args, config=None)` | Outside capture: bind one `ChipCallable`, pin the arena, runtime descriptor, and launch resources; return a run token |
++| `enqueue_graph_run(token, stream_address)` | Inside capture or eager warmup: enqueue a device reset and AICore/AICPU launch pair, with event dependencies back to the caller's stream; no host wait |
++| `finalize_graph_run(token)` | After replay has stopped, replay streams have drained, and every graph referencing the token has been destroyed: release pinned resources |
++
++All tensor arguments must name existing device memory (`child_memory=True`).
++The caller owns that storage and must keep it alive until finalization. Update
++contents at the same addresses; changing Python argument objects after capture
++does not change a captured launch. Shape, dtype, callable, and configuration
++remain fixed. Serial replay is required; concurrent graphs cannot share this
++runner. A graph captures one `ChipCallable` launch, whose device orchestration
++can submit many child `CoreCallable` tasks through Simpler's scheduler.
++
++The capture stream forks to separate persistent AICore/AICPU streams and joins
++them with capture-compatible ACL events. The device launch descriptor is reset
++by a captured D2D copy on each replay. Compilers, allocations, host-side
++diagnostics, and ordinary `run()`/`wait()` calls must stay outside capture.
++
++Before teardown, drain the actual replay streams, not only the original capture
++stream. For a Torch-NPU owner: stop replay, `torch.npu.synchronize(device_id)`,
++`graph.reset()`, `worker.finalize_graph_run(token)`, then `worker.finalize()`.
++This API does not make an arbitrary callable numerically correct or prove that
++an entire model is graph-compatible; validate changed inputs and repeated
++replays against an eager golden result.
++
+ ## Callables and task args
+ 
+ ```python
+@@ -282,3 +315,42 @@ binding. It does not upload that write to the separate device binding. The calle
+ keeps the backing alive through completion and explicitly waits/copies any prior
+ device result before submitting a host consumer. TMR device orchestration rejects
+ HOST/NONE. Neither path creates a cross-side mapped view.
++
++### Experimental fixed block placement (local A2A3 TMR candidate)
++
++`CoreTaskArgs.launch_spec.set_static_block_mapping(true)` is an advisory,
++per-task request. PyPTO emits it for pure AIC/AIV functions from
++`pl.func_attr({"static_block_mapping": True})`. The current mixed-kernel lowering
++does not carry this attribute into grouped MIX submissions; the model adapter
++sets the C++ LaunchSpec explicitly for the validated MLP sites. Unmarked tasks retain dynamic
++placement. Rebuild orchestration and runtime together when using this local API.
++
++Pure AIC, pure AIV and MIX tasks without predicates or `sync_start` are eligible
++when the grid fits the runtime cluster count or vector-core count respectively.
++AIC and MIX block `b` map to logical cluster `b`; AIV block `b` maps to logical vector
++core `b`. Each vector pair belongs to one cluster. The owning scheduler publishes to the
++target core's running/pending slot independently, without a group start barrier. Already early-dispatched
++pure AIC/AIV tasks keep their original placement. Fixed MIX tasks use the same owner queues for early staging and ready placement. Early staging gates each fixed core until its true predecessors release, without a cohort rendezvous; partial release retains fixed ownership for every remaining block. Unmarked communication, A5 and HBG use
++the dynamic path. This request does not remove completion polling or dependency
++tracking, and fixed placement can wait behind a busy target core.
++
++Level-3 scheduler timing remains available. AIC/AIV/MIX queue depths include per-owner
++static entries for that engine (one task may have several owner entries), plus the
++sampling thread's active cursor, so these depths are not unique-task counts.
++
++Owner-only queues use a single-consumer dequeue API without a consumer CAS.
++Producers retain sequence publication; global dynamic queues retain MPMC.
++This optimisation does not remove ACK/FIN polling or per-token DAG creation.
++
++
++## Static core programs (experimental, a2a3)
++
++`simpler_setup.static_program` expands synchronous generated PyPTO leaf sources into per-core execution sequences. `render_static_sequence(steps)` removes internal scheduler task boundaries. `plan_static_region(nodes)` validates a fork/join DAG; `render_static_region(nodes, lane, state_arg=..., epoch_arg=..., trace_arg=...)` emits a lane program. `StaticNode.dependency_scope` is `all_blocks` or `same_block`; same-lane, same-block edges use instruction order. The caller proves tile ownership, declares the union of tensor accesses, and keeps intermediates alive until region completion.
++
++Each region has one outer Simpler dispatch boundary. Pure AIC and MIX entry mapping can use `static_block_mapping`. Fixed MIX assigns each block to a unique cluster and launches each used core independently without drain or a group start barrier. The region runs on the existing persistent executor, with no per-instruction queue, payload, ACK or FIN. Cross-core readiness still polls explicit GM events; it is not a polling-free runtime.
++
++Event storage is INT64 `[node_count, runtime_grid, 16]`, initially zero, with one writer per 128-byte line. Epochs are positive and strictly increasing and state reuse follows completion of all region participants. Optional trace storage has the same shape; its first five fields are wait-entry, kernel-start, kernel-end, physical-core ID and epoch. The target runtime grid must come from actual available core counts. All lanes must be resident-capable; a region must not wait on work that its occupied cores prevent from launching.
++
++Leaf functions must drain all engines and expose no deferred completion or outside consumers. Their on-chip arenas are reused sequentially; contents do not survive a leaf boundary by contract. This source generator does not infer memory hazards, cross-leaf prefetch or arbitrary producer tile ranges. Generated hardware entries retain the ELF first-symbol validation. Region wait failure propagates through the existing asynchronous-error slab.
++
++The region lane sources additionally need the a2a3 onboard AICore platform header directory on their include path. Tests under `tests/st/a2a3/tensormap_and_ringbuffer/static_program`, `static_fork_join`, `static_fork_join_local` and `rope_append` cover hardware execution; CPU code-generation tests are in `tests/ut/py/test_static_program.py`.
+diff --git a/python/bindings/task_interface.cpp b/python/bindings/task_interface.cpp
+index 753e6ad5..400831d7 100644
+--- a/python/bindings/task_interface.cpp
++++ b/python/bindings/task_interface.cpp
+@@ -3770,6 +3770,17 @@ NB_MODULE(_task_interface, m) {
+             nb::arg("run"), nb::call_guard<nb::gil_scoped_release>(),
+             "Launch a prepared native run and return after its real device launch fence."
+         )
++        .def(
++            "_prepare_graph_run", &ChipWorker::prepare_graph_run,
++            nb::arg("callable_id"), nb::arg("args"), nb::arg("config"),
++            nb::call_guard<nb::gil_scoped_release>(),
++            "Pin a device-tensor-only callable for stream graph capture and replay."
++        )
++        .def(
++            "_enqueue_graph_run", &ChipWorker::enqueue_graph_run, nb::arg("run"), nb::arg("stream"),
++            nb::call_guard<nb::gil_scoped_release>(),
++            "Enqueue a pinned callable and join its device streams into the caller's stream."
++        )
+         .def(
+             "_poll_native_run", &ChipWorker::poll_native_run, nb::arg("run"),
+             "Return whether a launched native run has reached its completion fence."
+diff --git a/python/bindings/worker_bind.h b/python/bindings/worker_bind.h
+index a6a344da..faa89171 100644
+--- a/python/bindings/worker_bind.h
++++ b/python/bindings/worker_bind.h
+@@ -924,6 +924,9 @@ inline void bind_worker(nb::module_ &m) {
+     // The teardown record's placement and size, so the Python producer and
+     // consumer cannot drift from the C++ trailer layout.
+     m.attr("MAILBOX_OFF_TEARDOWN_REPORT") = static_cast<int>(MAILBOX_OFF_TEARDOWN_REPORT);
++    m.attr("MAILBOX_OFF_WAKE_SEQUENCE") = static_cast<int>(MAILBOX_OFF_WAKE_SEQUENCE);
++    m.attr("MAILBOX_OFF_WAKE_CAPABILITY") = static_cast<int>(MAILBOX_OFF_WAKE_CAPABILITY);
++
+     m.attr("SIMPLER_TEARDOWN_REPORT_BYTES") = static_cast<int>(SIMPLER_TEARDOWN_REPORT_BYTES);
+     m.attr("TEARDOWN_REPORT_SCHEMA") = static_cast<int>(TEARDOWN_REPORT_SCHEMA);
+     m.attr("MAILBOX_ARGS_CAPACITY") = static_cast<int>(MAILBOX_ARGS_CAPACITY);
+@@ -948,6 +951,16 @@ inline void bind_worker(nb::module_ &m) {
+         },
+         nb::arg("addr"), nb::arg("value"), "Release-store a 32-bit mailbox word at `addr`."
+     );
++    m.def(
++        "_mailbox_notify_work",
++        [](uint64_t addr) {
++            if (addr == 0 || addr % alignof(int32_t) != 0) {
++                throw std::invalid_argument("Invalid mailbox wake address");
++            }
++            mailbox_notify_work(reinterpret_cast<void *>(addr));
++        },
++        nb::arg("addr"), "Publish a mailbox wake generation after work or shutdown is visible."
++    );
+     m.def(
+         "_mailbox_wait_i32",
+         [](uint64_t addr, int32_t expected, double timeout_s) {
+diff --git a/python/simpler/task_interface.py b/python/simpler/task_interface.py
+index b724bddc..45d42fdf 100644
+--- a/python/simpler/task_interface.py
++++ b/python/simpler/task_interface.py
+@@ -1930,6 +1930,25 @@ class ChipWorker:
+     def _launch_native_run(self, run):
+         self._impl._launch_native_run(run)
+ 
++    def prepare_graph_run(self, handle, args, config=None):
++        """Pin a callable before capture; retain its NPU buffers until close.
++
++        Stop replay, drain all replay streams, and destroy the consumer graph
++        before finalizing the returned token. Keep every argument's device
++        storage alive until then. Preparation must run outside capture.
++        The runner is reserved exclusively for this graph's lifetime.
++        """
++        state = self._resolve_handle(handle)
++        return self._impl._prepare_graph_run(state.slot_id, args, config or CallConfig())
++
++    def enqueue_graph_run(self, run, stream):
++        """Enqueue without host synchronization on a caller-owned NPU stream."""
++        self._impl._enqueue_graph_run(run, int(stream))
++
++    def finalize_graph_run(self, run):
++        """Release a graph token after draining replay and destroying its graph."""
++        self._impl._finalize_native_run(run)
++
+     def _poll_native_run(self, run):
+         return bool(self._impl._poll_native_run(run))
+ 
+diff --git a/python/simpler/worker.py b/python/simpler/worker.py
+index a8a98b10..5d890372 100644
+--- a/python/simpler/worker.py
++++ b/python/simpler/worker.py
+@@ -89,13 +89,17 @@ from typing import Any, NamedTuple, NoReturn, cast
+ import cloudpickle
+ from _task_interface import (  # pyright: ignore[reportMissingImports]
+     HOST_STRACE_ENABLED,
++    MAILBOX_OFF_WAKE_CAPABILITY,
++    MAILBOX_OFF_WAKE_SEQUENCE,
+     MAX_REGISTERED_CALLABLE_IDS,
+     PTO_PIPELINE_MAX_DEPTH,
+     RUNTIME_ENV_RING_COUNT,
+     WorkerType,
+     _emit_host_span,
+     _mailbox_load_i32,
++    _mailbox_notify_work,
+     _mailbox_store_i32,
++    _mailbox_wait_i32,
+     _read_control_copy_request,
+     _region_vmm_granularity,
+     _set_host_span_level_prefix,
+@@ -2393,6 +2397,7 @@ def _request_child_shutdown(buf) -> None:
+     """
+     _mailbox_store_i32(_buffer_field_addr(buf, _OFF_SHUTDOWN), _SHUTDOWN_REQUESTED)
+     _mailbox_store_i32(_buffer_field_addr(buf, _OFF_STATE), _SHUTDOWN)
++    _mailbox_notify_work(_buffer_field_addr(buf, 0))
+ 
+ 
+ def _write_error(buf, code: int, msg: str = "") -> None:
+@@ -2465,6 +2470,21 @@ def _reexport_args_from_mailbox(buf, worker: Worker) -> TaskArgs:
+ _PARENT_LIVENESS_POLL_INTERVAL = 1000
+ 
+ 
++def _mailbox_wake_snapshot(buf) -> tuple[int, int] | None:
++    capability = _buffer_field_addr(buf, MAILBOX_OFF_WAKE_CAPABILITY)
++    if _mailbox_load_i32(capability) != 1:
++        return None
++    address = _buffer_field_addr(buf, MAILBOX_OFF_WAKE_SEQUENCE)
++    return address, _mailbox_load_i32(address)
++
++
++def _mailbox_park(snapshot: tuple[int, int] | None) -> None:
++    if snapshot is not None:
++        # Publishers change this generation and wake it for every frame.
++        # The timeout only bounds orphan detection, never arrival latency.
++        _mailbox_wait_i32(*snapshot, 0.1)
++
++
+ def _run_mailbox_loop(
+     buf,
+     state_addr: int,
+@@ -2509,6 +2529,7 @@ def _run_mailbox_loop(
+     task_state_addr = _buffer_field_addr(task_buf, _OFF_STATE)
+     try:
+         while True:
++            wake = _mailbox_wake_snapshot(buf) if liveness_countdown == 1 else None
+             state = _mailbox_load_i32(state_addr)
+             if state == _SHUTDOWN or _mailbox_load_i32(shutdown_addr) == _SHUTDOWN_REQUESTED:
+                 if on_shutdown is not None:
+@@ -2536,6 +2557,7 @@ def _run_mailbox_loop(
+                         if on_shutdown is not None:
+                             on_shutdown()
+                         break
++                    _mailbox_park(wake)
+     finally:
+         if task_buf is not None:
+             task_buf.release()
+@@ -3727,6 +3749,7 @@ def _run_chip_main_loop(  # noqa: PLR0913, PLR0915 -- fork-child entry: every de
+         shutdown_addr = _buffer_field_addr(buf, _OFF_SHUTDOWN)
+         try:
+             while True:
++                wake = _mailbox_wake_snapshot(buf) if not staged_frames and liveness_countdown == 1 else None
+                 control_state = _mailbox_load_i32(state_addr)
+                 if control_state == _SHUTDOWN or _mailbox_load_i32(shutdown_addr) == _SHUTDOWN_REQUESTED:
+                     break
+@@ -3823,6 +3846,8 @@ def _run_chip_main_loop(  # noqa: PLR0913, PLR0915 -- fork-child entry: every de
+                             if os.getppid() != parent_pid:
+                                 shutdown_message = f"chip_process dev={device_id}: parent exited"
+                                 break
++                            if not staged_frames:
++                                _mailbox_park(wake)
+                         continue
+                 break
+         finally:
+diff --git a/src/a2a3/platform/onboard/host/device_runner.cpp b/src/a2a3/platform/onboard/host/device_runner.cpp
+index ab3d3275..025a1e86 100644
+--- a/src/a2a3/platform/onboard/host/device_runner.cpp
++++ b/src/a2a3/platform/onboard/host/device_runner.cpp
+@@ -935,6 +935,109 @@ int DeviceRunner::queue_cross_run_wait(
+     return record_cross_run_proof(prepared, waiter_stream);
+ }
+ 
++int DeviceRunner::prepare_graph_execution(PreparedExecution &prepared) {
++    if (std::strcmp(SIMPLER_RUNTIME_NAME, "tensormap_and_ringbuffer") != 0) return PTO_RUNTIME_ERR_INTERNAL;
++    if (prepared.config.diagnostics_any() || graph_events_.count(&prepared) != 0) return PTO_RUNTIME_ERR_INTERNAL;
++    int rc = ensure_run_streams();
++    if (rc != 0) return rc;
++    // Legacy events cannot participate in global capture. Match Torch-NPU's
++    // reusable event API, while keeping ordinary execution compatible with
++    // older CANN versions which do not export this graph-only entry point.
++    using CreateCaptureEvent = aclError (*)(aclrtEvent *, uint32_t);
++    auto create_event = reinterpret_cast<CreateCaptureEvent>(dlsym(RTLD_DEFAULT, "aclrtCreateEventExWithFlag"));
++    if (create_event == nullptr) return PTO_RUNTIME_ERR_INTERNAL;
++    auto &events = graph_events_[&prepared];
++    for (rtEvent_t *event : {&events.start, &events.aicore_done, &events.aicpu_done}) {
++        rc = create_event(event, ACL_EVENT_SYNC);
++        if (rc != 0) {
++            (void)finish_graph_execution(prepared);
++            return rc;
++        }
++    }
++    // Publish the prepared descriptor once before capture. Upstream defers this
++    // from prepare to launch; graph replay instead restores a captured D2D image.
++    // A reusable graph uses descriptor-resident entry values. Choosing the
++    // ordinary out-of-capture launch-envelope route here would disagree with
++    // the replay snapshot and with capture's supported payload contract.
++    rc = prepared.kernel_args.publish_runtime_args(false);
++    if (rc == 0) rc = aclrtSynchronizeStreamWithTimeout(
++        static_cast<aclrtStream>(run_streams_.aicpu()), timeout_config_.stream_sync_timeout_ms);
++    if (rc != 0) { (void)finish_graph_execution(prepared); return rc; }
++    // Reset the complete device launch descriptor, including handshake and
++    // completion flags, with a captured D2D copy on every replay. The snapshot
++    // contains fixed tensor addresses, not their changing contents.
++    const size_t reset_bytes = runtime_device_copy_size(*prepared.runtime);
++    events.reset_image = allocate_tensor(reset_bytes);
++    if (events.reset_image == nullptr) {
++        (void)finish_graph_execution(prepared);
++        return PTO_RUNTIME_ERR_INTERNAL;
++    }
++    // Snapshot the published image, whose entry-source control words were
++    // patched by publish_runtime_args. The host Runtime is not that image.
++    rc = rtMemcpy(events.reset_image, reset_bytes, prepared.kernel_args.args.runtime_args,
++                  reset_bytes, RT_MEMCPY_DEVICE_TO_DEVICE);
++    if (rc != 0) {
++        (void)finish_graph_execution(prepared);
++        return rc;
++    }
++    activate_launch_shape(*prepared.runtime);
++    return 0;
++}
++
++int DeviceRunner::enqueue_graph_execution(PreparedExecution &prepared, void *stream) {
++    auto it = graph_events_.find(&prepared);
++    if (it == graph_events_.end() || stream == nullptr) return PTO_RUNTIME_ERR_INTERNAL;
++    auto &events = it->second;
++    auto consumer = static_cast<rtStream_t>(stream);
++    // Eager warmup and the subsequent graph capture may use different streams.
++    // The caller drains warmup before capture and owns replay serialization.
++    events.consumer = consumer;
++    auto aicore = static_cast<rtStream_t>(run_streams_.aicore());
++    auto aicpu = static_cast<rtStream_t>(run_streams_.aicpu());
++    const size_t reset_bytes = runtime_device_copy_size(*prepared.runtime);
++    int rc = rtMemcpyAsync(
++        prepared.kernel_args.args.runtime_args, reset_bytes, events.reset_image,
++        reset_bytes, RT_MEMCPY_DEVICE_TO_DEVICE, consumer
++    );
++    if (rc != 0) { LOG_ERROR("graph reset D2D failed: %d", rc); return rc; }
++    // The persistent AICore and AICPU kernels need concurrent streams. Fork
++    // from, then join back into, the graph owner's stream using capture events.
++    if ((rc = aclrtRecordEvent(events.start, consumer)) != 0) { LOG_ERROR("graph start record failed: %d", rc); return rc; }
++    if ((rc = aclrtStreamWaitEvent(aicore, events.start)) != 0) { LOG_ERROR("graph AICore fork failed: %d", rc); return rc; }
++    if ((rc = aclrtStreamWaitEvent(aicpu, events.start)) != 0) { LOG_ERROR("graph AICPU fork failed: %d", rc); return rc; }
++    if ((rc = launch_aicore_kernel(aicore, prepared.kernel_args.args)) != 0) return rc;
++    int launch_n = prepared.runtime->get_aicpu_launch_count();
++    if ((rc = launch_aicpu_payload(aicpu, prepared.kernel_args.launch_payload(), prepared.kernel_args.launch_payload_bytes(), host::KernelNames::RunName, launch_n)) != 0)
++        return rc;
++    if ((rc = aclrtRecordEvent(events.aicore_done, aicore)) != 0) return rc;
++    if ((rc = aclrtRecordEvent(events.aicpu_done, aicpu)) != 0) return rc;
++    if ((rc = aclrtStreamWaitEvent(consumer, events.aicore_done)) != 0) return rc;
++    return aclrtStreamWaitEvent(consumer, events.aicpu_done);
++}
++
++int DeviceRunner::finish_graph_execution(PreparedExecution &prepared) {
++    auto it = graph_events_.find(&prepared);
++    if (it == graph_events_.end()) return 0;
++    auto &events = it->second;
++    if (events.consumer != nullptr) {
++        int rc = aclrtSynchronizeStreamWithTimeout(events.consumer, timeout_config_.stream_sync_timeout_ms);
++        if (rc != 0) return rc;
++        // A failed partial submission may not have joined both child streams
++        // back to the consumer. Drain them before releasing captured storage.
++        rc = aclrtSynchronizeStreamWithTimeout(static_cast<aclrtStream>(run_streams_.aicpu()), timeout_config_.stream_sync_timeout_ms);
++        if (rc != 0) return rc;
++        rc = aclrtSynchronizeStreamWithTimeout(
++            static_cast<aclrtStream>(run_streams_.aicore()), timeout_config_.stream_sync_timeout_ms);
++        if (rc != 0) return rc;
++    }
++    for (rtEvent_t event : {events.start, events.aicore_done, events.aicpu_done}) {
++        if (event != nullptr) (void)aclrtDestroyEvent(event);
++    }
++    if (events.reset_image != nullptr) free_tensor(events.reset_image);
++    graph_events_.erase(it);
++    return 0;
++}
++
+ int DeviceRunner::reap_run(const PreparedExecution &prepared, int *diagnostics_rc) {
+     if (!prepared.streams.ready()) {
+         LOG_ERROR("reap_run: this run has no stream binding");
+diff --git a/src/a2a3/platform/onboard/host/device_runner.h b/src/a2a3/platform/onboard/host/device_runner.h
+index 0747cc07..54c65ced 100644
+--- a/src/a2a3/platform/onboard/host/device_runner.h
++++ b/src/a2a3/platform/onboard/host/device_runner.h
+@@ -107,6 +107,9 @@ public:
+     ) override;
+     LaunchOutcome launch_execution(std::unique_ptr<PreparedExecution> prepared, LaunchPermit permit) override;
+     void abandon_prepared_execution(PreparedExecution &prepared) noexcept override;
++    int prepare_graph_execution(PreparedExecution &prepared) override;
++    int enqueue_graph_execution(PreparedExecution &prepared, void *stream) override;
++    int finish_graph_execution(PreparedExecution &prepared) override;
+     int poll_execution(const ActiveExecution &active) override;
+     DrainOutcome drain_execution(ActiveExecution &active) override;
+     bool can_accept_run() const override { return !device_unusable_.load(std::memory_order_acquire); }
+@@ -222,6 +225,15 @@ public:
+ private:
+     int finalize_impl() override;
+ 
++
++    struct GraphEvents {
++        rtEvent_t start{nullptr};
++        rtEvent_t aicore_done{nullptr};
++        rtEvent_t aicpu_done{nullptr};
++        rtStream_t consumer{nullptr};
++        void *reset_image{nullptr};
++    };
++    std::unordered_map<PreparedExecution *, GraphEvents> graph_events_;
+     // Most lifecycle state (device_id_, block_dim_, cores_per_blockdim_,
+     // executor + dispatcher bytes, aicore_bin_handle_,
+     // load_aicpu_op_, mem_alloc_, the three DeviceArenas + their cached
+diff --git a/src/a2a3/runtime/tensormap_and_ringbuffer/aicpu/aicpu_executor.cpp b/src/a2a3/runtime/tensormap_and_ringbuffer/aicpu/aicpu_executor.cpp
+index 8614faec..ec52a6e7 100644
+--- a/src/a2a3/runtime/tensormap_and_ringbuffer/aicpu/aicpu_executor.cpp
++++ b/src/a2a3/runtime/tensormap_and_ringbuffer/aicpu/aicpu_executor.cpp
+@@ -778,6 +778,7 @@ int32_t AicpuExecutor::run_orchestration(Runtime *runtime, int32_t thread_idx) {
+ 
+             // Wire scheduler context to the newly created RuntimeContext before
+             // releasing scheduler threads from runtime_init_ready_.
++            rt->scheduler.static_sched_threads = sched_thread_num_ > 0 ? sched_thread_num_ : aicpu_thread_num_;
+             sched_ctx_.bind_runtime(rt);
+         }
+ 
+diff --git a/src/a2a3/runtime/tensormap_and_ringbuffer/common/intrinsic.h b/src/a2a3/runtime/tensormap_and_ringbuffer/common/intrinsic.h
+index 7663b8a3..2612d404 100644
+--- a/src/a2a3/runtime/tensormap_and_ringbuffer/common/intrinsic.h
++++ b/src/a2a3/runtime/tensormap_and_ringbuffer/common/intrinsic.h
+@@ -132,6 +132,10 @@ struct GlobalContext {
+     // through it does not allocate in L2. 0 means the device exposes no alias, and
+     // adding 0 leaves the load ordinary. Read via get_l2_cache_offset(args).
+     uint64_t l2_cache_offset;
++    // Registration-owned executable entries; valid for the scheduler lifetime.
++    uint64_t callable_entry_table;
++    uint32_t callable_entry_count;
++    uint32_t reserved;
+ };
+ 
+ struct AsyncCtx {
+diff --git a/src/a2a3/runtime/tensormap_and_ringbuffer/docs/RUNTIME_LOGIC.md b/src/a2a3/runtime/tensormap_and_ringbuffer/docs/RUNTIME_LOGIC.md
+index 07a5d4dc..5050f8f1 100644
+--- a/src/a2a3/runtime/tensormap_and_ringbuffer/docs/RUNTIME_LOGIC.md
++++ b/src/a2a3/runtime/tensormap_and_ringbuffer/docs/RUNTIME_LOGIC.md
+@@ -738,6 +738,8 @@ every used core has a free slot; `prepare_block_for_dispatch` then places **per
+ (`to_pending && !is_core_idle`): idle cores → running, busy cores → pending. Cross-core start
+ skew within a block is tolerated by AICore incore synchronization.
+ 
++Fixed MIX maps block `b` to logical cluster `b` through owner-only MIX queues. Fixed AIC maps block `b` to AIC `b` through its owner-only AIC queues; both shapes preserve this mapping in speculative early dispatch. Each owner stages only its fixed blocks, once per cluster, using per-core running/pending placement. It does not enter sync_start drain or rendezvous. Fixed MIX and AIC early candidates enter their owner-only queues, never the global dynamic early queues. The AIC and MIX paths both handle gated staging, concurrent producer release, and once-only doorbell publication. Owners prepare gated payloads at fixed positions and publish the existing staged-core mask. Producer release and late staging use the same once-only doorbell ownership handshake as dynamic early dispatch. Partial release leaves unstaged blocks on fixed owner cursors rather than routing them dynamically. Other eligible tasks retain their existing early dispatch. A global join inside the region requires all awaited blocks to fit unique runtime clusters, independent prior work to make progress, and tensor lifetimes to cover the full region. Completion and GM dependency polling remain.
++
+ ---
+ 
+ ## 9. AICore Worker Interaction
+diff --git a/src/a2a3/runtime/tensormap_and_ringbuffer/host/runtime_maker.cpp b/src/a2a3/runtime/tensormap_and_ringbuffer/host/runtime_maker.cpp
+index dbc9f1fb..ab7cc25f 100644
+--- a/src/a2a3/runtime/tensormap_and_ringbuffer/host/runtime_maker.cpp
++++ b/src/a2a3/runtime/tensormap_and_ringbuffer/host/runtime_maker.cpp
+@@ -792,11 +792,10 @@ static bool build_and_cache_prebuilt_arena(
+ }
+ 
+ /**
+- * This runtime resolves a kernel entry from the CoreCallable object the
+- * dispatch path is handed, so its registration blocks carry the object table
+- * alone and no resolved-entry view is built for them.
++ * The scheduler uses the object-address table. Device-resident programs use
++ * the resolved-entry sibling, retained by the same callable registration.
+  */
+-extern "C" bool runtime_uses_callable_entry_table_impl() { return false; }
++extern "C" bool runtime_uses_callable_entry_table_impl() { return true; }
+ 
+ /**
+  * Per-run binding: build device-side argument storage (tensor copy-out, GM
+diff --git a/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/orchestrator.cpp b/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/orchestrator.cpp
+index ca548241..b6839925 100644
+--- a/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/orchestrator.cpp
++++ b/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/orchestrator.cpp
+@@ -786,6 +786,13 @@ static bool prepare_task(
+     out->slot_state->logical_block_num = block_num;
+     out->slot_state->active_mask = active_mask;
+     out->slot_state->task_attrs = task_attrs;
++    ResourceShape static_shape = active_mask.to_shape();
++    int32_t static_limit = static_shape == ResourceShape::AIV ? orch->total_aiv_count : orch->total_cluster_count;
++    if (args.launch_spec.static_block_mapping() &&
++        (static_shape == ResourceShape::AIC || static_shape == ResourceShape::AIV || static_shape == ResourceShape::MIX) &&
++        !task_attrs.requires_sync_start() && !task_attrs.has_predicate() && block_num <= static_limit) {
++        out->slot_state->lifecycle_flags.fetch_or(STATIC_BLOCK_MAPPING, std::memory_order_relaxed);
++    }
+     // fanin_count is set during Orch-side wiring
+     scope_tasks_push(orch, out->slot_state);
+ 
+diff --git a/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/runtime.h b/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/runtime.h
+index e8486927..60c3f58c 100644
+--- a/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/runtime.h
++++ b/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/runtime.h
+@@ -197,6 +197,7 @@ struct alignas(64) DeviceRuntimeLaunchDesc {
+     // run publishes the reference and never the contents. Both are zero until a
+     // bind names a callable; a func_id at or past the length is unmapped.
+     uint64_t callable_table_addr_;
++    uint64_t callable_entry_table_addr_;
+     uint32_t callable_table_len_;
+ 
+     // Serial orchestrator -> scheduler start control.
+diff --git a/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/runtime_types.h b/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/runtime_types.h
+index 4032859b..d167eb79 100644
+--- a/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/runtime_types.h
++++ b/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/runtime_types.h
+@@ -510,6 +510,7 @@ enum TaskLifecycleFlag : uint8_t {
+     // has_any_subtask_deferred().
+     SUBTASK_DEFERRED = 1U << 2,
+     DISPATCH_PROPAGATED = 1U << 3,
++    STATIC_BLOCK_MAPPING = 1U << 4,
+ };
+ 
+ static_assert((DISPATCH_PROPAGATED & (READY_CLAIMED | COMPLETION_DONE | SUBTASK_DEFERRED)) == 0);
+@@ -563,6 +564,8 @@ struct alignas(64) ChipTaskSlotState {
+     // ranges through claim_block_range().
+     std::atomic<int16_t> next_block_idx{0};
+ 
++    bool static_block_mapping() const { return (lifecycle_flags.load(std::memory_order_relaxed) & STATIC_BLOCK_MAPPING) != 0; }
++
+     int32_t claim_block_range(int32_t block_limit, int32_t max_count, int32_t &start) {
+         int16_t current = next_block_idx.load(std::memory_order_relaxed);
+         while (current < block_limit && max_count > 0) {
+diff --git a/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/scheduler/scheduler.h b/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/scheduler/scheduler.h
+index 80f06797..c3958976 100644
+--- a/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/scheduler/scheduler.h
++++ b/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/scheduler/scheduler.h
+@@ -213,6 +213,18 @@ struct alignas(64) ChipReadyQueue {
+ 
+     ChipTaskSlotState *pop() { return pop_tagged(nullptr); }
+ 
++    // Only an owner queue may use this API: exactly one consumer advances the
++    // read ticket; producers publish each entry through its sequence number.
++    ChipTaskSlotState *pop_single_consumer() {
++        uint64_t pos = dequeue_pos.load(std::memory_order_relaxed);
++        ChipReadyQueueSlot &slot = slots[pos & mask];
++        if (slot.sequence.load(std::memory_order_acquire) != static_cast<int64_t>(pos + 1)) return nullptr;
++        ChipTaskSlotState *result = slot.slot_state;
++        dequeue_pos.store(pos + 1, std::memory_order_relaxed);
++        slot.sequence.store(static_cast<int64_t>(pos + mask + 1), std::memory_order_release);
++        return result;
++    }
++
+     ChipTaskSlotState *pop_tagged(TaskId *task_id_snapshot) {
+         // Fast-path: skip slot load when queue is clearly empty
+         uint64_t d = dequeue_pos.load(std::memory_order_relaxed);
+@@ -430,6 +442,9 @@ struct CompletionStats {
+ struct SchedulerLayout {
+     size_t off_ready_queue_slots[NUM_RESOURCE_SHAPES];
+     size_t off_ready_sync_queue_slots[NUM_RESOURCE_SHAPES];
++    size_t off_static_ready_queue_slots[PLATFORM_MAX_AICPU_THREADS];
++    size_t off_static_aiv_ready_queue_slots[PLATFORM_MAX_AICPU_THREADS];
++    size_t off_static_mix_ready_queue_slots[PLATFORM_MAX_AICPU_THREADS];
+     size_t off_dummy_ready_queue_slots;
+     size_t off_early_dispatch_queue_slots[NUM_RESOURCE_SHAPES];
+     size_t off_early_sync_start_queue_slots;
+@@ -527,6 +542,10 @@ struct SchedulerState {
+ 
+     // Dependency-only tasks (active_mask is empty, shape == DUMMY). Drained by
+     // the dispatch loop and completed inline -- never goes to AICore.
++    ChipReadyQueue static_ready_queues[PLATFORM_MAX_AICPU_THREADS];
++    ChipReadyQueue static_aiv_ready_queues[PLATFORM_MAX_AICPU_THREADS];
++    ChipReadyQueue static_mix_ready_queues[PLATFORM_MAX_AICPU_THREADS];
++    int32_t static_sched_threads{0};
+     ChipReadyQueue dummy_ready_queue;
+ 
+     alignas(64) AsyncWaitList async_wait_list;
+@@ -546,6 +565,13 @@ struct SchedulerState {
+     // the per-shape ready_sync_queues[] (drained as Tier-0); everything else to
+     // ready_queues[].
+     void push_ready_routed(ChipTaskSlotState *slot_state) {
++        // The orchestrator uses this path for zero-fanin / already-completed
++        // producers, bypassing route_ready_once. Marked tasks must still claim
++        // readiness and early-dispatch state before entering owner queues.
++        if (slot_state->static_block_mapping()) {
++            route_ready_once(*slot_state);
++            return;
++        }
+         ResourceShape shape = slot_state->active_mask.to_shape();
+         if (shape == ResourceShape::DUMMY ||
+             (slot_state->task_attrs.has_predicate() && !slot_state->payload->predicate.pass())) {
+@@ -928,6 +954,9 @@ struct SchedulerState {
+         // wiring caller has no separate predicate filter, so the gate lives here.
+         if (consumer.task_attrs.has_predicate()) return;
+         ResourceShape shape = consumer.active_mask.to_shape();
++        const bool fixed_owner = consumer.static_block_mapping() &&
++            (shape == ResourceShape::MIX || shape == ResourceShape::AIC);
++        if (fixed_owner && static_sched_threads <= 0) return;
+         if (shape != ResourceShape::AIC && shape != ResourceShape::AIV && shape != ResourceShape::MIX) {
+             return;
+         }
+@@ -939,6 +968,12 @@ struct SchedulerState {
+             return;
+         }
+ 
++        if (fixed_owner) {
++            // Each owner's entry covers its fixed blocks through producer release.
++            try_push_static_ready(consumer, true);
++            return;
++        }
++
+         const TaskId task_id = consumer.task->task_id;
+         // A sync-start cohort uses one shape-agnostic queue so one owner can
+         // choose an all-or-nothing local stage or the global-drain fallback.
+@@ -1034,7 +1069,8 @@ struct SchedulerState {
+         }
+     };
+ 
+-    inline bool try_early_dispatch_release(ChipTaskSlotState &slot_state, EarlyDispatchReleaseSink *sink = nullptr) {
++    inline bool try_early_dispatch_release(ChipTaskSlotState &slot_state, EarlyDispatchReleaseSink *sink = nullptr, bool *never_staged = nullptr) {
++        if (never_staged != nullptr) *never_staged = false;
+         // A predicated task is evaluated at the ready point, never early-dispatched.
+         if (slot_state.task_attrs.has_predicate()) return false;
+         // Never staged => CAS NONE->DISPATCHED wins => dispatch normally.
+@@ -1042,6 +1078,7 @@ struct SchedulerState {
+         if (slot_state.payload->early_dispatch_state.compare_exchange_strong(
+                 expect, EARLY_DISPATCH_DISPATCHED, std::memory_order_seq_cst, std::memory_order_seq_cst
+             )) {
++            if (never_staged != nullptr) *never_staged = true;
+             return false;
+         }
+         // route_ready_once admits one caller, but keep the helper defensive: a
+@@ -1089,17 +1126,45 @@ struct SchedulerState {
+         }
+         // No explicit removal from the cross-thread queue: a still-queued entry for
+         // this consumer is now DISPATCHED and is dropped when a peer pops it.
+-        // Fully pre-staged => skip the ready queue. Partially staged SPMD consumer =>
+-        // fall through so the caller pushes C; dispatch resumes from next_block_idx.
++        // Dynamic partial consumers resume via the ready queue. Fixed AIC/MIX consumers
++        // retain their existing owner entries for all remaining blocks.
++        if (slot_state.static_block_mapping() && static_sched_threads > 0 &&
++            (slot_state.active_mask.to_shape() == ResourceShape::MIX ||
++                slot_state.active_mask.to_shape() == ResourceShape::AIC)) return true;
+         return slot_state.next_block_idx.load(std::memory_order_seq_cst) >= slot_state.logical_block_num;
+     }
+ 
++    // Fixed AIC/MIX owner entries survive producer release and cover every unstaged block.
++    // Pure AIV tasks retain dynamic placement when already pre-staged.
++    static int32_t static_owner_count(ResourceShape shape, int32_t blocks, int32_t owners) {
++        int32_t clusters = shape == ResourceShape::AIV ? (blocks + 1) / 2 : blocks;
++        return std::min(owners, clusters);
++    }
++
++    static int32_t static_block_for_offset(ResourceShape shape, int32_t offset, int32_t owner, int32_t owners) {
++        int32_t cluster = (offset / PLATFORM_CORES_PER_BLOCKDIM) * owners + owner;
++        return shape == ResourceShape::AIV ? 2 * cluster + offset % PLATFORM_CORES_PER_BLOCKDIM - 1 : cluster;
++    }
++
++    bool try_push_static_ready(ChipTaskSlotState &slot_state, bool never_staged) {
++        if (!never_staged || !slot_state.static_block_mapping() || static_sched_threads <= 0) return false;
++        ResourceShape shape = slot_state.active_mask.to_shape();
++        int32_t count = static_owner_count(shape, slot_state.logical_block_num, static_sched_threads);
++        for (int32_t thread = 0; thread < count; ++thread) {
++            ChipReadyQueue &queue = shape == ResourceShape::MIX ? static_mix_ready_queues[thread] :
++                (shape == ResourceShape::AIV ? static_aiv_ready_queues[thread] : static_ready_queues[thread]);
++            while (!queue.push(&slot_state)) {}
++        }
++        return true;
++    }
++
+     bool route_ready_once(ChipTaskSlotState &slot_state, EarlyDispatchReleaseSink *sink = nullptr) {
+         if (!try_claim_ready_once(slot_state)) return false;
+ 
+         // Early-dispatch: pre-staged tasks are released by doorbell
+         // here, skipping the ready-queue round-trip entirely.
+-        bool early_handled = try_early_dispatch_release(slot_state, sink);
++        bool never_staged = false;
++        bool early_handled = try_early_dispatch_release(slot_state, sink, &never_staged);
+         if (slot_state.task_attrs.requires_sync_start()) {
+             bool drain_owned = publish_ready_to_early_sync_drain(*slot_state.payload);
+             if (early_handled || drain_owned) return true;
+@@ -1107,6 +1172,7 @@ struct SchedulerState {
+             return true;
+         }
+ 
++        if (try_push_static_ready(slot_state, never_staged)) return true;
+         ResourceShape shape = slot_state.active_mask.to_shape();
+         if (shape == ResourceShape::DUMMY ||
+             (slot_state.task_attrs.has_predicate() && !slot_state.payload->predicate.pass())) {
+@@ -1140,7 +1206,8 @@ struct SchedulerState {
+ 
+         // Early-dispatch: pre-staged tasks are released by doorbell
+         // here, skipping the ready-queue round-trip entirely.
+-        bool early_handled = try_early_dispatch_release(slot_state, sink);
++        bool never_staged = false;
++        bool early_handled = try_early_dispatch_release(slot_state, sink, &never_staged);
+         if (slot_state.task_attrs.requires_sync_start()) {
+             bool drain_owned = publish_ready_to_early_sync_drain(*slot_state.payload);
+             if (early_handled || drain_owned) return true;
+@@ -1148,6 +1215,7 @@ struct SchedulerState {
+             return true;
+         }
+ 
++        if (try_push_static_ready(slot_state, never_staged)) return true;
+         ResourceShape shape = slot_state.active_mask.to_shape();
+         if (shape == ResourceShape::DUMMY ||
+             (slot_state.task_attrs.has_predicate() && !slot_state.payload->predicate.pass())) {
+diff --git a/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/scheduler/scheduler_cold_path.cpp b/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/scheduler/scheduler_cold_path.cpp
+index 52d786d8..50ffa030 100644
+--- a/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/scheduler/scheduler_cold_path.cpp
++++ b/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/scheduler/scheduler_cold_path.cpp
+@@ -1088,6 +1088,9 @@ void SchedulerContext::assign_own_clusters(Runtime *runtime, int32_t tidx) {
+                     dp.global_context.dma_workspace[k] = get_dma_workspace_addr(k);
+                 }
+                 dp.global_context.l2_cache_offset = get_dev_l2_cache_offset();
++                dp.global_context.callable_entry_table = runtime->dev.callable_entry_table_addr_;
++                dp.global_context.callable_entry_count = runtime->dev.callable_table_len_;
++                dp.global_context.reserved = 0;
+                 dp.args[PAYLOAD_LOCAL_CONTEXT_INDEX] = reinterpret_cast<uint64_t>(&dp.local_context);
+                 dp.args[PAYLOAD_GLOBAL_CONTEXT_INDEX] = reinterpret_cast<uint64_t>(&dp.global_context);
+             }
+@@ -1429,6 +1432,9 @@ int32_t SchedulerContext::post_handshake_init(Runtime *runtime) {
+                 dp.global_context.dma_workspace[k] = get_dma_workspace_addr(k);
+             }
+             dp.global_context.l2_cache_offset = get_dev_l2_cache_offset();
++            dp.global_context.callable_entry_table = runtime->dev.callable_entry_table_addr_;
++            dp.global_context.callable_entry_count = runtime->dev.callable_table_len_;
++            dp.global_context.reserved = 0;
+             dp.args[PAYLOAD_LOCAL_CONTEXT_INDEX] = reinterpret_cast<uint64_t>(&dp.local_context);
+             dp.args[PAYLOAD_GLOBAL_CONTEXT_INDEX] = reinterpret_cast<uint64_t>(&dp.global_context);
+         }
+@@ -1494,6 +1500,9 @@ void SchedulerContext::deinit() {
+     }
+ 
+     regs_ = 0;
++    for (auto &cursor : static_cursors_) cursor = {};
++    for (auto &cursor : static_aiv_cursors_) cursor = {};
++    for (auto &cursor : static_mix_cursors_) cursor = {};
+     sched_ = nullptr;
+     rt_ = nullptr;
+     func_id_to_addr_ = nullptr;
+diff --git a/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/scheduler/scheduler_context.h b/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/scheduler/scheduler_context.h
+index c987f3e3..5a4ed055 100644
+--- a/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/scheduler/scheduler_context.h
++++ b/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/scheduler/scheduler_context.h
+@@ -138,6 +138,18 @@ private:
+     // State
+     // =========================================================================
+ 
++    struct StaticCursor {
++        ChipTaskSlotState *task{nullptr};
++        CoreTracker::BitStates remaining{};
++    };
++    StaticCursor static_cursors_[MAX_AICPU_THREADS];
++    StaticCursor static_aiv_cursors_[MAX_AICPU_THREADS];
++    StaticCursor static_mix_cursors_[MAX_AICPU_THREADS];
++    uint32_t static_blocks_[MAX_AICPU_THREADS]{};
++    uint32_t static_tasks_[MAX_AICPU_THREADS]{};
++    void dispatch_static_tasks(int32_t thread_idx, CoreTracker &tracker, bool pmu_active,
++                               bool &made_progress, bool &try_pushed);
++
+     // --- Scheduler binding & per-core runtime state ---
+     alignas(64) SchedulerState *sched_{nullptr};
+     RuntimeContext *rt_{nullptr};
+diff --git a/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/scheduler/scheduler_dispatch.cpp b/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/scheduler/scheduler_dispatch.cpp
+index bdc5e0ad..e7911c2c 100644
+--- a/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/scheduler/scheduler_dispatch.cpp
++++ b/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/scheduler/scheduler_dispatch.cpp
+@@ -559,6 +559,107 @@ void SchedulerContext::run_staging_order(
+     }
+ }
+ 
++void SchedulerContext::dispatch_static_tasks(
++    int32_t thread_idx, CoreTracker &tracker, bool pmu_active, bool &made_progress, bool &try_pushed
++) {
++    const ResourceShape shapes[3] = {ResourceShape::MIX,
++        (thread_idx & 1) ? ResourceShape::AIV : ResourceShape::AIC,
++        (thread_idx & 1) ? ResourceShape::AIC : ResourceShape::AIV};
++    for (ResourceShape shape : shapes) {
++        auto &cursor = shape == ResourceShape::MIX ? static_mix_cursors_[thread_idx] :
++            (shape == ResourceShape::AIV ? static_aiv_cursors_[thread_idx] : static_cursors_[thread_idx]);
++        auto &queue = shape == ResourceShape::MIX ? sched_->static_mix_ready_queues[thread_idx] :
++            (shape == ResourceShape::AIV ? sched_->static_aiv_ready_queues[thread_idx] : sched_->static_ready_queues[thread_idx]);
++        for (;;) {
++            if (cursor.task == nullptr) {
++                cursor.task = queue.pop_single_consumer();
++                if (cursor.task == nullptr) break;
++                cursor.remaining = {};
++                for (int32_t cluster = 0; cluster < tracker.get_cluster_count(); ++cluster) {
++                    int32_t first = shape == ResourceShape::AIV ? 1 : 0;
++                    int32_t last = shape == ResourceShape::AIV ? PLATFORM_CORES_PER_BLOCKDIM : 1;
++                    for (int32_t sub = first; sub < last; ++sub) {
++                        int32_t offset = cluster * PLATFORM_CORES_PER_BLOCKDIM + sub;
++                        if (SchedulerState::static_block_for_offset(shape, offset, thread_idx, active_sched_threads_) < cursor.task->logical_block_num)
++                            cursor.remaining |= CoreTracker::BitStates::bit(offset);
++                    }
++                }
++                ++static_tasks_[thread_idx];
++            }
++            ChipTaskSlotState &task = *cursor.task;
++            const bool early = (shape == ResourceShape::MIX || shape == ResourceShape::AIC) &&
++                task.payload->early_dispatch_state.load(std::memory_order_seq_cst) == EARLY_DISPATCH_STAGING;
++            if (early) {
++                bool normal_ready = false;
++                for (int s = 0; s < NUM_RESOURCE_SHAPES; ++s)
++                    normal_ready |= sched_->ready_queues[s].size() > 0 || sched_->ready_sync_queues[s].size() > 0;
++                if (normal_ready) break;
++            }
++            PublishHandle handles[CoreTracker::MAX_CLUSTERS * PLATFORM_CORES_PER_BLOCKDIM];
++            int handle_count = 0;
++            int block_count = 0;
++            for (auto phase : {CoreTracker::DispatchPhase::IDLE, CoreTracker::DispatchPhase::PENDING}) {
++                if (pmu_active && phase == CoreTracker::DispatchPhase::PENDING) continue;
++                auto available = cursor.remaining;
++                if (shape != ResourceShape::MIX)
++                    available &= tracker.get_dispatchable_cores(shape, phase);
++                while (available.has_value()) {
++                    int32_t offset = available.pop_first();
++                    if (shape == ResourceShape::MIX) {
++                        auto wanted = phase == CoreTracker::DispatchPhase::IDLE ? CoreTracker::MixPlacement::RUNNING : CoreTracker::MixPlacement::PENDING;
++                        if (tracker.classify_mix_cluster(offset, task.active_mask.core_mask()) != wanted) continue;
++                    }
++                    int32_t block = SchedulerState::static_block_for_offset(shape, offset, thread_idx, active_sched_threads_);
++                    handle_count += prepare_block_for_dispatch(thread_idx, offset, task, shape,
++                        phase == CoreTracker::DispatchPhase::PENDING, block, &handles[handle_count], early);
++                    ++block_count;
++                    cursor.remaining.clear_bit(offset);
++                }
++            }
++            if (block_count == 0) break;
++            task.next_block_idx.fetch_add(static_cast<int16_t>(block_count), std::memory_order_seq_cst);
++            wmb();
++            uint64_t stamp = 0;
++#if SIMPLER_DFX
++            if (chip_swimlane_level_ >= ChipSwimlaneLevel::SCHEDULE_TIMING) stamp = get_sys_cnt_aicpu();
++#endif
++            uint64_t my_cores[EARLY_DISPATCH_CORE_MASK_WORDS] = {};
++            for (int i = 0; i < handle_count; ++i) {
++                publish_subtask_to_core(handles[i], stamp, thread_idx);
++                if (early) {
++                    int32_t cid = tracker.get_core_id_by_offset(handles[i].core_offset);
++                    sched_->early_dispatch_doorbell_table[cid].addr = handles[i].reg_addr;
++                    sched_->early_dispatch_doorbell_table[cid].token = handles[i].reg_task_id;
++                    my_cores[cid >> 6] |= 1ULL << (cid & 63);
++                }
++            }
++            if (early) {
++                for (int w = 0; w < EARLY_DISPATCH_CORE_MASK_WORDS; ++w)
++                    if (my_cores[w] != 0)
++                        task.payload->staged_core_mask[w].fetch_or(my_cores[w], std::memory_order_seq_cst);
++                if (task.payload->early_dispatch_state.load(std::memory_order_seq_cst) == EARLY_DISPATCH_DISPATCHED) {
++                    uint64_t owned[EARLY_DISPATCH_CORE_MASK_WORDS] = {};
++                    for (int w = 0; w < EARLY_DISPATCH_CORE_MASK_WORDS; ++w)
++                        if (my_cores[w] != 0)
++                            owned[w] = SchedulerState::claim_late_staged_doorbell_bits(task.payload->staged_core_mask[w], my_cores[w]);
++                    for (int i = 0; i < handle_count; ++i) {
++                        int32_t cid = tracker.get_core_id_by_offset(handles[i].core_offset);
++                        SchedulerState::ring_claimed_local_doorbell(owned[cid >> 6], cid, handles[i].reg_addr, handles[i].reg_task_id);
++                    }
++                    wmb();
++                }
++            }
++            sched_->record_published_blocks(task, block_count);
++            sched_->propagate_dispatch_fanin(task);
++            static_blocks_[thread_idx] += block_count;
++            made_progress = true;
++            try_pushed = true;
++            if (cursor.remaining.has_value()) break;
++            cursor.task = nullptr;
++        }
++    }
++}
++
+ void SchedulerContext::dispatch_ready_tasks(
+     int32_t thread_idx, CoreTracker &tracker, bool pmu_active, bool &made_progress, bool &try_pushed
+ ) {
+@@ -584,6 +685,8 @@ void SchedulerContext::dispatch_ready_tasks(
+     );
+     if (entered_drain) return;
+ 
++    dispatch_static_tasks(thread_idx, tracker, pmu_active, made_progress, try_pushed);
++
+     // Tier 1: regular ready work.
+     run_staging_order(
+         thread_idx, pmu_active,
+@@ -813,6 +916,8 @@ int32_t SchedulerContext::try_early_dispatch(
+     //     regular ready_queues) strictly precedes early — there is no real ready task
+     //     to delay only when every normal queue is drained.
+     if (pmu_active || !tracker.has_any_free_slot()) return 0;
++    if (static_mix_cursors_[thread_idx].task != nullptr || static_cursors_[thread_idx].task != nullptr || static_aiv_cursors_[thread_idx].task != nullptr ||
++        sched_->static_mix_ready_queues[thread_idx].size() > 0 || sched_->static_ready_queues[thread_idx].size() > 0 || sched_->static_aiv_ready_queues[thread_idx].size() > 0) return 0;
+     for (int s = 0; s < NUM_RESOURCE_SHAPES; s++) {
+         if (sched_->ready_sync_queues[s].size() > 0 || sched_->ready_queues[s].size() > 0) return 0;
+     }
+@@ -904,6 +1009,11 @@ int32_t SchedulerContext::resolve_and_dispatch(Runtime *runtime, int32_t thread_
+     // completed count so the caller still sees the negative error rc while the
+     // shared end-of-loop flush below runs.
+     int32_t timeout_rc = 0;
++    static_cursors_[thread_idx] = {};
++    static_aiv_cursors_[thread_idx] = {};
++    static_mix_cursors_[thread_idx] = {};
++    static_blocks_[thread_idx] = 0;
++    static_tasks_[thread_idx] = 0;
+     int32_t idle_iterations = 0;
+     int32_t last_progress_count = 0;
+ #if SIMPLER_DFX
+@@ -964,7 +1074,23 @@ int32_t SchedulerContext::resolve_and_dispatch(Runtime *runtime, int32_t thread_
+             for (int s = 0; s < CHIP_SWIMLANE_NUM_QUEUE_SHAPES; s++) {
+                 // Total normal-source ready depth of shape `s` = regular ready lane + the
+                 // sync_start Tier-0 lane; both feed dispatch_ready_tasks for this shape.
+-                const size_t qsize = sched_->ready_queues[s].size() + sched_->ready_sync_queues[s].size();
++                size_t qsize = sched_->ready_queues[s].size() + sched_->ready_sync_queues[s].size();
++                // Static queues contain one owner entry per participating scheduler.
++                // Include these entries in the AIC backlog; each cursor is sampled
++                // only by its owning thread to avoid unsynchronised peer reads.
++                if (s == static_cast<int>(ResourceShape::AIC)) {
++                    for (int32_t owner = 0; owner < sched_->static_sched_threads; ++owner)
++                        qsize += sched_->static_ready_queues[owner].size();
++                    qsize += static_cursors_[thread_idx].task != nullptr ? 1 : 0;
++                } else if (s == static_cast<int>(ResourceShape::MIX)) {
++                    for (int32_t owner = 0; owner < sched_->static_sched_threads; ++owner)
++                        qsize += sched_->static_mix_ready_queues[owner].size();
++                    qsize += static_mix_cursors_[thread_idx].task != nullptr ? 1 : 0;
++                } else if (s == static_cast<int>(ResourceShape::AIV)) {
++                    for (int32_t owner = 0; owner < sched_->static_sched_threads; ++owner)
++                        qsize += sched_->static_aiv_ready_queues[owner].size();
++                    qsize += static_aiv_cursors_[thread_idx].task != nullptr ? 1 : 0;
++                }
+                 iter_shared_snapshot[s] = static_cast<int16_t>(std::min(qsize, kMax));
+             }
+             iter_shared_sampled = true;
+@@ -1551,5 +1677,6 @@ int32_t SchedulerContext::resolve_and_dispatch(Runtime *runtime, int32_t thread_
+     }
+ #endif
+ 
++    LOG_INFO("Static mapping thread=%d tasks=%u blocks=%u", thread_idx, static_tasks_[thread_idx], static_blocks_[thread_idx]);
+     return timeout_rc != 0 ? timeout_rc : cur_thread_completed;
+ }
+diff --git a/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/shared/runtime.cpp b/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/shared/runtime.cpp
+index b8aa2dc4..3925a215 100644
+--- a/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/shared/runtime.cpp
++++ b/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/shared/runtime.cpp
+@@ -45,6 +45,7 @@ Runtime::Runtime() {
+     dev.entry_scalar_count_ = 0;
+     dev.entry_args_source_ = static_cast<uint32_t>(EntryArgsSource::Descriptor);
+     dev.callable_table_addr_ = 0;
++    dev.callable_entry_table_addr_ = 0;
+     dev.callable_table_len_ = 0;
+ }
+ 
+@@ -109,6 +110,7 @@ void Runtime::set_callable_tables(
+     callable_table_host_ = host_view;
+     callable_entry_table_addr_ = entry_table_addr;
+     dev.callable_table_addr_ = object_table_addr;
++    dev.callable_entry_table_addr_ = entry_table_addr;
+     dev.callable_table_len_ = len;
+ }
+ 
+@@ -116,6 +118,7 @@ void Runtime::clear_callable_tables() {
+     callable_table_host_ = nullptr;
+     callable_entry_table_addr_ = 0;
+     dev.callable_table_addr_ = 0;
++    dev.callable_entry_table_addr_ = 0;
+     dev.callable_table_len_ = 0;
+ }
+ 
+diff --git a/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/shared/runtime_init.cpp b/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/shared/runtime_init.cpp
+index abd511dd..3df62ede 100644
+--- a/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/shared/runtime_init.cpp
++++ b/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/shared/runtime_init.cpp
+@@ -141,6 +141,11 @@ SchedulerState::reserve_layout(DeviceArena &arena, const int32_t dep_pool_capaci
+     for (int i = 0; i < NUM_RESOURCE_SHAPES; i++) {
+         layout.off_ready_sync_queue_slots[i] = ready_queue_reserve_layout(arena, CHIP_READY_QUEUE_SIZE);
+     }
++    for (int i = 0; i < PLATFORM_MAX_AICPU_THREADS; ++i) {
++        layout.off_static_ready_queue_slots[i] = ready_queue_reserve_layout(arena, CHIP_READY_QUEUE_SIZE);
++        layout.off_static_aiv_ready_queue_slots[i] = ready_queue_reserve_layout(arena, CHIP_READY_QUEUE_SIZE);
++        layout.off_static_mix_ready_queue_slots[i] = ready_queue_reserve_layout(arena, CHIP_READY_QUEUE_SIZE);
++    }
+     layout.off_dummy_ready_queue_slots = ready_queue_reserve_layout(arena, CHIP_READY_QUEUE_SIZE);
+     for (int i = 0; i < NUM_RESOURCE_SHAPES; i++) {
+         layout.off_early_dispatch_queue_slots[i] = ready_queue_reserve_layout(arena, CHIP_EARLY_DISPATCH_QUEUE_SIZE);
+@@ -184,6 +189,15 @@ bool SchedulerState::init_data_from_layout(const SchedulerLayout &layout, Device
+             return false;
+         }
+     }
++    sched->static_sched_threads = 0;
++    for (int i = 0; i < PLATFORM_MAX_AICPU_THREADS; ++i) {
++        if (!ready_queue_init_data_from_layout(&sched->static_ready_queues[i], arena,
++                layout.off_static_ready_queue_slots[i], layout.ready_queue_capacity)) return false;
++        if (!ready_queue_init_data_from_layout(&sched->static_aiv_ready_queues[i], arena,
++                layout.off_static_aiv_ready_queue_slots[i], layout.ready_queue_capacity)) return false;
++        if (!ready_queue_init_data_from_layout(&sched->static_mix_ready_queues[i], arena,
++                layout.off_static_mix_ready_queue_slots[i], layout.ready_queue_capacity)) return false;
++    }
+     if (!ready_queue_init_data_from_layout(
+             &sched->dummy_ready_queue, arena, layout.off_dummy_ready_queue_slots, layout.ready_queue_capacity
+         )) {
+@@ -234,6 +248,10 @@ void SchedulerState::reset_for_reuse(const SchedulerLayout &layout, void *sm_dev
+     for (int i = 0; i < NUM_RESOURCE_SHAPES; i++) {
+         sched->ready_sync_queues[i].reset_for_reuse();
+     }
++    sched->static_sched_threads = 0;
++    for (auto &queue : sched->static_ready_queues) queue.reset_for_reuse();
++    for (auto &queue : sched->static_aiv_ready_queues) queue.reset_for_reuse();
++    for (auto &queue : sched->static_mix_ready_queues) queue.reset_for_reuse();
+     sched->dummy_ready_queue.reset_for_reuse();
+     for (int i = 0; i < NUM_RESOURCE_SHAPES; i++) {
+         sched->early_dispatch_queues[i].reset_for_reuse();
+@@ -252,6 +270,11 @@ void SchedulerState::wire_arena_pointers(const SchedulerLayout &layout, DeviceAr
+     for (int i = 0; i < NUM_RESOURCE_SHAPES; i++) {
+         ready_queue_wire_arena_pointers(&sched->ready_sync_queues[i], arena, layout.off_ready_sync_queue_slots[i]);
+     }
++    for (int i = 0; i < PLATFORM_MAX_AICPU_THREADS; ++i) {
++        ready_queue_wire_arena_pointers(&sched->static_ready_queues[i], arena, layout.off_static_ready_queue_slots[i]);
++        ready_queue_wire_arena_pointers(&sched->static_aiv_ready_queues[i], arena, layout.off_static_aiv_ready_queue_slots[i]);
++        ready_queue_wire_arena_pointers(&sched->static_mix_ready_queues[i], arena, layout.off_static_mix_ready_queue_slots[i]);
++    }
+     ready_queue_wire_arena_pointers(&sched->dummy_ready_queue, arena, layout.off_dummy_ready_queue_slots);
+     for (int i = 0; i < NUM_RESOURCE_SHAPES; i++) {
+         ready_queue_wire_arena_pointers(
+@@ -277,6 +300,9 @@ void SchedulerState::destroy() {
+     for (int i = 0; i < NUM_RESOURCE_SHAPES; i++) {
+         ready_queue_destroy(&sched->ready_sync_queues[i]);
+     }
++    for (auto &queue : sched->static_ready_queues) ready_queue_destroy(&queue);
++    for (auto &queue : sched->static_aiv_ready_queues) ready_queue_destroy(&queue);
++    for (auto &queue : sched->static_mix_ready_queues) ready_queue_destroy(&queue);
+     ready_queue_destroy(&sched->dummy_ready_queue);
+     for (int i = 0; i < NUM_RESOURCE_SHAPES; i++) {
+         ready_queue_destroy(&sched->early_dispatch_queues[i]);
+diff --git a/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/submit_types.h b/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/submit_types.h
+index 69249b20..bcb0f8af 100644
+--- a/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/submit_types.h
++++ b/src/a2a3/runtime/tensormap_and_ringbuffer/runtime/submit_types.h
+@@ -261,10 +261,16 @@ public:
+     int16_t block_num() const { return block_num_; }
+     void set_block_num(int16_t n) { block_num_ = n; }
+ 
++    bool static_block_mapping() const { return static_block_mapping_; }
++    void set_static_block_mapping(bool value) { static_block_mapping_ = value; }
++
+     bool require_sync_start() const { return require_sync_start_; }
+     void set_require_sync_start(bool v) { require_sync_start_ = v; }
+ 
+ private:
+     int16_t block_num_{1};
+     bool require_sync_start_{false};
++    bool static_block_mapping_{false};
+ };
++
++static_assert(sizeof(LaunchSpec) == 4, "LaunchSpec ABI must stay four bytes");
+diff --git a/src/a5/runtime/tensormap_and_ringbuffer/runtime/submit_types.h b/src/a5/runtime/tensormap_and_ringbuffer/runtime/submit_types.h
+index 30fb4a14..a609890f 100644
+--- a/src/a5/runtime/tensormap_and_ringbuffer/runtime/submit_types.h
++++ b/src/a5/runtime/tensormap_and_ringbuffer/runtime/submit_types.h
+@@ -261,10 +261,14 @@ public:
+     int16_t core_num() const { return core_num_; }
+     void set_core_num(int16_t n) { core_num_ = n; }
+ 
++    bool static_block_mapping() const { return static_block_mapping_; }
++    void set_static_block_mapping(bool value) { static_block_mapping_ = value; }
++
+     bool require_sync_start() const { return require_sync_start_; }
+     void set_require_sync_start(bool v) { require_sync_start_ = v; }
+ 
+ private:
+     int16_t core_num_{1};
+     bool require_sync_start_{false};
++    bool static_block_mapping_{false};
+ };
+diff --git a/src/common/hierarchical/worker_manager.cpp b/src/common/hierarchical/worker_manager.cpp
+index cd97594a..49747f67 100644
+--- a/src/common/hierarchical/worker_manager.cpp
++++ b/src/common/hierarchical/worker_manager.cpp
+@@ -10,6 +10,7 @@
+  */
+ 
+ #include "worker_manager.h"
++#include "mpi_group_mailbox.h"
+ 
+ #include <fcntl.h>
+ #include <sys/mman.h>
+@@ -273,6 +274,15 @@ std::string LocalMailboxEndpoint::check_child_death() {
+     return child_death_reason_;
+ }
+ 
++void mailbox_notify_work(void *mailbox) noexcept {
++    auto *base = static_cast<char *>(mailbox);
++    auto *capability = reinterpret_cast<int32_t *>(base + MAILBOX_OFF_WAKE_CAPABILITY);
++    auto *sequence = reinterpret_cast<int32_t *>(base + MAILBOX_OFF_WAKE_SEQUENCE);
++    __atomic_store_n(capability, 1, __ATOMIC_RELEASE);
++    __atomic_fetch_add(sequence, 1, __ATOMIC_RELEASE);
++    mpi_group_mailbox::wake_word(sequence);
++}
++
+ MailboxState LocalMailboxEndpoint::read_mailbox_state(const char *frame) const {
+     const char *base = frame == nullptr ? mbox() : frame;
+     volatile int32_t *ptr = reinterpret_cast<volatile int32_t *>(const_cast<char *>(base) + MAILBOX_OFF_STATE);
+@@ -300,6 +310,10 @@ void LocalMailboxEndpoint::write_mailbox_state(MailboxState s, char *frame) {
+ #else
+     __atomic_store(ptr, &v, __ATOMIC_RELEASE);
+ #endif
++    if (s == MailboxState::TASK_READY || s == MailboxState::PREPARE_READY || s == MailboxState::CONTROL_REQUEST ||
++        s == MailboxState::SHUTDOWN) {
++        mailbox_notify_work(mailbox_);
++    }
+ }
+ 
+ bool mailbox_compare_exchange_state(char *frame, MailboxState expected, MailboxState desired) noexcept {
+@@ -926,6 +940,7 @@ bool LocalMailboxEndpoint::try_publish_activation(FrameRecord &record, char *fra
+         return false;
+     }
+     if (mailbox_compare_exchange_state(frame, MailboxState::FRAME_STAGED, MailboxState::ACTIVATE)) {
++        mailbox_notify_work(mailbox_);
+         record.activation_published = true;
+     }
+     return record.activation_published;
+diff --git a/src/common/hierarchical/worker_manager.h b/src/common/hierarchical/worker_manager.h
+index 246b6c07..6f6da7ad 100644
+--- a/src/common/hierarchical/worker_manager.h
++++ b/src/common/hierarchical/worker_manager.h
+@@ -164,6 +164,12 @@ static constexpr ptrdiff_t MAILBOX_OFF_FRAME_GROUP_SIZE = MAILBOX_OFF_ACCEPTED -
+ // matter what state word a concurrent control command leaves behind.
+ static constexpr ptrdiff_t MAILBOX_OFF_SHUTDOWN = MAILBOX_OFF_ACCEPTED - 72;
+ static constexpr int32_t MAILBOX_SHUTDOWN_REQUESTED = 1;
++// Reserved trailer words form one wake generation for all task/control frames.
++// A publisher enables the contract; a legacy publisher leaves the capability zero.
++static constexpr ptrdiff_t MAILBOX_OFF_WAKE_SEQUENCE = MAILBOX_OFF_SHUTDOWN - 8;
++static constexpr ptrdiff_t MAILBOX_OFF_WAKE_CAPABILITY = MAILBOX_OFF_SHUTDOWN - 4;
++void mailbox_notify_work(void *mailbox) noexcept;
++
+ // The chip child's teardown observation, published once on the control frame
+ // after its device teardown returns. Reserved on every frame for the same
+ // reason the shutdown word is: a task-args blob must not be able to reach it.
+@@ -176,6 +182,9 @@ static constexpr int32_t MAILBOX_SHUTDOWN_REQUESTED = 1;
+ static constexpr ptrdiff_t MAILBOX_OFF_TEARDOWN_REPORT =
+     MAILBOX_OFF_SHUTDOWN - static_cast<ptrdiff_t>(SIMPLER_TEARDOWN_REPORT_BYTES) - 8;
+ static constexpr ptrdiff_t MAILBOX_OFF_TEARDOWN_REPORT_SCHEMA = MAILBOX_OFF_TEARDOWN_REPORT;
++static_assert(MAILBOX_OFF_TEARDOWN_REPORT + SIMPLER_TEARDOWN_REPORT_BYTES == MAILBOX_OFF_WAKE_SEQUENCE);
++static_assert(MAILBOX_OFF_WAKE_SEQUENCE % alignof(int32_t) == 0);
++
+ static constexpr ptrdiff_t MAILBOX_OFF_TASK_CALLABLE_HASH = MAILBOX_OFF_ARGS;
+ static constexpr ptrdiff_t MAILBOX_OFF_TASK_ARGS_BLOB =
+     MAILBOX_OFF_TASK_CALLABLE_HASH + static_cast<ptrdiff_t>(CALLABLE_HASH_DIGEST_SIZE);
+diff --git a/src/common/host_build_graph/submit_types.h b/src/common/host_build_graph/submit_types.h
+index f2dd8c91..9b21a2fd 100644
+--- a/src/common/host_build_graph/submit_types.h
++++ b/src/common/host_build_graph/submit_types.h
+@@ -270,10 +270,14 @@ public:
+     int16_t block_num() const { return block_num_; }
+     void set_block_num(int16_t n) { block_num_ = n; }
+ 
++    bool static_block_mapping() const { return static_block_mapping_; }
++    void set_static_block_mapping(bool value) { static_block_mapping_ = value; }
++
+     bool require_sync_start() const { return require_sync_start_; }
+     void set_require_sync_start(bool v) { require_sync_start_ = v; }
+ 
+ private:
+     int16_t block_num_{1};
+     bool require_sync_start_{false};
++    bool static_block_mapping_{false};
+ };
+diff --git a/src/common/platform/onboard/host/c_api_shared.cpp b/src/common/platform/onboard/host/c_api_shared.cpp
+index 96a19ea4..9917b215 100644
+--- a/src/common/platform/onboard/host/c_api_shared.cpp
++++ b/src/common/platform/onboard/host/c_api_shared.cpp
+@@ -1651,7 +1651,8 @@ static int launch_prepared_run(OnboardNativeRunContext *state, const NativeRunJo
+ 
+ int simpler_launch_run(DeviceContextHandle ctx, RuntimeHandle runtime) {
+     OnboardNativeRunContext *state = native_run_context(ctx, runtime, "simpler_launch_run");
+-    if (state == nullptr || state->phase.load(std::memory_order_acquire) != NativeRunPhase::Prepared)
++    if (state == nullptr || state->graph_prepared ||
++        state->phase.load(std::memory_order_acquire) != NativeRunPhase::Prepared)
+         return PTO_RUNTIME_ERR_INTERNAL;
+     // TEMPORARY (host_build_graph dsv4 bring-up): stop after prepare so the host
+     // side — orchestration, graph construction, image relocation and H2D — can be
+@@ -1925,6 +1926,41 @@ static int launch_prepared_run(OnboardNativeRunContext *state, const NativeRunJo
+     return 0;
+ }
+ 
++int simpler_prepare_graph_run(DeviceContextHandle ctx, RuntimeHandle runtime) {
++    auto *state = native_run_context(ctx, runtime, "simpler_prepare_graph_run");
++    if (state == nullptr || state->graph_prepared || state->config.diagnostics_any() ||
++        state->phase.load(std::memory_order_acquire) != NativeRunPhase::Prepared ||
++        state->prepared_execution == nullptr || !state->runner->can_accept_run()) return PTO_RUNTIME_ERR_INTERNAL;
++    if (!state->runner->try_acquire_native_run(state, state->identity(), &state->launch_permit))
++        return PTO_RUNTIME_ERR_INTERNAL;
++    state->runner_claimed = true;
++    int rc = PTO_RUNTIME_ERR_INTERNAL;
++    try {
++        rc = state->runner->prepare_graph_execution(*state->prepared_execution);
++    } catch (...) {
++        // A C ABI must not propagate a C++ exception to its caller. Preparation
++        // can have created some capture resources before an allocation failed.
++        (void)state->runner->finish_graph_execution(*state->prepared_execution);
++        state->runner->release_native_run(state);
++        state->runner_claimed = false;
++        return PTO_RUNTIME_ERR_INTERNAL;
++    }
++    if (rc != 0) {
++        state->runner->release_native_run(state);
++        state->runner_claimed = false;
++        return rc;
++    }
++    state->graph_prepared = true;
++    return 0;
++}
++
++int simpler_enqueue_graph_run(DeviceContextHandle ctx, RuntimeHandle runtime, void *stream) {
++    auto *state = native_run_context(ctx, runtime, "simpler_enqueue_graph_run");
++    if (state == nullptr || !state->graph_prepared || !state->runner_claimed || stream == nullptr ||
++        state->prepared_execution == nullptr || !state->runner->can_accept_run()) return PTO_RUNTIME_ERR_INTERNAL;
++    return state->runner->enqueue_graph_execution(*state->prepared_execution, stream);
++}
++
+ int simpler_poll_run(DeviceContextHandle ctx, RuntimeHandle runtime) {
+     OnboardNativeRunContext *state = native_run_context(ctx, runtime, "simpler_poll_run");
+     if (state == nullptr) return SIMPLER_NATIVE_RUN_POLL_ERROR;
+@@ -2121,6 +2157,13 @@ int simpler_finalize_run(DeviceContextHandle ctx, RuntimeHandle runtime) {
+     if (attach_rc != 0) {
+         LOG_ERROR("simpler_finalize_run: attach_current_thread failed: %d (%s)", attach_rc, state->trace_attrs);
+     }
++    if (state->graph_prepared) {
++        if (attach_rc != 0) return attach_rc;
++        int graph_rc = state->runner->finish_graph_execution(*state->prepared_execution);
++        // Never free captured pointers while a graph stream is still live.
++        if (graph_rc != 0) return graph_rc;
++        state->graph_prepared = false;
++    }
+     if (phase == NativeRunPhase::Running && launched) {
+         DrainOutcome drain{};
+         drain.device_rc = attach_rc;
+diff --git a/src/common/platform/onboard/host/device_runner_base.h b/src/common/platform/onboard/host/device_runner_base.h
+index 3cef32f3..10989978 100644
+--- a/src/common/platform/onboard/host/device_runner_base.h
++++ b/src/common/platform/onboard/host/device_runner_base.h
+@@ -1513,6 +1513,12 @@ public:
+     virtual LaunchOutcome launch_execution(std::unique_ptr<PreparedExecution> prepared, LaunchPermit permit) = 0;
+     virtual void abandon_prepared_execution(PreparedExecution &prepared) noexcept = 0;
+ 
++    // Graph resources remain pinned until finalize, after the consumer destroys
++    // its graph. Unsupported platforms reject this opt-in path explicitly.
++    virtual int prepare_graph_execution(PreparedExecution &) { return PTO_RUNTIME_ERR_INTERNAL; }
++    virtual int enqueue_graph_execution(PreparedExecution &, void *) { return PTO_RUNTIME_ERR_INTERNAL; }
++    virtual int finish_graph_execution(PreparedExecution &) { return 0; }
++
+     /**
+      * Query the active run without waiting. Returns one of the
+      * SIMPLER_NATIVE_RUN_POLL_* values.
+diff --git a/src/common/worker/chip_worker.cpp b/src/common/worker/chip_worker.cpp
+index 0c0eddbe..d19f8082 100644
+--- a/src/common/worker/chip_worker.cpp
++++ b/src/common/worker/chip_worker.cpp
+@@ -1110,6 +1110,41 @@ void ChipWorker::validate_caller_stream(void *caller_stream) {
+     if (rc != 0) throw std::runtime_error("caller-stream validation failed with code " + std::to_string(rc));
+ }
+ 
++ChipWorkerNativeRun ChipWorker::prepare_graph_run(
++    int32_t callable_id, const ChipStorageTaskArgs &args, const CallConfig &config
++) {
++    // A graph owns the runner exclusively; only its device-owned backing
++    // tensors may be updated between replays. Host staging cannot be replayed.
++    if (config.diagnostics_any()) throw std::runtime_error("graph replay does not support per-run diagnostics");
++    for (int32_t i = 0; i < args.tensor_count(); ++i) {
++        if (!args.tensor(i).is_device_memory()) {
++            throw std::runtime_error("graph replay requires device-owned tensor arguments");
++        }
++    }
++    auto run = prepare_native_run_on_slot(callable_id, &args, config, 0, 0, 0, 0, nullptr, 0, false, NativeRunProvenance{});
++    try {
++        auto fn = load_symbol<decltype(&simpler_prepare_graph_run)>(lib_handle_, "simpler_prepare_graph_run");
++        int rc = fn(device_ctx_, runtime_bufs_[run.slot_id].data());
++        if (rc != 0) throw std::runtime_error("prepare_graph_run failed with code " + std::to_string(rc));
++    } catch (...) {
++        finalize_native_run(run);
++        throw;
++    }
++    std::lock_guard<std::mutex> lk(native_run_mu_);
++    native_run_states_[run.slot_id].phase = NativeRunPhase::GRAPH_READY;
++    return run;
++}
++
++void ChipWorker::enqueue_graph_run(const ChipWorkerNativeRun &run, uint64_t stream) {
++    std::lock_guard<std::mutex> lk(native_run_mu_);
++    if (run.slot_id >= runtime_bufs_.size() || native_run_states_[run.slot_id].run_epoch != run.run_epoch ||
++        native_run_states_[run.slot_id].phase != NativeRunPhase::GRAPH_READY || stream == 0)
++        throw std::runtime_error("graph run token is stale, unprepared, or has no stream");
++    auto fn = load_symbol<decltype(&simpler_enqueue_graph_run)>(lib_handle_, "simpler_enqueue_graph_run");
++    int rc = fn(device_ctx_, runtime_bufs_[run.slot_id].data(), reinterpret_cast<void *>(stream));
++    if (rc != 0) throw std::runtime_error("enqueue_graph_run failed with code " + std::to_string(rc));
++}
++
+ void ChipWorker::launch_native_run(const ChipWorkerNativeRun &run, void *caller_stream) {
+     validate_execution_context();
+     {
+@@ -1255,7 +1290,8 @@ void ChipWorker::finalize_native_run(const ChipWorkerNativeRun &run) {
+         }
+         NativeRunSlotState &state = native_run_states_[run.slot_id];
+         if (state.run_epoch != run.run_epoch ||
+-            (state.phase != NativeRunPhase::PREPARED && state.phase != NativeRunPhase::LAUNCHED &&
++            (state.phase != NativeRunPhase::PREPARED && state.phase != NativeRunPhase::GRAPH_READY &&
++             state.phase != NativeRunPhase::LAUNCHED &&
+              state.phase != NativeRunPhase::REAPED)) {
+             throw std::runtime_error("native-run token is stale or already finalized");
+         }
+@@ -1274,6 +1310,13 @@ void ChipWorker::finalize_native_run(const ChipWorkerNativeRun &run) {
+         throw;
+     }
+     int finalize_rc = finalize_run_fn_(device_ctx_, runtime_bufs_[run.slot_id].data());
++    if (phase == NativeRunPhase::GRAPH_READY && finalize_rc != 0) {
++        // A failed drain must retain the token and the device addresses still
++        // referenced by the graph. The caller may retry after destroying it.
++        std::lock_guard<std::mutex> lk(native_run_mu_);
++        native_run_states_[run.slot_id].phase = phase;
++        throw std::runtime_error("graph finalization failed with code " + std::to_string(finalize_rc));
++    }
+     {
+         std::lock_guard<std::mutex> lk(native_run_mu_);
+         native_run_states_[run.slot_id] = NativeRunSlotState{};
+diff --git a/src/common/worker/chip_worker.h b/src/common/worker/chip_worker.h
+index 491a1480..7702c873 100644
+--- a/src/common/worker/chip_worker.h
++++ b/src/common/worker/chip_worker.h
+@@ -268,6 +268,9 @@ public:
+      */
+     void stop_chip_run_lane_admission() noexcept;
+ 
++    ChipWorkerNativeRun prepare_graph_run(int32_t callable_id, const ChipStorageTaskArgs &args, const CallConfig &config);
++    void enqueue_graph_run(const ChipWorkerNativeRun &run, uint64_t stream);
++
+     // Per-callable_id preparation. Requires init() first and a callable_id
+     // in [0, MAX_REGISTERED_CALLABLE_IDS) (cap 64).
+     void register_callable(int32_t callable_id, const void *callable);
+@@ -624,7 +627,7 @@ private:
+ 
+     uint32_t arena_bank_for_slot(uint32_t slot_id) const;
+ 
+-    enum class NativeRunPhase : uint8_t { EMPTY, PREPARING, PREPARED, LAUNCHED, REAPED, FINALIZING };
++    enum class NativeRunPhase : uint8_t { EMPTY, PREPARING, PREPARED, GRAPH_READY, LAUNCHED, REAPED, FINALIZING };
+     class PreparedRunIncompatible : public std::runtime_error {
+     public:
+         using std::runtime_error::runtime_error;
+diff --git a/src/common/worker/native_run_context.h b/src/common/worker/native_run_context.h
+index 8d0842ba..59473543 100644
+--- a/src/common/worker/native_run_context.h
++++ b/src/common/worker/native_run_context.h
+@@ -84,6 +84,7 @@ struct NativeRunContext {
+     bool runner_resources_owned{false};
+     bool runner_reserved{false};
+     bool runner_claimed{false};
++    bool graph_prepared{false};
+ 
+     NativeRunIdentity identity() const {
+         return NativeRunIdentity{
+diff --git a/src/common/worker/runtime_c_api.h b/src/common/worker/runtime_c_api.h
+index 000f6fcf..616f5657 100644
+--- a/src/common/worker/runtime_c_api.h
++++ b/src/common/worker/runtime_c_api.h
+@@ -931,6 +931,12 @@ int supports_concurrent_native_prepare_ctx(DeviceContextHandle ctx);
+  */
+ int simpler_launch_run(DeviceContextHandle ctx, RuntimeHandle runtime);
+ 
++/** Pin a prepared run for graph replay. Call before stream capture. */
++int simpler_prepare_graph_run(DeviceContextHandle ctx, RuntimeHandle runtime);
++
++/** Enqueue a pinned run on a caller-owned stream; no allocation or host wait. */
++int simpler_enqueue_graph_run(DeviceContextHandle ctx, RuntimeHandle runtime, void *stream);
++
+ /**
+  * Check the execution environment and reject capture before per-call preparation.
+  * No run is admitted or published. A successful check does not reserve the stream;
+diff --git a/tests/ut/cpp/a2a3/runtime/tensormap_and_ringbuffer/test_scheduler_state.cpp b/tests/ut/cpp/a2a3/runtime/tensormap_and_ringbuffer/test_scheduler_state.cpp
+index 53472ee2..60772a62 100644
+--- a/tests/ut/cpp/a2a3/runtime/tensormap_and_ringbuffer/test_scheduler_state.cpp
++++ b/tests/ut/cpp/a2a3/runtime/tensormap_and_ringbuffer/test_scheduler_state.cpp
+@@ -17,10 +17,12 @@
+ #include <gtest/gtest.h>
+ 
+ #include <atomic>
++#include <chrono>
+ #include <cstring>
+ #include <memory>
+ #include <string>
+ #include <thread>
++#include <vector>
+ 
+ #include "utils/device_arena.h"
+ #include "scheduler/scheduler_types.h"
+@@ -636,3 +638,297 @@ TEST(CoreTrackerTest, CountAvailableBlocksMixIgnoresUnavailableUnusedCore) {
+     EXPECT_EQ(tracker.count_available_blocks(ResourceShape::MIX, used_mask, false), 1);
+     EXPECT_EQ(tracker.count_available_blocks(ResourceShape::MIX, used_mask, true), 1);
+ }
++
++TEST(StaticLaunchSpecTest, PreservesAbiAndDefaultsToDynamic) {
++    LaunchSpec launch;
++    EXPECT_EQ(sizeof(launch), 4u);
++    EXPECT_FALSE(launch.static_block_mapping());
++    launch.set_block_num(7);
++    launch.set_static_block_mapping(true);
++    auto copy = launch;
++    EXPECT_TRUE(copy.static_block_mapping());
++    EXPECT_EQ(copy.block_num(), 7);
++    EXPECT_FALSE(copy.require_sync_start());
++}
++
++TEST_F(SchedulerStateTest, StaticReadyIsRoutedExactlyOnceToEachOwner) {
++    ChipTaskSlotState slot;
++    init_slot(slot, CHIP_TASK_PENDING, 0, 0);
++    slot.logical_block_num = 7;
++    slot.lifecycle_flags.fetch_or(STATIC_BLOCK_MAPPING);
++    sched.static_sched_threads = 3;
++    EXPECT_TRUE(sched.route_ready_once(slot));
++    EXPECT_FALSE(sched.route_ready_once(slot));
++    for (int thread = 0; thread < 3; ++thread) {
++        EXPECT_EQ(sched.static_ready_queues[thread].pop(), &slot);
++        EXPECT_EQ(sched.static_ready_queues[thread].pop(), nullptr);
++    }
++    EXPECT_EQ(sched.ready_queues[static_cast<int>(ResourceShape::AIC)].pop(), nullptr);
++    EXPECT_EQ(slot.payload->early_dispatch_state.load(), EARLY_DISPATCH_DISPATCHED);
++}
++
++TEST_F(SchedulerStateTest, StaticSmallGridSkipsOwnersWithoutBlocks) {
++    ChipTaskSlotState slot;
++    init_slot(slot, CHIP_TASK_PENDING, 0, 0);
++    slot.logical_block_num = 2;
++    slot.lifecycle_flags.fetch_or(STATIC_BLOCK_MAPPING);
++    sched.static_sched_threads = 3;
++    ASSERT_TRUE(sched.route_ready_once(slot));
++    EXPECT_EQ(sched.static_ready_queues[0].pop(), &slot);
++    EXPECT_EQ(sched.static_ready_queues[1].pop(), &slot);
++    EXPECT_EQ(sched.static_ready_queues[2].pop(), nullptr);
++}
++
++TEST_F(SchedulerStateTest, UnmarkedTasksKeepDynamicReadyQueue) {
++    ChipTaskSlotState slot;
++    init_slot(slot, CHIP_TASK_PENDING, 0, 0);
++    sched.static_sched_threads = 3;
++    ASSERT_TRUE(sched.route_ready_once(slot));
++    EXPECT_EQ(sched.ready_queues[static_cast<int>(ResourceShape::AIC)].pop(), &slot);
++    for (auto &queue : sched.static_ready_queues) EXPECT_EQ(queue.pop(), nullptr);
++}
++
++TEST_F(SchedulerStateTest, PartiallyEarlyStagedAivTasksKeepDynamicRemainder) {
++    ChipTaskSlotState slot;
++    init_slot(slot, CHIP_TASK_PENDING, 0, 0);
++    slot.active_mask = ActiveMask(SUBTASK_MASK_AIV0);
++    slot.logical_block_num = 7;
++    slot.lifecycle_flags.fetch_or(STATIC_BLOCK_MAPPING);
++    slot.next_block_idx.store(1);
++    slot.payload->early_dispatch_state.store(EARLY_DISPATCH_STAGING);
++    sched.static_sched_threads = 3;
++    ASSERT_TRUE(sched.route_ready_once(slot));
++    EXPECT_EQ(sched.ready_queues[static_cast<int>(ResourceShape::AIV)].pop(), &slot);
++    for (auto &queue : sched.static_ready_queues) EXPECT_EQ(queue.pop(), nullptr);
++}
++
++TEST_F(SchedulerStateTest, StaticRequestDoesNotBypassFailedPredicate) {
++    ChipTaskSlotState slot;
++    init_slot(slot, CHIP_TASK_PENDING, 0, 0);
++    slot.task_attrs.set_predicate();
++    slot.lifecycle_flags.fetch_or(STATIC_BLOCK_MAPPING);
++    sched.static_sched_threads = 3;
++    // The ready helper never considers a predicated task untouched/unstaged.
++    bool never_staged = true;
++    EXPECT_FALSE(sched.try_early_dispatch_release(slot, nullptr, &never_staged));
++    EXPECT_FALSE(never_staged);
++    EXPECT_FALSE(sched.try_push_static_ready(slot, never_staged));
++}
++
++TEST_F(SchedulerStateTest, StaticReadyPublicationAfterConcurrentFaninOccursOnce) {
++    ChipTaskSlotState slot;
++    constexpr int producers = 8;
++    init_slot(slot, CHIP_TASK_PENDING, producers, 0);
++    slot.logical_block_num = 7;
++    slot.lifecycle_flags.fetch_or(STATIC_BLOCK_MAPPING);
++    sched.static_sched_threads = 3;
++    std::vector<std::thread> threads;
++    for (int i = 0; i < producers; ++i)
++        threads.emplace_back([&] { sched.release_fanin_and_check_ready(slot); });
++    for (auto &thread : threads) thread.join();
++    for (int i = 0; i < 3; ++i) {
++        EXPECT_EQ(sched.static_ready_queues[i].pop(), &slot);
++        EXPECT_EQ(sched.static_ready_queues[i].pop(), nullptr);
++    }
++    EXPECT_EQ(slot.fanin_refcount.load(), producers);
++}
++
++TEST_F(SchedulerStateTest, StaticZeroFaninSubmitUsesOwnerQueues) {
++    ChipTaskSlotState slot;
++    init_slot(slot, CHIP_TASK_PENDING, 0, 0);
++    slot.logical_block_num = 7;
++    slot.lifecycle_flags.fetch_or(STATIC_BLOCK_MAPPING);
++    sched.static_sched_threads = 3;
++    sched.push_ready_routed(&slot);
++    for (int owner = 0; owner < 3; ++owner)
++        EXPECT_EQ(sched.static_ready_queues[owner].pop(), &slot);
++    EXPECT_EQ(sched.ready_queues[static_cast<int>(ResourceShape::AIC)].pop(), nullptr);
++    EXPECT_EQ(slot.payload->early_dispatch_state.load(), EARLY_DISPATCH_DISPATCHED);
++}
++
++TEST_F(SchedulerStateTest, OwnerQueueSingleConsumerWrapsAndPreservesOrder) {
++    auto &queue = sched.static_ready_queues[0];
++    ChipTaskSlotState slot;
++    ASSERT_EQ(queue.pop_single_consumer(), nullptr);
++    for (uint64_t i = 0; i < 2 * queue.capacity + 7; ++i) {
++        ASSERT_TRUE(queue.push(&slot));
++        ASSERT_EQ(queue.pop_single_consumer(), &slot);
++        ASSERT_EQ(queue.pop_single_consumer(), nullptr);
++    }
++}
++
++TEST_F(SchedulerStateTest, OwnerQueueSingleConsumerReceivesConcurrentProducersExactlyOnce) {
++    constexpr int producers = 8;
++    constexpr int per_producer = 256;
++    constexpr int total = producers * per_producer;
++    auto slots = std::make_unique<ChipTaskSlotState[]>(total);
++    auto &queue = sched.static_ready_queues[0];
++    std::vector<std::thread> threads;
++    for (int producer = 0; producer < producers; ++producer) {
++        threads.emplace_back([&, producer] {
++            for (int i = 0; i < per_producer; ++i)
++                while (!queue.push(&slots[producer * per_producer + i])) {}
++        });
++    }
++    std::vector<bool> seen(total, false);
++    int received = 0;
++    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
++    while (received < total && std::chrono::steady_clock::now() < deadline) {
++        if (auto *slot = queue.pop_single_consumer()) {
++            auto index = slot - slots.get();
++            EXPECT_GE(index, 0);
++            EXPECT_LT(index, total);
++            if (index < 0 || index >= total) break;
++            EXPECT_FALSE(seen[index]);
++            seen[index] = true;
++            ++received;
++        }
++    }
++    for (auto &thread : threads) thread.join();
++    EXPECT_EQ(received, total);
++}
++
++TEST_F(SchedulerStateTest, StaticAivGridRoutesToOwnersOfVectorPairs) {
++    ChipTaskSlotState slot;
++    init_slot(slot, CHIP_TASK_PENDING, 0, 0);
++    slot.active_mask = ActiveMask(SUBTASK_MASK_AIV0);
++    slot.logical_block_num = 3;
++    slot.lifecycle_flags.fetch_or(STATIC_BLOCK_MAPPING);
++    sched.static_sched_threads = 3;
++    sched.push_ready_routed(&slot);
++    EXPECT_EQ(sched.static_aiv_ready_queues[0].pop_single_consumer(), &slot);
++    EXPECT_EQ(sched.static_aiv_ready_queues[1].pop_single_consumer(), &slot);
++    EXPECT_EQ(sched.static_aiv_ready_queues[2].pop_single_consumer(), nullptr);
++    for (auto &queue : sched.static_ready_queues) EXPECT_EQ(queue.pop(), nullptr);
++    EXPECT_EQ(sched.ready_queues[static_cast<int>(ResourceShape::AIV)].pop(), nullptr);
++}
++
++TEST(StaticPlacementGeometryTest, EachLogicalAicAndAivBlockHasOneOwner) {
++    for (int owners = 1; owners <= PLATFORM_MAX_AICPU_THREADS; ++owners) {
++        for (int clusters : {1, 5, 20}) {
++            for (ResourceShape shape : {ResourceShape::AIC, ResourceShape::AIV, ResourceShape::MIX}) {
++                int blocks = clusters * (shape == ResourceShape::AIV ? 2 : 1);
++                std::vector<int> seen(blocks, 0);
++                for (int owner = 0; owner < owners; ++owner) {
++                    for (int local = 0; local * owners + owner < clusters; ++local) {
++                        int begin = shape == ResourceShape::AIV ? 1 : 0;
++                        int end = shape == ResourceShape::AIV ? PLATFORM_CORES_PER_BLOCKDIM : 1;
++                        for (int sub = begin; sub < end; ++sub) {
++                            int offset = local * PLATFORM_CORES_PER_BLOCKDIM + sub;
++                            int block = SchedulerState::static_block_for_offset(shape, offset, owner, owners);
++                            ASSERT_GE(block, 0);
++                            ASSERT_LT(block, blocks);
++                            ++seen[block];
++                            EXPECT_LT(owner, SchedulerState::static_owner_count(shape, blocks, owners));
++                        }
++                    }
++                }
++                for (int count : seen) EXPECT_EQ(count, 1);
++            }
++        }
++    }
++}
++
++TEST_F(SchedulerStateTest, StaticMixRoutesExactlyOnceWithoutSyncDrain) {
++    ChipTaskSlotState slot;
++    init_slot(slot, CHIP_TASK_PENDING, 0, 0);
++    slot.active_mask = ActiveMask(SUBTASK_MASK_AIC | SUBTASK_MASK_AIV0 | SUBTASK_MASK_AIV1);
++    slot.logical_block_num = 7;
++    slot.lifecycle_flags.fetch_or(STATIC_BLOCK_MAPPING);
++    sched.static_sched_threads = 3;
++    sched.push_ready_routed(&slot);
++    EXPECT_FALSE(sched.route_ready_once(slot));
++    for (int owner=0;owner<3;++owner) {
++        EXPECT_EQ(sched.static_mix_ready_queues[owner].pop_single_consumer(), &slot);
++        EXPECT_EQ(sched.static_mix_ready_queues[owner].pop_single_consumer(), nullptr);
++        EXPECT_EQ(sched.static_ready_queues[owner].pop(), nullptr);
++    }
++    EXPECT_EQ(sched.ready_queues[static_cast<int>(ResourceShape::MIX)].pop(), nullptr);
++    EXPECT_EQ(sched.ready_sync_queues[static_cast<int>(ResourceShape::MIX)].pop(), nullptr);
++    EXPECT_FALSE(slot.task_attrs.requires_sync_start());
++}
++
++TEST_F(SchedulerStateTest, StaticMixEarlyPlacementKeepsFixedOwnersAcrossRelease) {
++    ChipTaskSlotState slot;
++    TaskDescriptor descriptor{};
++    init_slot(slot, CHIP_TASK_PENDING, 0, 0);
++    slot.active_mask = ActiveMask(SUBTASK_MASK_AIC | SUBTASK_MASK_AIV0 | SUBTASK_MASK_AIV1);
++    slot.logical_block_num = 7;
++    slot.task = &descriptor;
++    slot.lifecycle_flags.fetch_or(STATIC_BLOCK_MAPPING);
++    sched.static_sched_threads = 3;
++    sched.try_enqueue_early_dispatch_candidate(slot);
++    EXPECT_EQ(slot.payload->early_dispatch_state.load(), EARLY_DISPATCH_STAGING);
++    EXPECT_EQ(sched.early_dispatch_queues[static_cast<int>(ResourceShape::MIX)].size(), 0u);
++    slot.next_block_idx.store(1);
++    EXPECT_TRUE(sched.route_ready_once(slot));
++    EXPECT_EQ(slot.payload->early_dispatch_state.load(), EARLY_DISPATCH_DISPATCHED);
++    for (int owner=0;owner<3;++owner) {
++        EXPECT_EQ(sched.static_mix_ready_queues[owner].pop_single_consumer(), &slot);
++        EXPECT_EQ(sched.static_mix_ready_queues[owner].pop_single_consumer(), nullptr);
++    }
++    EXPECT_EQ(sched.ready_queues[static_cast<int>(ResourceShape::MIX)].size(), 0u);
++}
++
++TEST_F(SchedulerStateTest, FixedMixEarlyReadyRaceEnqueuesOwnersOnce) {
++    sched.static_sched_threads=3;
++    for (int repeat=0;repeat<32;++repeat) {
++        ChipTaskSlotState slot;TaskDescriptor descriptor{};
++        init_slot(slot,CHIP_TASK_PENDING,0,0);
++        slot.task=&descriptor;slot.logical_block_num=7;
++        slot.active_mask=ActiveMask(SUBTASK_MASK_AIC|SUBTASK_MASK_AIV0|SUBTASK_MASK_AIV1);
++        slot.lifecycle_flags.fetch_or(STATIC_BLOCK_MAPPING);
++        std::thread early([&] {sched.try_enqueue_early_dispatch_candidate(slot);});
++        std::thread ready([&] {sched.route_ready_once(slot);});
++        early.join();ready.join();
++        for (int owner=0;owner<3;++owner) {
++            EXPECT_EQ(sched.static_mix_ready_queues[owner].pop_single_consumer(),&slot);
++            EXPECT_EQ(sched.static_mix_ready_queues[owner].pop_single_consumer(),nullptr);
++        }
++        EXPECT_EQ(sched.early_dispatch_queues[static_cast<int>(ResourceShape::MIX)].size(),0u);
++        EXPECT_EQ(sched.ready_queues[static_cast<int>(ResourceShape::MIX)].size(),0u);
++    }
++}
++
++TEST_F(SchedulerStateTest, StaticAicEarlyPlacementKeepsFixedOwnersAcrossRelease) {
++    ChipTaskSlotState slot;
++    TaskDescriptor descriptor{};
++    init_slot(slot, CHIP_TASK_PENDING, 0, 0);
++    slot.logical_block_num = 7;
++    slot.task = &descriptor;
++    slot.lifecycle_flags.fetch_or(STATIC_BLOCK_MAPPING);
++    sched.static_sched_threads = 3;
++    sched.try_enqueue_early_dispatch_candidate(slot);
++    EXPECT_EQ(slot.payload->early_dispatch_state.load(), EARLY_DISPATCH_STAGING);
++    EXPECT_EQ(sched.early_dispatch_queues[static_cast<int>(ResourceShape::AIC)].size(), 0u);
++    slot.next_block_idx.store(1);
++    ASSERT_TRUE(sched.route_ready_once(slot));
++    EXPECT_EQ(slot.payload->early_dispatch_state.load(), EARLY_DISPATCH_DISPATCHED);
++    for (int owner = 0; owner < 3; ++owner) {
++        EXPECT_EQ(sched.static_ready_queues[owner].pop_single_consumer(), &slot);
++        EXPECT_EQ(sched.static_ready_queues[owner].pop_single_consumer(), nullptr);
++    }
++    EXPECT_EQ(sched.ready_queues[static_cast<int>(ResourceShape::AIC)].size(), 0u);
++}
++
++TEST_F(SchedulerStateTest, FixedAicEarlyReadyRaceEnqueuesOwnersOnce) {
++    sched.static_sched_threads = 3;
++    for (int repeat = 0; repeat < 32; ++repeat) {
++        ChipTaskSlotState slot;
++        TaskDescriptor descriptor{};
++        init_slot(slot, CHIP_TASK_PENDING, 0, 0);
++        slot.task = &descriptor;
++        slot.logical_block_num = 7;
++        slot.lifecycle_flags.fetch_or(STATIC_BLOCK_MAPPING);
++        std::thread early([&] { sched.try_enqueue_early_dispatch_candidate(slot); });
++        std::thread ready([&] { sched.route_ready_once(slot); });
++        early.join();
++        ready.join();
++        for (int owner = 0; owner < 3; ++owner) {
++            EXPECT_EQ(sched.static_ready_queues[owner].pop_single_consumer(), &slot);
++            EXPECT_EQ(sched.static_ready_queues[owner].pop_single_consumer(), nullptr);
++        }
++        EXPECT_EQ(sched.early_dispatch_queues[static_cast<int>(ResourceShape::AIC)].size(), 0u);
++        EXPECT_EQ(sched.ready_queues[static_cast<int>(ResourceShape::AIC)].size(), 0u);
++    }
++}
+diff --git a/tests/ut/py/test_chip_worker.py b/tests/ut/py/test_chip_worker.py
+index 5574f39e..40e93966 100644
+--- a/tests/ut/py/test_chip_worker.py
++++ b/tests/ut/py/test_chip_worker.py
+@@ -844,6 +844,13 @@ class TestChipWorkerStateMachine:
+         with pytest.raises(RuntimeError, match="not initialized"):
+             worker.run(0, args, config)
+ 
++    def test_prepare_graph_run_before_init_raises(self):
++        from _task_interface import ChipStorageTaskArgs  # noqa: PLC0415
++
++        worker = _ChipWorker()
++        with pytest.raises(RuntimeError, match="not initialized"):
++            worker._prepare_graph_run(0, ChipStorageTaskArgs(), CallConfig())
++
+     def test_unregister_callable_before_init_raises(self):
+         worker = _ChipWorker()
+         with pytest.raises(RuntimeError, match="not initialized"):
+@@ -975,6 +982,58 @@ class TestChipWorkerPython:
+         with pytest.raises(TypeError, match="CallableHandle returned by ChipWorker.register_callable"):
+             worker.run(0, ChipStorageTaskArgs(), CallConfig())  # pyright: ignore[reportArgumentType]
+ 
++    def test_public_wrapper_graph_run_uses_private_slot_and_native_token(self):
++        from _task_interface import ChipCallable, ChipStorageTaskArgs  # noqa: PLC0415
++        from simpler.task_interface import ChipWorker  # noqa: PLC0415  # pyright: ignore[reportAttributeAccessIssue]
++
++        native_token = object()
++
++        class FakeImpl:
++            initialized = True
++            device_id = 0
++
++            def __init__(self):
++                self.context_validations = 0
++                self.prepared_callables = []
++                self.graph_prepares = []
++                self.graph_enqueues = []
++                self.graph_finalizes = []
++
++            def _validate_execution_context(self):
++                self.context_validations += 1
++
++            def register_callable(self, slot, callable_obj):
++                self.prepared_callables.append((slot, callable_obj))
++
++            def _prepare_graph_run(self, slot, args, config):
++                self.graph_prepares.append((slot, args, config))
++                return native_token
++
++            def _enqueue_graph_run(self, run, stream):
++                self.graph_enqueues.append((run, stream))
++
++            def _finalize_native_run(self, run):
++                self.graph_finalizes.append(run)
++
++        worker = ChipWorker()
++        fake = FakeImpl()
++        worker._impl = fake
++        callable_obj = ChipCallable.build(signature=[], func_name="test", binary=b"\x00", children=[])
++        handle = worker.register_callable(callable_obj)
++        args = ChipStorageTaskArgs()
++
++        assert worker.prepare_graph_run(handle, args) is native_token
++        assert fake.graph_prepares[0][0] == 0
++        assert fake.graph_prepares[0][1] is args
++        assert isinstance(fake.graph_prepares[0][2], CallConfig)
++
++        worker.enqueue_graph_run(native_token, 1234)
++        worker.finalize_graph_run(native_token)
++
++        assert fake.graph_enqueues == [(native_token, 1234)]
++        assert fake.graph_finalizes == [native_token]
++        assert fake.context_validations >= 1
++
+     def test_public_wrapper_rejects_cross_thread_finalize(self):
+         from simpler.task_interface import ChipWorker  # noqa: PLC0415  # pyright: ignore[reportAttributeAccessIssue]
+ 

@@ -1,0 +1,314 @@
+{
+  "current": {
+    "average_tpot_ms": 16.463485669499477,
+    "ttft_ms": [
+      9252.125249942765,
+      19153.45107007306,
+      28417.903269990347,
+      37583.66919995751
+    ],
+    "client_receive_itl": {
+      "metric_scope": "client-observed SSE arrivals",
+      "device_token_generation_times_available": false,
+      "sse_batch_gap": {
+        "count": 12846,
+        "mean_ms": 52.489375868752916,
+        "median_ms": 47.281155,
+        "p90_ms": 50.645849999999996,
+        "p99_ms": 68.609475,
+        "max_ms": 924.96308,
+        "percentile_method": "linear interpolation"
+      },
+      "amortized_sse_interval": {
+        "count": 12846,
+        "mean_ms": 25.089383418379263,
+        "median_ms": 15.931003333333333,
+        "p90_ms": 47.567255,
+        "p99_ms": 62.276221,
+        "max_ms": 601.5331,
+        "percentile_method": "linear interpolation"
+      },
+      "token_weighted_amortized_interval": {
+        "token_intervals": 40956,
+        "mean_ms": 16.463485750805795,
+        "median_ms": 9.574248,
+        "p90_ms": 26.34039,
+        "p99_ms": 82.70478333333334,
+        "max_ms": 601.5331,
+        "percentile_method": "token-weighted nearest rank"
+      },
+      "stable_sse_batch_gap": {
+        "count": 12095,
+        "mean_ms": 47.81174289375775,
+        "median_ms": 47.2313,
+        "p90_ms": 47.991603999999995,
+        "p99_ms": 60.73131299999984,
+        "max_ms": 924.37193,
+        "percentile_method": "linear interpolation"
+      },
+      "stable_amortized_sse_interval": {
+        "count": 12095,
+        "mean_ms": 23.465156216728676,
+        "median_ms": 15.90408,
+        "p90_ms": 47.46449,
+        "p99_ms": 53.29619359999999,
+        "max_ms": 308.1239766666667,
+        "percentile_method": "linear interpolation"
+      },
+      "stable_token_weighted_amortized_interval": {
+        "token_intervals": 38343,
+        "mean_ms": 15.081841021829328,
+        "median_ms": 9.553184,
+        "p90_ms": 23.950165,
+        "p99_ms": 47.89313,
+        "max_ms": 308.1239766666667,
+        "percentile_method": "token-weighted nearest rank"
+      }
+    },
+    "server_send_itl": {
+      "metric_scope": "client-observed SSE arrivals",
+      "device_token_generation_times_available": false,
+      "sse_batch_gap": {
+        "count": 12846,
+        "mean_ms": 52.49314397088588,
+        "median_ms": 47.275345,
+        "p90_ms": 50.63013,
+        "p99_ms": 68.51938,
+        "max_ms": 938.75794,
+        "percentile_method": "linear interpolation"
+      },
+      "amortized_sse_interval": {
+        "count": 12846,
+        "mean_ms": 25.089711052065493,
+        "median_ms": 15.93021,
+        "p90_ms": 47.567525,
+        "p99_ms": 62.219083999999995,
+        "max_ms": 601.52737,
+        "percentile_method": "linear interpolation"
+      },
+      "token_weighted_amortized_interval": {
+        "token_intervals": 40956,
+        "mean_ms": 16.464667629895594,
+        "median_ms": 9.573572,
+        "p90_ms": 26.34456,
+        "p99_ms": 82.68353,
+        "max_ms": 601.52737,
+        "percentile_method": "token-weighted nearest rank"
+      },
+      "stable_sse_batch_gap": {
+        "count": 12095,
+        "mean_ms": 47.73943827614717,
+        "median_ms": 47.22468,
+        "p90_ms": 47.973178000000004,
+        "p99_ms": 60.6834388,
+        "max_ms": 76.60176,
+        "percentile_method": "linear interpolation"
+      },
+      "stable_amortized_sse_interval": {
+        "count": 12095,
+        "mean_ms": 23.44059622998484,
+        "median_ms": 15.90225,
+        "p90_ms": 47.462194,
+        "p99_ms": 53.3009536,
+        "max_ms": 72.13571,
+        "percentile_method": "linear interpolation"
+      },
+      "stable_token_weighted_amortized_interval": {
+        "token_intervals": 38346,
+        "mean_ms": 15.057854950972814,
+        "median_ms": 9.550766,
+        "p90_ms": 23.9461,
+        "p99_ms": 47.88024,
+        "max_ms": 72.13571,
+        "percentile_method": "token-weighted nearest rank"
+      }
+    },
+    "mtp": {
+      "drafts": 12845.0,
+      "draft_tokens": 64208.0,
+      "accepted_draft_tokens": 28110.0,
+      "acceptance_percent": 43.77959132818341,
+      "mean_acceptance_length_including_bonus": 3.188400155702608,
+      "accepted_prefix_histogram": {
+        "0": 3421,
+        "1": 2544,
+        "2": 1812,
+        "3": 1265,
+        "4": 868,
+        "5": 2935
+      }
+    },
+    "input_token_sha256": [
+      "c46463e17aac963ced530d921dc60333e8e47900c2c51485ea9ba333e55ecf0e",
+      "31822e13c3570e843efba3604cb8d5f095475e2e5ebd101e72359bff9f23ca7b",
+      "cccbf9f07b272b0aed96941d4f1645c46cd04b8aae2cfc746de7be81da9294b9",
+      "4bb6930638e7f2bfdee81dcfd666f3787a8e48e3af2f9bb02a5c406e6a1cf4c2"
+    ],
+    "output_token_sha256": [
+      "f08a6051dbce47b27b3d623d144ee6d6dfabf5b9ac8e47a89ae9f413a84e11c7",
+      "8d732041ea0d85fd98fe153ac94051042677343762233e43f3d5a794cbc795d5",
+      "b3e4f9b827dd34e640b1a33db204f9b2de729da5c141902ed0aad5b5b4a7770c",
+      "3f19445046e64d5604ec5eb1766fead30e36b4769a76342619e36eafd1b8cb60"
+    ],
+    "timestamp_note": "Client batch timestamps reconstructed from official measured start/TTFT/SSE ITLs and joined by exact message count/order/text to server token IDs; no token interpolation. Server send timestamps separately retained"
+  },
+  "same_card_old": {
+    "average_tpot_ms": 17.336742178436012,
+    "ttft_ms": [
+      9861.67019000277,
+      20645.45597997494,
+      30410.965780029073,
+      39997.47387005482
+    ],
+    "client_receive_itl": {
+      "metric_scope": "client-observed SSE arrivals",
+      "device_token_generation_times_available": false,
+      "sse_batch_gap": {
+        "count": 12756,
+        "mean_ms": 55.66350102461587,
+        "median_ms": 49.14054,
+        "p90_ms": 55.196965,
+        "p99_ms": 244.3317685,
+        "max_ms": 709.59724,
+        "percentile_method": "linear interpolation"
+      },
+      "amortized_sse_interval": {
+        "count": 12756,
+        "mean_ms": 26.551074971255357,
+        "median_ms": 16.939511666666668,
+        "p90_ms": 49.50968,
+        "p99_ms": 80.64500400000094,
+        "max_ms": 650.77247,
+        "percentile_method": "linear interpolation"
+      },
+      "token_weighted_amortized_interval": {
+        "token_intervals": 40956,
+        "mean_ms": 17.336742334944862,
+        "median_ms": 10.45749,
+        "p90_ms": 31.208455,
+        "p99_ms": 87.42456,
+        "max_ms": 650.77247,
+        "percentile_method": "token-weighted nearest rank"
+      },
+      "stable_sse_batch_gap": {
+        "count": 12145,
+        "mean_ms": 50.62705262247839,
+        "median_ms": 49.085,
+        "p90_ms": 54.009226000000005,
+        "p99_ms": 73.4120688,
+        "max_ms": 709.48653,
+        "percentile_method": "linear interpolation"
+      },
+      "stable_amortized_sse_interval": {
+        "count": 12145,
+        "mean_ms": 24.86708820004117,
+        "median_ms": 16.820263333333333,
+        "p90_ms": 49.360389999999995,
+        "p99_ms": 64.88430919999999,
+        "max_ms": 127.83836,
+        "percentile_method": "linear interpolation"
+      },
+      "stable_token_weighted_amortized_interval": {
+        "token_intervals": 38648,
+        "mean_ms": 15.909375752949758,
+        "median_ms": 10.277464,
+        "p90_ms": 26.16022,
+        "p99_ms": 52.60155,
+        "max_ms": 127.83836,
+        "percentile_method": "token-weighted nearest rank"
+      }
+    },
+    "server_send_itl": {
+      "metric_scope": "client-observed SSE arrivals",
+      "device_token_generation_times_available": false,
+      "sse_batch_gap": {
+        "count": 12756,
+        "mean_ms": 55.667359358733144,
+        "median_ms": 49.128885,
+        "p90_ms": 55.137550000000005,
+        "p99_ms": 244.27808650000014,
+        "max_ms": 723.62543,
+        "percentile_method": "linear interpolation"
+      },
+      "amortized_sse_interval": {
+        "count": 12756,
+        "mean_ms": 26.5543286335058,
+        "median_ms": 16.93316666666667,
+        "p90_ms": 49.48339,
+        "p99_ms": 80.66822400000092,
+        "max_ms": 650.82577,
+        "percentile_method": "linear interpolation"
+      },
+      "token_weighted_amortized_interval": {
+        "token_intervals": 40956,
+        "mean_ms": 17.33794403701525,
+        "median_ms": 10.465003333333334,
+        "p90_ms": 31.222145,
+        "p99_ms": 87.2635,
+        "max_ms": 650.82577,
+        "percentile_method": "token-weighted nearest rank"
+      },
+      "stable_sse_batch_gap": {
+        "count": 12146,
+        "mean_ms": 50.6074026840112,
+        "median_ms": 49.07758,
+        "p90_ms": 53.954945,
+        "p99_ms": 73.51804649999991,
+        "max_ms": 261.01897,
+        "percentile_method": "linear interpolation"
+      },
+      "stable_amortized_sse_interval": {
+        "count": 12146,
+        "mean_ms": 24.881926798795213,
+        "median_ms": 16.81606,
+        "p90_ms": 49.344575,
+        "p99_ms": 64.84581749999998,
+        "max_ms": 261.01897,
+        "percentile_method": "linear interpolation"
+      },
+      "stable_token_weighted_amortized_interval": {
+        "token_intervals": 38648,
+        "mean_ms": 15.904510272200293,
+        "median_ms": 10.265374,
+        "p90_ms": 26.140085,
+        "p99_ms": 52.41766,
+        "max_ms": 261.01897,
+        "percentile_method": "token-weighted nearest rank"
+      }
+    },
+    "mtp": {
+      "drafts": 12755.0,
+      "draft_tokens": 63750.0,
+      "accepted_draft_tokens": 28200.0,
+      "acceptance_percent": 44.23529411764706,
+      "mean_acceptance_length_including_bonus": 3.2108976871814976,
+      "accepted_prefix_histogram": {
+        "0": 3399,
+        "1": 2535,
+        "2": 1733,
+        "3": 1202,
+        "4": 837,
+        "5": 3049
+      }
+    },
+    "input_token_sha256": [
+      "c46463e17aac963ced530d921dc60333e8e47900c2c51485ea9ba333e55ecf0e",
+      "31822e13c3570e843efba3604cb8d5f095475e2e5ebd101e72359bff9f23ca7b",
+      "cccbf9f07b272b0aed96941d4f1645c46cd04b8aae2cfc746de7be81da9294b9",
+      "4bb6930638e7f2bfdee81dcfd666f3787a8e48e3af2f9bb02a5c406e6a1cf4c2"
+    ],
+    "output_token_sha256": [
+      "eaa1c42b66e270ef94b455621f1a4ec68642200dc518a8e69a6bc6818c88e47b",
+      "2dbb56de25d74b99ef74b6aeb5d33f23650c2b82426efaf95de6b8cfc4c0add7",
+      "5cf1b742e084498efbc43812202b03fc38274f6acdc27cf3055352014284b26e",
+      "1f07ef5e47cc9d478da7f455a480223d790adf54e8e8bf99d56cbf437704e33c"
+    ],
+    "timestamp_note": "Client batch timestamps reconstructed from official measured start/TTFT/SSE ITLs and joined by exact message count/order/text to server token IDs; no token interpolation. Server send timestamps separately retained"
+  },
+  "notes": [
+    "Same cards1/2/3/4, TP4 PP1 B4,32768 input and10240 output per request, MTP5.",
+    "One full formal run of each implementation; not a claim of isolated kernel gain.",
+    "Current output hashes differ from old replay; native long-output equality remains open.",
+    "MTP SSE batches and token-weighted amortized intervals are reported separately."
+  ]
+}

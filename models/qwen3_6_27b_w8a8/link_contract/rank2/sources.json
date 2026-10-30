@@ -1,0 +1,283 @@
+[
+  {
+    "name": "aicpu_orchestration_entry",
+    "source": "registered_sources/spmd_fusion_20261029/src/runtime/orchestration_rank2.cpp",
+    "sha256": "8559d839dcc971b90cf321985759a6775178ebb728ceab53f6091a7882e07272"
+  },
+  {
+    "name": "embedding2_kernel",
+    "source": null,
+    "sha256": "9f223d49695dd7b7bf8c024f304bb611786fcacf6ed71ad0f322704bce480dfd",
+    "compiler_output": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank2/kernels/aiv/embedding2_kernel.cpp",
+    "retained_as_source": false
+  },
+  {
+    "name": "reduce_embedding",
+    "source": null,
+    "sha256": "1fb5b12fe8b4fe59c99af95f567f9544bfc80f0f315c8a3ccab697f496438614",
+    "compiler_output": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank2/kernels/aiv/reduce_embedding.cpp",
+    "retained_as_source": false
+  },
+  {
+    "name": "norm_plain_kernel",
+    "source": null,
+    "sha256": "8f25ca8aa94b9705b028eca10e185451774398c5f5af08f7474011e7e1fc02e2",
+    "compiler_output": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank2/kernels/aiv/norm_plain_kernel.cpp",
+    "retained_as_source": false
+  },
+  {
+    "name": "norm_hidden_kernel",
+    "source": null,
+    "sha256": "92271d9776d00af0d5e3d406b93b250fcd6e5288d1740e79aafcdc9921fbbd23",
+    "compiler_output": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank2/kernels/aiv/norm_hidden_kernel.cpp",
+    "retained_as_source": false
+  },
+  {
+    "name": "project_z_kernel",
+    "source": "registered_sources/attention_dsl_20261029/selected_inputs/target_dsl_explicit_v1/next_levels/rank2/gdn_wide_overrides/project_z_kernel.cpp",
+    "sha256": "9cb943416e47e6ea4ab142586e6da2bc4b60672dbba9ce92ab5deb3f910485d2",
+    "retained_as_source": true
+  },
+  {
+    "name": "project_gdn_kernel",
+    "source": "registered_sources/attention_dsl_20261029/selected_inputs/target_dsl_explicit_v1/next_levels/rank2/gdn_wide_overrides/project_gdn_kernel.cpp",
+    "sha256": "f6137c35d3852f0fba3f38f99a4c787eb7bc7ad383daf433912616e671d0553e",
+    "retained_as_source": true
+  },
+  {
+    "name": "ba_gates_fused",
+    "source": null,
+    "sha256": "3e05be3b3767e35365638c7e355841896117f98632cc40deac3e5dd6ba3e292c",
+    "compiler_output": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank2/kernels/aiv/ba_gates_fused.cpp",
+    "retained_as_source": false
+  },
+  {
+    "name": "causal_conv_qk_norm",
+    "source": "registered_sources/attention_dsl_20261029/selected_inputs/target_dsl_explicit_v1/next_levels/rank2/ragged_overrides/causal_conv_qk_norm.cpp",
+    "sha256": "7acd23d23f98d9d2effd927d43b1983430ceec2ffe3aa41fdaaabfd536fdb7f9",
+    "retained_as_source": true
+  },
+  {
+    "name": "recurrent_kernel",
+    "source": "registered_sources/attention_dsl_20261029/selected_inputs/target_dsl_explicit_v1/next_levels/rank2/outer_update_override/recurrent_kernel.cpp",
+    "sha256": "93c6cd847abb9551878121392056622bdbe87aafc4fb93150e815b4278f10032",
+    "retained_as_source": true
+  },
+  {
+    "name": "norm_gdn_kernel",
+    "source": null,
+    "sha256": "3917c69c8cf2082e449f3fffdb43d3e070a80a77965b4c496c71ec721a95122b",
+    "compiler_output": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank2/kernels/aiv/norm_gdn_kernel.cpp",
+    "retained_as_source": false
+  },
+  {
+    "name": "greedy_projection_spmd_kernel",
+    "source": null,
+    "sha256": "d063cfdb1262a2ff55e349483840a054a631fdab7a6532abce3f3b5eeb632b82",
+    "compiler_output": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank2/kernels/aic/greedy_projection_spmd_kernel.cpp",
+    "retained_as_source": false
+  },
+  {
+    "name": "reduce_add_norm_quant_kernel",
+    "source": "registered_sources/attention_dsl_20261029/selected_inputs/target_dsl_explicit_v1/next_levels/rank2/peer_prefetch_override/reduce_add_norm_quant_kernel.cpp",
+    "sha256": "cb478994fa0255970fc45f121476f97a2dee1aa0d38b20c9b76901964f904e1d",
+    "retained_as_source": true
+  },
+  {
+    "name": "mlp_fused_kernel_aic",
+    "source": null,
+    "sha256": "4410b1e72bd2f409fa3b598c8d22503a83f052eb8d1753c73b9de62c3fcad38d",
+    "compiler_output": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank2/kernels/aic/mlp_fused_kernel_aic.cpp",
+    "retained_as_source": false
+  },
+  {
+    "name": "mlp_fused_kernel_aiv",
+    "source": null,
+    "sha256": "fd6015d16b8f135b93cdbc457796a38fb55fb002075b0cef5c2c7118cdb15917",
+    "compiler_output": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank2/kernels/aiv/mlp_fused_kernel_aiv.cpp",
+    "retained_as_source": false
+  },
+  {
+    "name": "quant_4352",
+    "source": null,
+    "sha256": "8dde8fdcf90d9e16635b830cad7368820520e1de189a2829409db2ce98c537ce",
+    "compiler_output": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank2/kernels/aiv/quant_4352.cpp",
+    "retained_as_source": false
+  },
+  {
+    "name": "project_down_kernel_aic",
+    "source": null,
+    "sha256": "3fdef657e60d6081b3c685fd3ffe3e0311c2d250efc1bf2c717b3048c5d14a6b",
+    "compiler_output": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank2/kernels/aic/project_down_kernel_aic.cpp",
+    "retained_as_source": false
+  },
+  {
+    "name": "project_down_kernel_aiv",
+    "source": null,
+    "sha256": "74ff534dcb9ca29e528c6b021ca2ce165684c462f8e6d3bf2ce720f9932260c3",
+    "compiler_output": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank2/kernels/aiv/project_down_kernel_aiv.cpp",
+    "retained_as_source": false
+  },
+  {
+    "name": "reduce_add_norm_kernel",
+    "source": "registered_sources/attention_dsl_20261029/selected_inputs/target_dsl_explicit_v1/next_levels/rank2/peer_prefetch_override/reduce_add_norm_kernel.cpp",
+    "sha256": "5b10569181cf03c2ee9d283e368c6ce876f28f87c060ec4353336e6a1cc34be8",
+    "retained_as_source": true
+  },
+  {
+    "name": "ba_gates_fused_0",
+    "source": null,
+    "sha256": "5b9d15214fe06c8f4588a3acedcf71386dbf5c0ab249034dfcf5e115fca98eef",
+    "compiler_output": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank2/kernels/aiv/ba_gates_fused_0.cpp",
+    "retained_as_source": false
+  },
+  {
+    "name": "causal_conv_qk_norm_0",
+    "source": "registered_sources/attention_dsl_20261029/selected_inputs/target_dsl_explicit_v1/next_levels/rank2/head_fusion_overrides/conv_valid.cpp",
+    "sha256": "7acd23d23f98d9d2effd927d43b1983430ceec2ffe3aa41fdaaabfd536fdb7f9",
+    "retained_as_source": true
+  },
+  {
+    "name": "ba_gates_fused_1",
+    "source": null,
+    "sha256": "93e058b187335486ed5d7ab4ef7f210fab37a48362162e0008c9eec03cac7bab",
+    "compiler_output": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank2/kernels/aiv/ba_gates_fused_1.cpp",
+    "retained_as_source": false
+  },
+  {
+    "name": "causal_conv_qk_norm_1",
+    "source": "registered_sources/attention_dsl_20261029/selected_inputs/target_dsl_explicit_v1/next_levels/rank2/head_fusion_overrides/conv_valid.cpp",
+    "sha256": "7acd23d23f98d9d2effd927d43b1983430ceec2ffe3aa41fdaaabfd536fdb7f9",
+    "retained_as_source": true
+  },
+  {
+    "name": "quant_5120",
+    "source": null,
+    "sha256": "c220fcf839eab625de8b4da67332696de6680bf1d1aaab5f08212bae6e2a0ce4",
+    "compiler_output": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank2/kernels/aiv/quant_5120.cpp",
+    "retained_as_source": false
+  },
+  {
+    "name": "project_qkv_kernel_aic",
+    "source": null,
+    "sha256": "6d34e6617992d8d5adbc1fbec3bfb5dc7f8949508b33e0cd837a6b6619cabff1",
+    "compiler_output": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank2/kernels/aic/project_qkv_kernel_aic.cpp",
+    "retained_as_source": false
+  },
+  {
+    "name": "project_qkv_kernel_aiv",
+    "source": null,
+    "sha256": "f9845a4bff1dbd08e983a56e7a4a00a0fb766ab4c7a36bb5a782a575a8ca2ad7",
+    "compiler_output": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank2/kernels/aiv/project_qkv_kernel_aiv.cpp",
+    "retained_as_source": false
+  },
+  {
+    "name": "norm_rope_q_kernel",
+    "source": null,
+    "sha256": "7ec7152e5ed85eed2b181bca2592f5a5a10dafa818921c113a324e9273c3781d",
+    "compiler_output": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank2/kernels/aiv/norm_rope_q_kernel.cpp",
+    "retained_as_source": false
+  },
+  {
+    "name": "norm_rope_k_append_kernel",
+    "source": null,
+    "sha256": "f45caf5f58f4ca4d0033d6869feb414876aa94976ae2ec66758ac3cb9115e1ed",
+    "compiler_output": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank2/kernels/aiv/norm_rope_k_append_kernel.cpp",
+    "retained_as_source": false
+  },
+  {
+    "name": "s2_scores",
+    "source": null,
+    "sha256": "d9be358f4bb690021303147a913d3f3adbcf5d762427193e90d72ce7a5551171",
+    "compiler_output": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/direct_dsl_verified/qk/kernels/aic/s2_scores.cpp",
+    "retained_as_source": false
+  },
+  {
+    "name": "tiled_softmax",
+    "source": null,
+    "sha256": "89b4a9ad37eda21fe3b01c92461f484565054538a977185e5410e9578c011497",
+    "compiler_output": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/explicit_pipeline_v1/softmax/kernels/aiv/softmax_kernel.cpp",
+    "retained_as_source": false
+  },
+  {
+    "name": "s2_partial_values",
+    "source": null,
+    "sha256": "0da2b1c67e47d2f046c611c83384d5587040d4c8044266c5605ebdac7b6034df",
+    "compiler_output": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/direct_dsl_verified/pv/kernels/aic/s2_partial_values.cpp",
+    "retained_as_source": false
+  },
+  {
+    "name": "fused_attention_gate_quant",
+    "source": null,
+    "sha256": "d0a45a19bebfa0ab9b258fadea31dbd5349e0c7aacb298cb6007e6e388c8e326",
+    "compiler_output": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/spmd_fusion_20261029/build/fused/kernels/aiv/fused_row.cpp",
+    "retained_as_source": false
+  },
+  {
+    "name": "quant_1536",
+    "source": null,
+    "sha256": "8cdcf4ba111a9056b7d34529424d1997a4b5e7c7cfe9dd7d41f3400c126f5fbc",
+    "compiler_output": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank2/kernels/aiv/quant_1536.cpp",
+    "retained_as_source": false
+  },
+  {
+    "name": "project_attention_out_w8a8_kernel_aic",
+    "source": null,
+    "sha256": "5c633abb91f76082d3625d8135a5c8779148b2a46539bc5b1a3f63f036625934",
+    "compiler_output": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank2/kernels/aic/project_attention_out_w8a8_kernel_aic.cpp",
+    "retained_as_source": false
+  },
+  {
+    "name": "project_attention_out_w8a8_kernel_aiv",
+    "source": null,
+    "sha256": "d024fc4f21efca5f8b433c1e3ffc9dc01836e9fe5fe9a52c3669749bf574d9b5",
+    "compiler_output": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank2/kernels/aiv/project_attention_out_w8a8_kernel_aiv.cpp",
+    "retained_as_source": false
+  },
+  {
+    "name": "reduce_add_kernel",
+    "source": "registered_sources/attention_dsl_20261029/selected_inputs/target_dsl_explicit_v1/next_levels/rank2/peer_prefetch_override/reduce_add_kernel.cpp",
+    "sha256": "5cd9e597dede91fec9667ce2bc767204099fd21e7c4258784ab77db7913569ad",
+    "retained_as_source": true
+  },
+  {
+    "name": "publish_hidden",
+    "source": null,
+    "sha256": "04dbdf4fd3a0f62616bf3f5e924524702adbdb287ed907e2bcf1ef4ecf61c94c",
+    "compiler_output": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank2/kernels/aiv/publish_hidden.cpp",
+    "retained_as_source": false
+  },
+  {
+    "name": "project_head_kernel",
+    "source": null,
+    "sha256": "6d61d6658299d572adb6c17ae55ac15ad55d47b3b6d90ca1223caf9cc902c09e",
+    "compiler_output": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank2/kernels/aic/project_head_kernel.cpp",
+    "retained_as_source": false
+  },
+  {
+    "name": "gather_logits_kernel",
+    "source": null,
+    "sha256": "20004b4624a155c3a3e0f3dd9ea157871d72882459374057a27bb2b74b6ea645",
+    "compiler_output": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank2/kernels/aiv/gather_logits_kernel.cpp",
+    "retained_as_source": false
+  },
+  {
+    "name": "graph_stop_fence",
+    "source": null,
+    "sha256": "6a32d4244445a722f6d7a9fc099e2b6e7c3f0c7ed4b5b05651c23b42e8b8cd00",
+    "compiler_output": "/home/g00893677/pto-dev/qwen3_6_27b-inner-w8a8/work/attention_dsl_20261029/build/target_dsl_explicit_v1/next_levels/rank2/kernels/aiv/graph_stop_fence.cpp",
+    "retained_as_source": false
+  },
+  {
+    "name": "production_attention_program_aic",
+    "source": "registered_sources/attention_native_fixture_20261029/selected_inputs/target_key_value/next_levels/rank2/native_backend/device_program_aic.cpp",
+    "sha256": "96968d801bfc88d826204996540afe08666da64f7583dbe287af5c42a47f3479",
+    "retained_as_source": true
+  },
+  {
+    "name": "production_attention_program_aiv",
+    "source": "registered_sources/attention_native_fixture_20261029/selected_inputs/target_key_value/next_levels/rank2/native_backend/device_program_aiv.cpp",
+    "sha256": "22eb1ab349fe9a1197bdf0da0280f8a5b7a1835ba439d44e816b0b456c6ae835",
+    "retained_as_source": true
+  }
+]

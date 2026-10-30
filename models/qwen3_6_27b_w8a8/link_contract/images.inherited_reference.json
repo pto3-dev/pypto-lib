@@ -1,0 +1,22 @@
+[
+  {
+    "rank": 0,
+    "bytes": 1785300,
+    "sha256": "ec4880f4335918f3d9186573e203685bcf336ce061506692f6599a91cdecf7b4"
+  },
+  {
+    "rank": 1,
+    "bytes": 1785364,
+    "sha256": "334c605ff41859d38da0c03b0a029fea236ef55dbc8d476f31a594b5641ebdc9"
+  },
+  {
+    "rank": 2,
+    "bytes": 1785364,
+    "sha256": "9aed1a328cbe1723336a9f2887defba2e73b349b78e996ba30cc42fdaa4bca72"
+  },
+  {
+    "rank": 3,
+    "bytes": 1785364,
+    "sha256": "bbc3fd16d79b395f9e7ae54536ae0c31661e594aeda13b7f6637ab0cc316ae83"
+  }
+]
