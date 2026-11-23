@@ -68,7 +68,7 @@ python long_context_qa.py --checkpoint /checkpoint --corpus /corpus/zh_qa.jsonl 
 `chat` retains the historical short-context four-conversation, two-turn client.
 Its recorded8/8 requests and32/32 fields in [CHAT_RESULT.md](CHAT_RESULT.md) are
 short-context results and are not presented as long-context evidence. Long QA
-status is recorded separately in [LONG_CONTEXT_QA.md](LONG_CONTEXT_QA.md).
+passed4/4 requests and60/60 fields; actual responses are in [LONG_CONTEXT_QA.md](LONG_CONTEXT_QA.md).
 
 ## 6.3.4 Stress tests
 
@@ -147,4 +147,7 @@ they are new integration entries, not byte-identical historical scripts.
 The original scripts and execution-chain hashes remain in the local archival
 manifest. Publication checks cover syntax, frozen-command preservation,
 SSE token/timestamp retention and existing boundary-reader agreement. This
-change does not claim a fresh NPU run or refreshed10K performance numbers.
+archive now includes an actual device-verified qa-run: four exact32K requests,
+60/60 fields, four ranks with matching images and36 DIRECT submissions each.
+Other benchmark/capture entry combinations have not been rerun by this QA update;
+no refreshed10K performance number is claimed.

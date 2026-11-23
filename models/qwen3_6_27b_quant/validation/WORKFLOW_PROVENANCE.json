@@ -28,12 +28,41 @@
   "qa_contract": {
     "qa": "four exact32768-token archives;15 fields each",
     "chat": "historical short two-turn check",
-    "long_context_device_run_claimed": false,
+    "long_context_device_run_claimed": true,
     "real_tokenizer_input_audit": [
       32768,
       32768,
       32768,
       32768
+    ],
+    "actual_requests_passed": 4,
+    "actual_fields_correct": 60,
+    "actual_cards": [
+      4,
+      5,
+      6,
+      7
     ]
+  },
+  "device_validation": {
+    "command": "qa-run",
+    "requests": 4,
+    "input_tokens_per_request": 32768,
+    "passed": 4,
+    "correct_fields": 60,
+    "cards": [
+      4,
+      5,
+      6,
+      7
+    ],
+    "direct_submissions_per_rank": [
+      36,
+      36,
+      36,
+      36
+    ],
+    "unexpected_target_fallbacks": 0,
+    "formal_10k_performance_run": false
   }
 }
