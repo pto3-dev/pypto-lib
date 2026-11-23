@@ -1,0 +1,19 @@
+{
+  "soc": "910b4",
+  "tp": 4,
+  "pp": 1,
+  "batch": 4,
+  "input_tokens": 32768,
+  "output_tokens": 10240,
+  "mtp": 5,
+  "same_state_calls_per_rank": 2896,
+  "checked_write_states_per_rank": 128,
+  "logits_hidden_states_bitwise_equal": true,
+  "normal_asynchronous_10k_completed": true,
+  "multi_turn_requests_passed": 8,
+  "multi_turn_fields_passed": 32,
+  "private_checkpoint_certified": false,
+  "relocated_device_run_claimed": false,
+  "published_whole_program_IR_equal_all_four_ranks": true,
+  "published_four_rank_IR_equal_with_source_built_compiler": true
+}

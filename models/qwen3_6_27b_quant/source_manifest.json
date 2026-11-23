@@ -1,0 +1,214 @@
+{
+  "model": "Qwen3.6-27B mixed W8A8",
+  "tp": 4,
+  "pp": 1,
+  "requests": 4,
+  "mtp": 5,
+  "rows": 24,
+  "source_files": [
+    {
+      "path": "qwen36/__init__.py",
+      "ast_sha256": "e406729225903e0b72fbf29cc918885b1effdd9f8d43c5f4e688e7a6af7f53a3",
+      "executed_source_sha256": "9c29c582c925d5933940e48cdc5e5b0a3f40c28f4c2542f7f94fc7adb81f1cef",
+      "published_sha256": "6fdcc86c6633b232f2715e5cc268195eab2045296e8f1ed0a6598e5e8936a7e2"
+    },
+    {
+      "path": "qwen36/bank_layout.py",
+      "ast_sha256": "1f15a9ff3f755e24b61a447aa206da0f0af2b5496c9788544a516f2da234ca49",
+      "executed_source_sha256": "eecb15796699b36f38b2181b4fb2c5a41955adeb8e80d37f33ca8b98c1d3668b",
+      "published_sha256": "bca8578d66cea57e82675dc7d668268167b51b5b8fda0ff93da26605fab2fc40"
+    },
+    {
+      "path": "qwen36/device_plan_layout.py",
+      "ast_sha256": "e17553f37fa2772a110ddde94352d5d7f7813e983c228dcc21a5189456d0d473",
+      "executed_source_sha256": "0462cb1bfc241048c7aaf518a8a17e91db0ca915435cc22bb6c1a0f845bdcb0d",
+      "published_sha256": "21dfbf01df72749bcfc2217df2e63bac7265af0d462154bd77f56bbe7af26222"
+    },
+    {
+      "path": "qwen36/geometry.py",
+      "ast_sha256": "8a82c70911219e9111a49d7a837bafe781b641e373695f2f00b4919bbfe27e59",
+      "executed_source_sha256": "d2c12b95e638cc051467f3cb890bea0c34116be4b2406b3cada781bc041fa0f7",
+      "published_sha256": "3e0614b7b91e9583a30c0f6e34b2dcddeb96e5e5b9397c787810fde6912149af"
+    },
+    {
+      "path": "qwen36/model.py",
+      "ast_sha256": "5144fda73a5011d165d1f1b50e24162d816fcf748483353baff252c0d22d0f42",
+      "executed_source_sha256": "5810460d3a1ded63cc1a99535340b1264f499e2030e61a0375fd933c730c401b",
+      "published_sha256": "4cad9e07deb12f666bc77fd8ca5da342b1ee4c3c7608dfe855f50cc83cd10797"
+    },
+    {
+      "path": "qwen36/model_layout.py",
+      "ast_sha256": "c1581f1cbb3310ad7627d22c282a61cb42a771adadddb8e74562adcf85c36e72",
+      "executed_source_sha256": "281642d1fc67a2d7f6fc762e976695dcdb799b9c42f63edca47e27e39a2764a5",
+      "published_sha256": "db1b9638fd9fab93dcee6e76e260eb49f7d8662b5effb2425df0b94de8d10e1d"
+    },
+    {
+      "path": "qwen36/native_gdn_b2_order.py",
+      "ast_sha256": "b9bfeb5964de00ec9e339064ff797c061c3075da065564dead99ba86f653cdcd",
+      "executed_source_sha256": "1b166e4275807e1ffef2a09a0e6185df12a83aa0de2488868a72e397a4951cc8",
+      "published_sha256": "7e7f8d3a8d4db8171e4e39f288868481718f09554c158f5f602c3e55bbb96a5e"
+    },
+    {
+      "path": "qwen36/native_gemm_order.py",
+      "ast_sha256": "1776de12b07dd2237fba1fe796747ad4e80d811f8d284bf1c292fb39cdeb5846",
+      "executed_source_sha256": "22d5bbe6d21d49d0b5ccf1c7ea054654cf8a748906c3f930c319325b3581a19d",
+      "published_sha256": "0daa2e2dffb80f662d136fb21170eab4764d70fdf29ff7b820ea8b414429ed87"
+    },
+    {
+      "path": "qwen36/native_head_order.py",
+      "ast_sha256": "0610d6d8de3035e63a73d67547cd8e92a28bb1e563d43113a73b6b904c5e2812",
+      "executed_source_sha256": "bbfa7af29b653ca118907e7e8550063e1c1d284b8f22313e9472d4971f8df629",
+      "published_sha256": "35732c5aa52997db6f898267969a775221d3ff9ceb0c8acc652ca323f1ca768d"
+    },
+    {
+      "path": "qwen36/native_head_small_order.py",
+      "ast_sha256": "082a1ff7012f6a64519e6da7c5f81143915121624441fdddd3ea8bbb29643d68",
+      "executed_source_sha256": "9e1c07b3179898a68a2104c1feb011723d5ecb19d8a8a2b11006c7e9c9e113e3",
+      "published_sha256": "537d3bae07db867973795b1599bfb61d102edc9cb0b4a56bbaafdbbca322f0eb"
+    },
+    {
+      "path": "qwen36/operators/__init__.py",
+      "ast_sha256": "e406729225903e0b72fbf29cc918885b1effdd9f8d43c5f4e688e7a6af7f53a3",
+      "executed_source_sha256": "9c29c582c925d5933940e48cdc5e5b0a3f40c28f4c2542f7f94fc7adb81f1cef",
+      "published_sha256": "6fdcc86c6633b232f2715e5cc268195eab2045296e8f1ed0a6598e5e8936a7e2"
+    },
+    {
+      "path": "qwen36/operators/attention.py",
+      "ast_sha256": "5066f3bfc6b3d870a4de9e8d25cd55a716f06f7254b6ad36d9db83d725e6be98",
+      "executed_source_sha256": "4677e75bda463b9427e74dc9287c6e3e21a89646e712ceb47ba5bc88fb44d04a",
+      "published_sha256": "6be52c1e4fedecc7d911fc1b5009a57fe53d8fe5fb6ed73c00c944ca5ce3b724"
+    },
+    {
+      "path": "qwen36/operators/attention_fd.py",
+      "ast_sha256": "96be958228fd07e81497ec742c648de6e546d3b4490bf13138696faf68b3023b",
+      "executed_source_sha256": "a2ff7a8cc49a8da8a1d1a53c0de10e5189e690e6241da321442510b7ee2a653c",
+      "published_sha256": "1e6be65996ffe4e5ce301c26c676c99acb10bb70ab7ff6fcfadd76c8b7898622"
+    },
+    {
+      "path": "qwen36/operators/attention_fd_plan.py",
+      "ast_sha256": "fb76715a4e9934403caf2892a104617b6b1b89c126f787eb906bb59c23302931",
+      "executed_source_sha256": "e74e5ae5670c387b0fee9f29fdc0acf286f9d073875d35c59c683d86b04ad78c",
+      "published_sha256": "6e05c5cc65778f4965a2ddf8c6433a9c3fdb2ad483a1dd5956594e95571ee86c"
+    },
+    {
+      "path": "qwen36/operators/attention_softmax.py",
+      "ast_sha256": "788b98a59cc79ad2669db4b43238efb9a50ef0382d998792a76a10ceb3bd875c",
+      "executed_source_sha256": "36a9058d253deb547f1d5a4117ff5b624458f7a676511489f3ac4a8e5ef03cde",
+      "published_sha256": "78cd1204f2ef4b064d3a29e0184b44e52ac5d018ed462c7e55f1d405000cae40"
+    },
+    {
+      "path": "qwen36/operators/collective_dequant_row.py",
+      "ast_sha256": "886a57f2273ded74fdac334c8b7897e81bbb6623baddb83c78c4f6b15df4b4d0",
+      "executed_source_sha256": "ece767bacacd538e44b1b7402b96b57fe66a8f3f5f0b5205af1a6448ebd01137",
+      "published_sha256": "b2133419e512a5dbbc23c1db2795dfcc71c33d7181aff54efe6fdd2caaf2f61a"
+    },
+    {
+      "path": "qwen36/operators/collective_even_lanes.py",
+      "ast_sha256": "53318045a6e650f9855d8cd69e30e4f58c3ef8350e95e4c2566b285f705fd9fa",
+      "executed_source_sha256": "f6f7d6159c4a39ce2c012d82d697fa2d7fee17dcc0559c8248329c98453dcf95",
+      "published_sha256": "823b836428affefdf0bb9b47cda62d90c1d1e5fde0dcfae20b42e1a4a2bcef71"
+    },
+    {
+      "path": "qwen36/operators/collective_lanes.py",
+      "ast_sha256": "d11bf23f3812d8e2c35e418b39640ea2970f9f935870f78655c52d6c496c2118",
+      "executed_source_sha256": "c1cc4d72cb3d64d78dd9d57950dc06549887d346536ce3626d65583ccd56331d",
+      "published_sha256": "e17bb638958de1580df83df6f8383a19f15adf87219966cd593e88e6f3ee09c5"
+    },
+    {
+      "path": "qwen36/operators/collective_row_ready.py",
+      "ast_sha256": "628fc3fcf8a1ae1ef8551ae45767b974ad3a5ff33268246a03838e767451c485",
+      "executed_source_sha256": "a50c174078cfd56bef991fd43c0bb7572b9f7962940259a87fb9616812bac616",
+      "published_sha256": "30e12b26542d16148c626ba480bf630523ee811eba60f1d49f14c457d3345678"
+    },
+    {
+      "path": "qwen36/operators/collectives.py",
+      "ast_sha256": "5ed03bb602c047119d33ceb4e1c27098c8889312d1d86b53450f82f324d0781e",
+      "executed_source_sha256": "4fc81573042ee004ff8147f4fd259c1d6e1a5f5126638ecce94448dcaf5cffcc",
+      "published_sha256": "177ab57884ac3313b0e8a74e374208551a1c127b833e8f3f2870679ad859526a"
+    },
+    {
+      "path": "qwen36/operators/down_i32.py",
+      "ast_sha256": "e47060980241d84fc79491ecf7d08df185f5fad6baedb21e404013f275053f94",
+      "executed_source_sha256": "5a0f9d9994237742f48cf5d35228bcce5cada718b1bacc7844ffcb380641777f",
+      "published_sha256": "036874357d0a3a863735929aab38afb92b23b406ef2bea292291a6b3ba521b73"
+    },
+    {
+      "path": "qwen36/operators/down_prefetch.py",
+      "ast_sha256": "bf901bba05f3e01f2d96a8a930ac50658e73dc82bb80c57bf47b96d6c87feac5",
+      "executed_source_sha256": "b4bcc229075c1fb368c8ff9d58d211030544499f0ebe5c71c06c6b4a6eef23ce",
+      "published_sha256": "49cdd44168b40aa123ca6032bd1bac9499d6e48ecb4d51fe26e72752e5e2fc1b"
+    },
+    {
+      "path": "qwen36/operators/embedding.py",
+      "ast_sha256": "06157da54de2d540f5e6db17873f155ec4824928fa6999649f934201bd81dd21",
+      "executed_source_sha256": "9eae8b15f65b477ebc18246905d7bee0f1de51d682b72ace8e4d1bbd0c78d101",
+      "published_sha256": "f794e4a21f5dabf86b126e8c60d2355896db04367b78f66b7b76619eb7eaecf5"
+    },
+    {
+      "path": "qwen36/operators/gdn.py",
+      "ast_sha256": "f48e51eda0605464a52f4259fb74ca1d6d457d48492bfb6b1838692760e0d3d3",
+      "executed_source_sha256": "bdc84b9f0efd898df7c8c83986a5484a4c8877f05df87404773661faf1bfc8bb",
+      "published_sha256": "536af45a4e7777484fa59f289aaa7e57ec6df27af8c1e063991dea0533886bb1"
+    },
+    {
+      "path": "qwen36/operators/norm_pointwise.py",
+      "ast_sha256": "263c0566032c6fc77488c192c79d7d17766e8c373e6483581f9a17015bc8b349",
+      "executed_source_sha256": "2915a3c8ba06b497de10f846b4d0a82f8a329209e64ad2dac04f2f32155bda5a",
+      "published_sha256": "e363369d2d554afabd2f2afb3c73d133484b6054bb14e660e25c84ba8965f2a1"
+    },
+    {
+      "path": "qwen36/operators/packed_act_quant.py",
+      "ast_sha256": "d064b72b2c77747d498dec70411858d566c318ac1b06de14e063c29a75729b12",
+      "executed_source_sha256": "56b18c7abfa7ce3b664662ad64d5fa39c8520f8c52bf21c00e665ce06feb08e7",
+      "published_sha256": "64743d2858d17a21f9f767162bf8e7603cb0ac9885c76c2526da915fcd6e5378"
+    },
+    {
+      "path": "qwen36/operators/projection_bf16.py",
+      "ast_sha256": "8d5db36144a3a0e6c149aa27bc8e2a29d9a360dc4676c09002d700e2e551979f",
+      "executed_source_sha256": "3a3bea81998c5d40b340ac0ddd4cc242744d9a4f58cd9a751938d03617044ab4",
+      "published_sha256": "901912ef04616e6d9bb78bae7077b4fad043ac98c7ddec94b9d104c1d4941beb"
+    },
+    {
+      "path": "qwen36/operators/quantized.py",
+      "ast_sha256": "fac1e98fd4c2d39acd221a9426a9857c5f1788d772f5f0b66b689e81e16d747c",
+      "executed_source_sha256": "8d937d9bb3007ae5f857212f5234f3384fe6dcc1750557239b010fea54ac4ffe",
+      "published_sha256": "1e60a69aed1754f72b12de314377882805627e8b805d2e6de12a13cb20864329"
+    },
+    {
+      "path": "qwen36/operators/registry.py",
+      "ast_sha256": "f9c4e3a7d9bbd9831cc10a0b7fbb6f29930d6ba6193700efb42ff07ac964aa5e",
+      "executed_source_sha256": "9cfa450caee960b90523c712ab3b6b05c860118f41de7ccef09c9947e4ab5034",
+      "published_sha256": "a120f5db0abea2c5978e0b2506d6f8391a27d64684e85372de8e81d6bfa3c381"
+    },
+    {
+      "path": "qwen36/runtime/__init__.py",
+      "ast_sha256": "e406729225903e0b72fbf29cc918885b1effdd9f8d43c5f4e688e7a6af7f53a3",
+      "executed_source_sha256": "9c29c582c925d5933940e48cdc5e5b0a3f40c28f4c2542f7f94fc7adb81f1cef",
+      "published_sha256": "6fdcc86c6633b232f2715e5cc268195eab2045296e8f1ed0a6598e5e8936a7e2"
+    },
+    {
+      "path": "qwen36/runtime/borrowed_graph_runtime.py",
+      "ast_sha256": "1c47e1854d6c79ea46a4dcb5031e016c0a3b4613eb95eb7ecfec4b224f6a17e4",
+      "executed_source_sha256": "dbff346cbdff3b4b45aa49a29f8e640cd62a2ae961bc1b3d31b96cab00e025e9",
+      "published_sha256": "6b582592c33baff88634cb83b1e7f6e78ecf4d901106694bbf8ca4f9a9d957a7"
+    },
+    {
+      "path": "qwen36/sequence_config.py",
+      "ast_sha256": "085892e6cb73eedaff3721fc955d5ced6bf41018a03e4417d6b53dae71514775",
+      "executed_source_sha256": "c84abcf04120ac3a9938f1971a166f69ac351eab1cbcf375a222d4c7d35f5fff",
+      "published_sha256": "c4904653e696d1856140d6e53bc0f183b169cf90fac5351412ae9cf5e18922f5"
+    },
+    {
+      "path": "qwen36/tuning.py",
+      "ast_sha256": "51da50982fded6214bbea55e3dc82947e58fc69479c12a428287f6afc9e58583",
+      "executed_source_sha256": "3180bcfdbcf7510ab826bbb0e940580c6fd12b5022bce8deafa2487e1d34bb53",
+      "published_sha256": "526e01cbff90fe9d49be2f1b7d7656ed5e203efb6e3bf0e5ca931964b448e089"
+    }
+  ],
+  "compiler_base": "2b3b7dc33d81ff663e0290a233d76bc522d48d96",
+  "runtime_base": "c1f89ea431f5306f78c0e4ab9573c829756d7f1e",
+  "isa": "418de18dde8fa33773dc5c384fdfe5506463b628",
+  "ptoas": "0.65",
+  "generated_kernel_replacement": false,
+  "runtime": "tensormap_and_ringbuffer"
+}

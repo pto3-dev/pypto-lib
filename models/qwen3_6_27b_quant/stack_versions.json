@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "repositories": {
+    "pypto": {
+      "repository": "https://github.com/pto3-dev/pypto",
+      "branch": "qwen3.6-27b-quant",
+      "commit": "3c0b582c749d00590a19176511432c18d18c2903",
+      "role": "DSL, IR, passes and code generation"
+    },
+    "simpler": {
+      "repository": "https://github.com/pto3-dev/simpler",
+      "branch": "qwen3.6-27b-quant",
+      "commit": "0e3fb0453fe661a2e9d57d3a539576e5030857b3",
+      "role": "prepared AICPU runtime and physical bindings"
+    },
+    "pto-isa": {
+      "repository": "https://github.com/pto3-dev/pto-isa",
+      "branch": "qwen3.6-27b-quant",
+      "commit": "418de18dde8fa33773dc5c384fdfe5506463b628",
+      "role": "tested instruction headers; no new ISA changes"
+    },
+    "vllm-ascend": {
+      "repository": "https://github.com/pto3-dev/vllm-ascend",
+      "branch": "qwen3.6-27b-quant",
+      "commit": "728d868dc12132bf9dde8592da7c8cbe4b690e40",
+      "role": "frozen target/cache attachment and previously approved compatibility"
+    }
+  },
+  "model": {
+    "repository": "https://github.com/pto3-dev/pypto-lib",
+    "branch": "qwen3.6-27b-quant",
+    "path": "models/qwen3_6_27b_quant"
+  },
+  "validated_execution_environment": {
+    "python": "3.12",
+    "cann": "9.1.0",
+    "vllm": "0.23.0",
+    "vllm_ascend": "0.23.0.post1",
+    "ptoas": "0.65",
+    "soc": "910B4"
+  },
+  "publication_validation": {
+    "source_built_compiler": true,
+    "four_rank_IR_structural_equality": true,
+    "relocated_device_run_claimed": false
+  },
+  "execution_contract": {
+    "target_runtime": "Simpler prepared AICPU DIRECT",
+    "hbg": false,
+    "post_compile_math_replacement": false,
+    "mtp_drafter": "native vLLM",
+    "tp": 4,
+    "pp": 1,
+    "max_requests": 4,
+    "mtp_drafts": 5
+  }
+}
