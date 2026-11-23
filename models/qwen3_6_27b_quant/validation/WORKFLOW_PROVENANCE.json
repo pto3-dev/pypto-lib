@@ -1,0 +1,27 @@
+{
+  "new_shell_integration": true,
+  "historical_execution_claimed_for_new_entry": false,
+  "model_or_framework_changed": false,
+  "roles": {
+    "e2e_pypto_vllm_910b4.sh": "shell orchestration entry",
+    "e2e_vllm_window.py": "custom SSE/counter window client",
+    "e2e_pypto_vllm_profile.py": "frozen server command, official bench, separate capture and offline export"
+  },
+  "sources": {
+    "custom_window_reference_commit": "a62c3c176cc173e2ec84f35054a2e7bb403bc24d",
+    "custom_window_reference_sha256": "23cfc5228d188a08e90fd0c4ba48fbaf1dcc62482a8615413bc0814e8dc535f6"
+  },
+  "files": {
+    "e2e_pypto_vllm_910b4.sh": "53bcc454049973e568076e7a6d3465f774a1ee80f0f5b0af2c9c5652ed0a30d3",
+    "e2e_vllm_window.py": "5cad52066b5787a5fdae640a62e8a93c2c3f9d10b368132d451d529bb96df52f",
+    "e2e_pypto_vllm_profile.py": "19a8054c3b2b2a9f1b9db480ec2f39645f090c2772bbe5cdae51d72331c6d655"
+  },
+  "offline_checks": {
+    "shell_syntax_and_dispatch": true,
+    "mock_QA_requests": 8,
+    "mock_QA_fields": 32,
+    "SSE_batch_token_IDs_and_real_timestamps_retained": true,
+    "frozen_protocol_preserved": true,
+    "NPU_runs": 0
+  }
+}
