@@ -59,10 +59,10 @@ validated PTO runtime options with explicit path placeholders.
 
 | File | Purpose |
 |---|---|
-| [e2e_pypto_vllm_profile.py](e2e_pypto_vllm_profile.py) | Shared startup checks, official benchmark, bounded capture and export |
+| [e2e_pypto_vllm_profile.py](e2e_pypto_vllm_profile.py) | Shared startup checks, official benchmark, GDD capture lifecycle and export |
 | [serving_workflow.py](serving_workflow.py) | Service-session checks, QA/benchmark/profile dispatch and automatic rank discovery |
 | [long_context_qa.py](long_context_qa.py) | Exact32K input construction and strict JSON answer validation |
-| [analyze_outer_trace.py](analyze_outer_trace.py) | Full-target Verify and consecutive MTP-start Decode boundaries |
+| [analyze_outer_trace.py](analyze_outer_trace.py) | GDD Decode, reference-marker Verify and matched full-target boundaries |
 | [e2e_vllm_window.py](e2e_vllm_window.py) | Custom SSE batch/timestamp and MTP acceptance-window measurements |
 
 The Python files are dependencies or measurement implementations, not duplicate
@@ -77,14 +77,44 @@ IDs; it never fabricates individual token timestamps.
   rank mapping, per-cycle `timeline.json` and a readable `RESULTS.md`.
 
 Open complete traces in Perfetto. Verify is the full target, including embedding,
-head and logits gather. Decode is one native five-step drafter start to the next.
-Rejection-to-rejection timing is retained separately. Four-rank P50 aggregation
+head and logits gather. The main Decode follows GDD: consecutive B4 rejection
+sampling starts. MTP-start-to-next-MTP-start intervals are an additional metric.
+Four-rank P50 aggregation
 uses the median of rank P50 values; the mean aggregates rank means.
 
-The profile command issues a separate diagnostic request, waits for all four
-prefills to finish, captures a bounded window, cancels its own requests and
-exports automatically. It is not a completed10K performance run. Formal
-benchmarking runs with the profiler inactive.
+The profile command follows the GDD capture lifecycle: complete a full four-request
+32768/10240 warmup, issue another four-request32768/10240 workload, wait for all
+prefills to finish and B4 decode to generate at least256 tokens, call
+`/start_profile`, let that workload finish, call `/stop_profile`, then export
+offline. `max_iterations=50` bounds the device collection; it does not shorten
+or cancel requests. This profiled workload is diagnostic and is never substituted
+for the separate formal benchmark with profiling inactive.
+
+## Boundary definitions and reference alignment
+
+Reference: GDD_ESCC/pypto, `dynamic-batch-20261021`, commit
+`a62c3c176cc173e2ec84f35054a2e7bb403bc24d`. The collection source is
+`e2e_pypto_vllm_profile.py::capture`; the metric source is
+`e2e_vllm_timeline.py::read_rank` in that repository's end-to-end test directory.
+
+| Metric | Start | End | Relation to GDD |
+|---|---|---|---|
+| Decode, `repository_decode` | B4 rejection_greedy_sample_triton start | Next B4 rejection start | Same definition; adjacent output shapes must both be4,6 |
+| Native reference Verify, `repository_verify` | First GemmaRmsNorm in the target graph | Last AddRmsNormBias in that graph | Same definition; target graph has16 FIA operations |
+| PTO reference-marker adapter, `repository_verify` | Persistent AICore task start | That task's end | Simpler has no PyptoRun; this is explicitly an adapter, not the literal GDD marker |
+| Matched full-target Verify, `matched_full_verify` | Full target begins, including embedding | Logits gather completes | Additional equal-work boundary; PTO includes the union span of its AICPU/AICore tasks |
+| Additional MTP interval, `mtp_start_alternate` | Five-step drafter graph starts | Next five-step drafter graph starts | Additional field; never relabelled as GDD Decode |
+
+Native reference Verify excludes embedding/head stages covered by full-target
+Verify. These fields are retained separately, with original CSV row numbers,
+model/task/stream IDs and rejected-interval counts. An unknown PTO marker or
+incomplete native graph must not be silently interpreted as a matching boundary.
+GDD emits per-rank results; our additional four-rank summary uses the aggregation
+documented above and retains all per-rank values.
+
+Service configuration remains our frozen protocol above. GDD service defaults
+such as memory0.80, disabled chunked prefill and mamba-cache none are not copied.
+The checkpoint, target/runtime implementation and native drafter stay unchanged.
 
 ## Verified long-context result
 

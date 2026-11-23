@@ -131,7 +131,10 @@ def main():
                             '--output', str(timeline)], check=True)
             data = json.loads(timeline.read_text())
             lines = ['| Boundary | P50 (ms) | Mean (ms) |', '|---|---:|---:|']
-            for label, key in [('Verify', 'matched_full_verify'), ('Decode', 'mtp_start_alternate')]:
+            for label, key in [('Verify (full target)', 'matched_full_verify'),
+                               ('Verify (GDD marker adapter)', 'repository_verify'),
+                               ('Decode (GDD rejection start)', 'repository_decode'),
+                               ('MTP start interval (additional)', 'mtp_start_alternate')]:
                 values = data['summary'][key]
                 lines.append(f'| {label} | {values["p50_ms"]:.6f} | {values["mean_ms"]:.6f} |')
             report = '\n'.join(lines) + '\n'

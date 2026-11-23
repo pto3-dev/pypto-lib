@@ -201,9 +201,9 @@ def stop_owned(process):
     process.wait(timeout=15)
 
 
-def wait_benchmark(process, root, length):
+def wait_benchmark(process, root, length, timeout=2400):
     try:
-        if process.wait(timeout=2400):
+        if process.wait(timeout=timeout):
             raise RuntimeError(f'Official bench failed: {root / "bench.log"}')
         result = json.loads((root / 'result.json').read_text())
         if (result.get('completed') != 4 or result.get('failed') != 0
@@ -215,15 +215,24 @@ def wait_benchmark(process, root, length):
 
 
 def capture(root, raw):
+    """Follow the GDD full-warmup/full-request capture lifecycle."""
     root.mkdir(parents=True, exist_ok=False)
+    if raw.exists():
+        raise FileExistsError(f'Archive previous profiler data before capture: {raw}')
+    get('/health')
     before = get('/metrics')
     if metric(before, 'vllm:num_requests_running') or metric(before, 'vllm:num_requests_waiting'):
         raise ValueError('Diagnostic capture requires an idle service')
+    # GDD capture warms all four requests through the full10240 output tokens.
+    warmup = benchmark(root / 'warmup', 10240)
+    wait_benchmark(warmup, root / 'warmup', 10240, timeout=3600)
+    before = get('/metrics')
+    (root / 'metrics_before.prom').write_text(before)
     gen0, prompt0 = (metric(before, 'vllm:' + key) for key in ('generation_tokens_total', 'prompt_tokens_total'))
-    client = benchmark(root / 'diagnostic_request', 10240)
+    client = benchmark(root / 'benchmark', 10240)
     active = False
     try:
-        deadline = time.monotonic() + 240
+        deadline = time.monotonic() + 3600
         while time.monotonic() < deadline:
             if client.poll() is not None:
                 raise RuntimeError('Diagnostic client ended before a complete B4 capture window')
@@ -232,37 +241,31 @@ def capture(root, raw):
                     and metric(text, 'vllm:generation_tokens_total') - gen0 >= 256
                     and metric(text, 'vllm:prompt_tokens_total') - prompt0 == 4 * 32768):
                 break
-            time.sleep(.5)
+            time.sleep(1)
         else:
-            raise TimeoutError('No all-prefills-complete B4 window240s')
+            raise TimeoutError('No all-prefills-complete B4 window3600s')
         (root / 'metrics_capture_start.prom').write_text(text)
         post('/start_profile')
         active = True
-        time.sleep(8)
-        post('/stop_profile')
-        active = False
-        (root / 'metrics_capture_end.prom').write_text(get('/metrics'))
+        # max_iterations bounds collection, not the HTTP request's output length.
+        # Complete the request instead of cancelling it after a timed sample.
+        wait_benchmark(client, root / 'benchmark', 10240, timeout=3600)
     finally:
         try:
             if active:
                 post('/stop_profile')
         finally:
             stop_owned(client)
-    deadline = time.monotonic() + 60
-    while time.monotonic() < deadline:
-        text = get('/metrics')
-        if not metric(text, 'vllm:num_requests_running') and not metric(text, 'vllm:num_requests_waiting'):
-            break
-        time.sleep(1)
-    else:
-        raise TimeoutError('Cancelled diagnostic requests did not finish60s')
+    (root / 'metrics_capture_end.prom').write_text(get('/metrics'))
     if not raw.exists():
         raise FileNotFoundError(f'No profiler data: {raw}')
-    shutil_target = root / 'profiler'
-    raw.rename(shutil_target)
-    save(root / 'COMPLETION.json', dict(diagnostic_only=True, full_10k_claimed=False,
-                                      diagnostic_request_cancelled_after_profile=True))
-    return shutil_target
+    destination = root / 'profiler'
+    raw.rename(destination)
+    save(root / 'COMPLETION.json', dict(diagnostic_only=True, formal_unprofiled_result=False,
+        full_10k_completed=True, warmup_output_tokens=10240, requested_output_tokens=10240,
+        capture_reference='GDD a62c3c176cc173e2ec84f35054a2e7bb403bc24d',
+        diagnostic_request_cancelled_after_profile=False))
+    return destination
 
 
 def analyse(raw, output):

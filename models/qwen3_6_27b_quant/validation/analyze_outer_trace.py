@@ -173,8 +173,9 @@ def main():
                          mean_ms=statistics.mean(r[key]['mean_ms'] for r in ranks)) for key in keys}
     result = dict(backend=args.backend, ranks=ranks, summary=summary, diagnostic_only=True,
                   verify='matched_full_verify: full target including embedding, head and logits gather',
-                  decode='mtp_start_alternate: consecutive native five-step drafter graph starts',
-                  rejection_cycle='repository_decode is separate; not relabelled as MTP-start decode',
+                  decode='repository_decode: consecutive B4 rejection_greedy_sample_triton starts, following GDD',
+                  gdd_verify='Native first GemmaRmsNorm to last AddRmsNormBias; PTO persistent-core span is an explicit name adapter, not literal PyptoRun',
+                  additional_mtp_cycle='mtp_start_alternate: consecutive native five-step drafter graph starts; separate from GDD Decode',
                   aggregation='Median of four rank P50; mean of four rank means. Ranks execute concurrently.',
                   input_reader_sha256=sha(Path(__file__)))
     with args.output.open('x') as stream:
