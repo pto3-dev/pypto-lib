@@ -89,7 +89,7 @@ def rank_csvs(outputs):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=('bench', 'profile'))
+    parser.add_argument('command', choices=('qa', 'bench', 'profile'))
     args = parser.parse_args()
     backend = os.environ['BACKEND']
     results = Path(os.environ['RESULTS_ROOT']).resolve() / backend
@@ -104,7 +104,10 @@ def main():
         stamp = time.strftime('%Y%m%d_%H%M%S') + f'_{os.getpid()}'
         root = results / f'{args.command}_{os.environ["SCENE"]}_{stamp}'
         os.environ['RUN_DIR'] = str(root)
-        if args.command == 'bench':
+        if args.command == 'qa':
+            profile.qa(root)
+            print(f'Long-context QA: {root / "qa-result.json"}')
+        elif args.command == 'bench':
             sys.argv = [profile.__file__, 'bench']
             profile.main()
             print(f'Official benchmark: {root / "benchmark/result.json"}')

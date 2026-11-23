@@ -6,7 +6,7 @@ The selected records lie near0.14%,50%,99.4-99.7% of each retained context. Four
 
 TP4/PP1, MTP5, cards[4, 5, 6, 7]. Prefill and the drafter remain native vLLM; the complete target/verifier uses normally compiled PyPTO and prepared AICPU DIRECT. All four rank exit records match the validated images and record actual DIRECT submissions.
 
-This is functional long-context acceptance, not a new10K performance baseline, a native/PTO long-output equivalence claim, or private Inner checkpoint certification. The old ALPHA/BRAVO two-turn cases remain short-context results under CHAT_RESULT.md.
+This is functional long-context acceptance, not a new10K performance baseline, a native/PTO long-output equivalence claim, or private Inner checkpoint certification.
 
 | Request | Input tokens | Checked fields | Finish |
 |---|---:|---:|---|

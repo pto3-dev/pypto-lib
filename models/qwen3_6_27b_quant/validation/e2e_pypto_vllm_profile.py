@@ -290,12 +290,12 @@ def analyse(raw, output):
     return rows
 
 
-def qa(root, *, short=False):
-    name = 'chat_qa.py' if short else 'long_context_qa.py'
+def qa(root):
+    name = 'long_context_qa.py'
     spec = importlib.util.spec_from_file_location('qwen_qa_client', HERE / name)
     client = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(client)
-    kwargs = dict(timeout=180) if short else dict(checkpoint=required_path('MODEL'), corpus=required_path('CORPUS'))
+    kwargs = dict(checkpoint=required_path('MODEL'), corpus=required_path('CORPUS'))
     result = client.run(BASE, root, **kwargs)
     if not result['all_passed']:
         raise RuntimeError('QA field/finish validation failed; preserve qa-result.json')
@@ -307,7 +307,7 @@ def main():
         subprocess.run([sys.executable, str(HERE / 'analyze_outer_trace.py'), *sys.argv[2:]], check=True)
         return
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=('env', 'check', 'serve', 'qa', 'chat', 'qa-run', 'bench', 'capture', 'analyse', 'run'))
+    parser.add_argument('command', choices=('env', 'check', 'serve', 'qa', 'bench', 'capture', 'analyse'))
     parser.add_argument('--raw', type=Path, help='Explicit existing raw profiler directory for analyse/capture')
     args = parser.parse_args()
     root = required_path('RUN_DIR')
@@ -335,8 +335,8 @@ def main():
             temporary.symlink_to(root, target_is_directory=True)
             os.replace(temporary, latest)
         os.execvpe(command[0], command, os.environ.copy())
-    if args.command in ('qa', 'chat'):
-        qa(root, short=args.command == 'chat')
+    if args.command == 'qa':
+        qa(root)
         return
     if args.command == 'bench':
         gate = check_inputs()
@@ -356,42 +356,6 @@ def main():
         raw = capture(root, args.raw)
         analyse(raw, root / 'profiler-outputs.json')
         return
-    gate = check_inputs()
-    cards = idle_cards()
-    command = frozen_command(root)
-    require_unused_port()
-    root.mkdir(parents=True, exist_ok=False)
-    save(root / 'INPUT_GATE.json', gate)
-    save(root / 'server_command.json', dict(command=command, cards=cards))
-    server = None
-    try:
-        with (root / 'server.log').open('x') as stream:
-            server = subprocess.Popen(command, stdout=stream, stderr=subprocess.STDOUT, start_new_session=True)
-        deadline = time.monotonic() + 1200
-        while time.monotonic() < deadline:
-            if server.poll() is not None:
-                raise RuntimeError('Owned service exited; inspect server.log')
-            try:
-                get('/health')
-                break
-            except OSError:
-                time.sleep(2)
-        else:
-            raise TimeoutError('Service initialization1200s')
-        qa(root / 'qa')
-        if args.command == 'qa-run':
-            save(root / 'COMPLETION.json', dict(long_context_qa_complete=True, input_tokens_per_request=32768,
-                                              performance_benchmark=False, model_or_framework_changed=False))
-            return
-        for name, tokens in [('warmup', 32), ('benchmark', length)]:
-            wait_benchmark(benchmark(root / name, tokens), root / name, tokens)
-        raw = capture(root / 'diagnostic', root / 'profiler')
-    finally:
-        stop_owned(server)
-    outputs = analyse(raw, root / 'profiler-outputs.json')
-    save(root / 'COMPLETION.json', dict(qa=True, official_benchmark_complete=True,
-                                      formal_profiler_active=False, diagnostic_profile_separate=True,
-                                      profiler_outputs=outputs, model_or_framework_changed=False))
 
 
 if __name__ == '__main__':
