@@ -5,7 +5,49 @@ execution container. The entry composes the frozen launch command, existing
 chat client, official bench, a custom SSE window client and outer CANN capture.
 It never edits vLLM, the model or generated kernels, and does not use HBG.
 
-## Explicit configuration
+## Explicit service startup (no historical status file)
+
+Use [serve_vllm_910b4.sh](serve_vllm_910b4.sh) when starting a service directly.
+All vLLM flags, including `--tensor-parallel-size 4`, are visible in its `args`
+array. The older `e2e_pypto_vllm_910b4.sh serve` is a replay wrapper that reads
+these flags from an external `SERVER_COMMAND_FILE`; it is not a self-contained
+service configuration.
+
+```bash
+export MODEL=/checkpoint
+export VLLM_LAUNCHER=/installed-environment/pto_env.sh
+export RUN_DIR=/new/service-results
+export ASCEND_RT_VISIBLE_DEVICES=1,3,6,7  # Example only: verify availability first.
+export BACKEND=pto
+export PTO_TARGET_SOURCE=/frozen-integration
+export PTO_BUILD_ROOT=/validated-target-bundle
+export SIMPLER_RUNTIME_DIR=/installed-simpler/build/lib/a2a3
+export PTO_WEIGHT_REFERENCE=/validated-weight-reference.json
+bash serve_vllm_910b4.sh --print-command
+bash serve_vllm_910b4.sh serve
+```
+
+`VLLM_LAUNCHER` is the existing validated executable wrapper which accepts Python
+arguments, sets up NZ, official custom operators and the frozen integration,
+then runs Python. It is not the `vllm` executable and does not build the model.
+For native, select `BACKEND=native` and the matching validated native environment
+wrapper; the PTO path variables are unnecessary. Never select a PTO wrapper for
+a native baseline. Both modes retain the frozen protocol documented below.
+
+[PTO target configuration](pto_target_config.json) contains the exact non-path
+runtime options from the completed device QA run. Paths are explicit environment
+placeholders, not private machine paths. The launcher renders them, then calls
+the same protocol validator and idle-card check as the existing replay wrapper.
+`BASE_URL` selects the service host/port. `--print-command` performs no NPU work;
+`serve` records effective argv in `RUN_DIR/server_command.json`. The profiler is
+configured but remains inactive until an explicit capture request.
+
+This is a newly reconstructed readable launcher. Its normalized argv is checked
+against the completed run; it has not been rerun as a new performance result.
+Existing historical command-file replay remains supported. No model, generated
+kernel or framework behavior is changed.
+
+## Historical command-file replay
 
 ```bash
 export SERVER_COMMAND_FILE=/existing/validated/status.json

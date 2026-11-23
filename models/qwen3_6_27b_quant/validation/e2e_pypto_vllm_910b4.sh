@@ -14,6 +14,7 @@ command=${1:-help}
 case "$command" in
   help|-h|--help)
     cat <<'HELP'
+For explicit service flags use: bash serve_vllm_910b4.sh help
 Usage: bash e2e_pypto_vllm_910b4.sh COMMAND [arguments]
   env       Show selected interpreter, frozen command and protocol
   check     Check explicit checkpoint/corpus, command and four idle cards

@@ -1,0 +1,29 @@
+{
+  "qwen38_pto_mpmd": {
+    "backend": "pypto",
+    "execution": "direct",
+    "graph": false,
+    "phase_nz": false,
+    "mtp": true,
+    "model_target": "Qwen3.6-27B",
+    "checkpoint_provenance": "${MODEL}",
+    "session_dir": "set from RUN_DIR/runtime by serve_vllm_910b4.sh",
+    "build_root": "${PTO_BUILD_ROOT}",
+    "runtime_dir": "${SIMPLER_RUNTIME_DIR}",
+    "geometry_only": false,
+    "validate_weight_bytes": false,
+    "weight_validation_reference": "${PTO_WEIGHT_REFERENCE}",
+    "unsupported_decode": "native",
+    "weight_strategy": "device_preloaded_nd_to_nz",
+    "native_step_protocol_fix": false,
+    "diagnostic_ring_heap_mib": 64,
+    "metadata_preprocess": "adaptive_graph",
+    "metadata_fused_epoch": true,
+    "prepare_before_capture": true,
+    "defer_target_until_serving": true,
+    "decode_only": false,
+    "auxiliary_graph_zero_rng": false,
+    "ordered_auxiliary_queue": false,
+    "ordered_target_submit": false
+  }
+}

@@ -60,7 +60,10 @@ def required_path(name):
 
 
 def frozen_command(root):
-    record = json.loads(required_path('SERVER_COMMAND_FILE').read_text())
+    inline = os.environ.get('SERVER_COMMAND_JSON')
+    if inline and os.environ.get('SERVER_COMMAND_FILE'):
+        raise ValueError('Select SERVER_COMMAND_JSON or SERVER_COMMAND_FILE, not both')
+    record = json.loads(inline) if inline else json.loads(required_path('SERVER_COMMAND_FILE').read_text())
     command = list(record['server_command'] if isinstance(record, dict) else record)
     if not command or not all(isinstance(part, str) for part in command):
         raise ValueError('Frozen server command must be a nonempty string argv list')

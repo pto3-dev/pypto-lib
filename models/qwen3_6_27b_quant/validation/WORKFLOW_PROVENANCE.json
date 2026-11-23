@@ -5,17 +5,20 @@
   "roles": {
     "e2e_pypto_vllm_910b4.sh": "shell orchestration entry",
     "e2e_vllm_window.py": "custom SSE/counter window client",
-    "e2e_pypto_vllm_profile.py": "frozen server command, official bench, separate capture and offline export"
+    "e2e_pypto_vllm_profile.py": "frozen server command, official bench, separate capture and offline export",
+    "serve_vllm_910b4.sh": "explicit validated service argv; no historical status file"
   },
   "sources": {
     "custom_window_reference_commit": "a62c3c176cc173e2ec84f35054a2e7bb403bc24d",
     "custom_window_reference_sha256": "23cfc5228d188a08e90fd0c4ba48fbaf1dcc62482a8615413bc0814e8dc535f6"
   },
   "files": {
-    "e2e_pypto_vllm_910b4.sh": "1b5802c9a187e66ea5df2df8e3d38b3110bb67477e0b359c0d5f682e880cd635",
+    "e2e_pypto_vllm_910b4.sh": "6b91b1199da402c3d0b52204b56a8f81d790fb225e1f84afdd4e25589a868dfa",
     "e2e_vllm_window.py": "5cad52066b5787a5fdae640a62e8a93c2c3f9d10b368132d451d529bb96df52f",
-    "e2e_pypto_vllm_profile.py": "434e331d794bbf490f4950bccebf2d91342644e1098837fe8bb5699ca4c1e632",
-    "long_context_qa.py": "122e6c27984f9e83e408f7a7f09f94a878b7376bbec9a8efefc4c2fb1a4789e8"
+    "e2e_pypto_vllm_profile.py": "db77d6f78d92746f47bf66661556ca4c14a64c7f544cc060c1417372bd550f79",
+    "long_context_qa.py": "122e6c27984f9e83e408f7a7f09f94a878b7376bbec9a8efefc4c2fb1a4789e8",
+    "serve_vllm_910b4.sh": "31441ec4064bd425ca5ffd1575eb6d632ea269549fa0a7bf35674c3b80d28852",
+    "pto_target_config.json": "056707f5e53f7b4bb02f1030dec9bfe8a50c4cea0a30ae9f92414a0f54a06cfd"
   },
   "offline_checks": {
     "shell_syntax_and_dispatch": true,
@@ -64,5 +67,12 @@
     ],
     "unexpected_target_fallbacks": 0,
     "formal_10k_performance_run": false
+  },
+  "explicit_service_launcher_validation": {
+    "semantic_argv_matches_completed_long_QA": true,
+    "native_and_pto_foreground_argv_recorder": true,
+    "busy_cards_rejected_before_launch": true,
+    "new_NPU_runs": 0,
+    "historical_command_file_replay_preserved": true
   }
 }
