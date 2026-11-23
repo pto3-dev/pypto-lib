@@ -41,21 +41,34 @@ and official profiler output configuration. Profiling is inactive during bench.
 
 ## 6.3.3 Conversation test
 
-Entry: [e2e_pypto_vllm_910b4.sh](e2e_pypto_vllm_910b4.sh), `qa` or `run`.
-Client: [chat_qa.py](chat_qa.py). Existing-service use:
+Entry: [e2e_pypto_vllm_910b4.sh](e2e_pypto_vllm_910b4.sh), `qa`, `qa-run` or `run`.
+Existing-service use:
 
 ```bash
 export RUN_DIR=/new/chat-results
 bash e2e_pypto_vllm_910b4.sh qa
 ```
 
-Four concurrent two-turn conversations extract records into specified JSON,
-then use actual conversation history to calculate remaining work and budget.
-The executed client previously passed8/8 requests and32/32 fields; its function
-bodies are retained. [Recorded responses](CHAT_RESULT.md) belong to that source
-validation. They do not certify a fresh device run of the new combined shell entry.
-The donor's long-context single-turn QA is a different case; it is not claimed
-as the same functional workload.
+`qa` now uses [long_context_qa.py](long_context_qa.py): four distinct factual
+archives with exactly32768 input tokens per request. It selects three evidence
+records near the beginning, middle and end, then requests a strict15-field JSON
+answer per request. Source context is clipped only after all selected evidence;
+no repeated text is used to fill the token budget. Exact input IDs, tokenizer
+hashes, question, evidence positions, expected values and complete responses
+are saved. The server-reported prompt token count must also be32768.
+
+Use `qa-run` for a fresh owned service and long QA only, without the10K benchmark.
+For a service-independent CPU input audit:
+
+```bash
+python long_context_qa.py --checkpoint /checkpoint --corpus /corpus/zh_qa.jsonl \
+  --output /new/input-audit --prepare-only
+```
+
+`chat` retains the historical short-context four-conversation, two-turn client.
+Its recorded8/8 requests and32/32 fields in [CHAT_RESULT.md](CHAT_RESULT.md) are
+short-context results and are not presented as long-context evidence. Long QA
+status is recorded separately in [LONG_CONTEXT_QA.md](LONG_CONTEXT_QA.md).
 
 ## 6.3.4 Stress tests
 

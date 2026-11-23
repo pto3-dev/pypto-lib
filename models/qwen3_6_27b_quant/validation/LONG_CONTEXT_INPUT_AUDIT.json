@@ -1,0 +1,105 @@
+{
+  "input_tokens": [
+    32768,
+    32768,
+    32768,
+    32768
+  ],
+  "context_tokens": [
+    32559,
+    32559,
+    32559,
+    32559
+  ],
+  "requests": [
+    {
+      "selected_regions": [
+        {
+          "record_id": "Z0-0000",
+          "approximate_source_token_offset": 47,
+          "context_fraction": 0.0014435332780490802
+        },
+        {
+          "record_id": "Z0-0197",
+          "approximate_source_token_offset": 16307,
+          "context_fraction": 0.5008446205350288
+        },
+        {
+          "record_id": "Z0-0391",
+          "approximate_source_token_offset": 32449,
+          "context_fraction": 0.9966215178598852
+        }
+      ],
+      "input_token_ids_sha256": "66c118c6e9901115a4be9cf7b8080c9289cf175998b423d5907f5ad7086fe5fe"
+    },
+    {
+      "selected_regions": [
+        {
+          "record_id": "Z1-0000",
+          "approximate_source_token_offset": 47,
+          "context_fraction": 0.0014435332780490802
+        },
+        {
+          "record_id": "Z1-0197",
+          "approximate_source_token_offset": 16309,
+          "context_fraction": 0.5009060474830308
+        },
+        {
+          "record_id": "Z1-0391",
+          "approximate_source_token_offset": 32416,
+          "context_fraction": 0.9956079732178507
+        }
+      ],
+      "input_token_ids_sha256": "cd93938650925ae27f5f13226791ecc5ae1c5c21556f47208c61e553497a3d7a"
+    },
+    {
+      "selected_regions": [
+        {
+          "record_id": "Z2-0000",
+          "approximate_source_token_offset": 47,
+          "context_fraction": 0.0014435332780490802
+        },
+        {
+          "record_id": "Z2-0197",
+          "approximate_source_token_offset": 16300,
+          "context_fraction": 0.5006296262170215
+        },
+        {
+          "record_id": "Z2-0391",
+          "approximate_source_token_offset": 32423,
+          "context_fraction": 0.995822967535858
+        }
+      ],
+      "input_token_ids_sha256": "f26d5e05ad403d1c8421ea19f687c474d75feaefd9bc73b348462c924e7b907b"
+    },
+    {
+      "selected_regions": [
+        {
+          "record_id": "Z3-0000",
+          "approximate_source_token_offset": 47,
+          "context_fraction": 0.0014435332780490802
+        },
+        {
+          "record_id": "Z3-0196",
+          "approximate_source_token_offset": 16205,
+          "context_fraction": 0.4977118461869222
+        },
+        {
+          "record_id": "Z3-0390",
+          "approximate_source_token_offset": 32372,
+          "context_fraction": 0.9942565803618048
+        }
+      ],
+      "input_token_ids_sha256": "e01fb6c098d86317369ebd1e8829821d981214fbd953876b548a44ae3d121dab"
+    }
+  ],
+  "tokenizer_hashes": {
+    "tokenizer_config.json": "5186f0defcd7f232382c7f0aebcd2252d073bb921ab240e407b7ae8745d2b29b",
+    "config.json": "e17fb121125ad715b8ef3a7dbe727e261f84c63765aae8e8bf2ca1e58ef42131",
+    "tokenizer.json": "5f9e4d4901a92b997e463c1f46055088b6cca5ca61a6522d1b9f64c4bb81cb42"
+  },
+  "corpus_sha256": "9d225306e1671db85f0aed24a77ddd434fa299bcb05d9e9f425637f6dcb1794d",
+  "real_checkpoint_tokenizer_used": true,
+  "NPU_requests": 0,
+  "long_context_response_pass_claimed": false
+}

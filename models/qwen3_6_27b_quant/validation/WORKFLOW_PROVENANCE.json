@@ -12,9 +12,10 @@
     "custom_window_reference_sha256": "23cfc5228d188a08e90fd0c4ba48fbaf1dcc62482a8615413bc0814e8dc535f6"
   },
   "files": {
-    "e2e_pypto_vllm_910b4.sh": "53bcc454049973e568076e7a6d3465f774a1ee80f0f5b0af2c9c5652ed0a30d3",
+    "e2e_pypto_vllm_910b4.sh": "1b5802c9a187e66ea5df2df8e3d38b3110bb67477e0b359c0d5f682e880cd635",
     "e2e_vllm_window.py": "5cad52066b5787a5fdae640a62e8a93c2c3f9d10b368132d451d529bb96df52f",
-    "e2e_pypto_vllm_profile.py": "19a8054c3b2b2a9f1b9db480ec2f39645f090c2772bbe5cdae51d72331c6d655"
+    "e2e_pypto_vllm_profile.py": "434e331d794bbf490f4950bccebf2d91342644e1098837fe8bb5699ca4c1e632",
+    "long_context_qa.py": "122e6c27984f9e83e408f7a7f09f94a878b7376bbec9a8efefc4c2fb1a4789e8"
   },
   "offline_checks": {
     "shell_syntax_and_dispatch": true,
@@ -23,5 +24,16 @@
     "SSE_batch_token_IDs_and_real_timestamps_retained": true,
     "frozen_protocol_preserved": true,
     "NPU_runs": 0
+  },
+  "qa_contract": {
+    "qa": "four exact32768-token archives;15 fields each",
+    "chat": "historical short two-turn check",
+    "long_context_device_run_claimed": false,
+    "real_tokenizer_input_audit": [
+      32768,
+      32768,
+      32768,
+      32768
+    ]
   }
 }

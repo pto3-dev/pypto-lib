@@ -287,13 +287,15 @@ def analyse(raw, output):
     return rows
 
 
-def qa(root):
-    spec = importlib.util.spec_from_file_location('qwen_chat_client', HERE / 'chat_qa.py')
+def qa(root, *, short=False):
+    name = 'chat_qa.py' if short else 'long_context_qa.py'
+    spec = importlib.util.spec_from_file_location('qwen_qa_client', HERE / name)
     client = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(client)
-    result = client.run(BASE, root, timeout=180)
+    kwargs = dict(timeout=180) if short else dict(checkpoint=required_path('MODEL'), corpus=required_path('CORPUS'))
+    result = client.run(BASE, root, **kwargs)
     if not result['all_passed']:
-        raise RuntimeError('Chat field/finish validation failed; preserve qa-result.json')
+        raise RuntimeError('QA field/finish validation failed; preserve qa-result.json')
     return result
 
 
@@ -302,7 +304,7 @@ def main():
         subprocess.run([sys.executable, str(HERE / 'analyze_outer_trace.py'), *sys.argv[2:]], check=True)
         return
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=('env', 'check', 'serve', 'qa', 'bench', 'capture', 'analyse', 'run'))
+    parser.add_argument('command', choices=('env', 'check', 'serve', 'qa', 'chat', 'qa-run', 'bench', 'capture', 'analyse', 'run'))
     parser.add_argument('--raw', type=Path, help='Explicit existing raw profiler directory for analyse/capture')
     args = parser.parse_args()
     root = required_path('RUN_DIR')
@@ -323,8 +325,8 @@ def main():
         root.mkdir(parents=True, exist_ok=False)
         save(root / 'server_command.json', dict(command=command, cards=cards))
         os.execvpe(command[0], command, os.environ.copy())
-    if args.command == 'qa':
-        qa(root)
+    if args.command in ('qa', 'chat'):
+        qa(root, short=args.command == 'chat')
         return
     if args.command == 'bench':
         gate = check_inputs()
@@ -367,6 +369,10 @@ def main():
         else:
             raise TimeoutError('Service initialization1200s')
         qa(root / 'qa')
+        if args.command == 'qa-run':
+            save(root / 'COMPLETION.json', dict(long_context_qa_complete=True, input_tokens_per_request=32768,
+                                              performance_benchmark=False, model_or_framework_changed=False))
+            return
         for name, tokens in [('warmup', 32), ('benchmark', length)]:
             wait_benchmark(benchmark(root / name, tokens), root / name, tokens)
         raw = capture(root / 'diagnostic', root / 'profiler')

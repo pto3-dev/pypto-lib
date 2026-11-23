@@ -18,7 +18,9 @@ Usage: bash e2e_pypto_vllm_910b4.sh COMMAND [arguments]
   env       Show selected interpreter, frozen command and protocol
   check     Check explicit checkpoint/corpus, command and four idle cards
   serve     Start the frozen command in foreground on four verified idle cards
-  qa        Four concurrent two-turn record-extraction conversations
+  qa        Four exact32768-token context-extraction requests on an existing service
+  qa-run    Own server -> exact32K QA -> stop only this server; no10K benchmark
+  chat      Historical short-context four-conversation two-turn check
   bench     Official vLLM bench serve, without enabling the profiler
   window    Custom SSE/counter benchmark: CORPUS NEW_OUTPUT [--output-len N]
   capture   Profile a separate bounded B4 window on an existing service
@@ -44,7 +46,7 @@ export OUTPUT_LEN=${OUTPUT_LEN:-10240} PROFILE_STEPS=${PROFILE_STEPS:-50}
 case "$command" in
   window) shift; exec "${PYTHON:-python3}" "$here/e2e_vllm_window.py" "$@" ;;
   timeline) shift; exec "${PYTHON:-python3}" "$here/e2e_pypto_vllm_profile.py" timeline "$@" ;;
-  env|check|serve|qa|bench|capture|analyse|run)
+  env|check|serve|qa|chat|qa-run|bench|capture|analyse|run)
     exec "${PYTHON:-python3}" "$here/e2e_pypto_vllm_profile.py" "$command" "${@:2}" ;;
   *) echo "Unknown command: $command" >&2; exit 2 ;;
 esac
