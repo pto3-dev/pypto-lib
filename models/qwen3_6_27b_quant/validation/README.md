@@ -1,4 +1,53 @@
-# Complete serving test entry
+# One-command serving, benchmark and outer timeline
+
+Configure installed paths once in `serving.local.sh` (copy
+[serving.local.example.sh](serving.local.example.sh) on a new machine). Keep
+machine paths out of Git. Select four idle cards there; startup still refuses
+occupied cards. All three scripts read the same [configuration](serving_config.sh).
+Run inside the installed CANN9.1/vLLM0.23 container.
+
+Start the service in one terminal:
+
+```bash
+bash serve_vllm_910b4.sh pto
+```
+
+Then use a second terminal for either task:
+
+```bash
+bash bench_vllm_910b4.sh pto
+bash profile_vllm_910b4.sh pto
+```
+
+The benchmark command runs official vLLM bench serve with the frozen four
+requests,32768 inputs and10240 outputs each. The profile command runs a separate
+bounded diagnostic, exports all four rank traces, discovers rank metadata,
+and prints Verify/Decode P50 and mean. There is no manual capture/analyse/timeline
+sequence and no manually entered CSV paths. Profiling never replaces formal
+unprofiled performance results. Raw timelines, tables, per-cycle statistics and
+a readable `RESULTS.md` stay together under the printed result directory.
+
+For native use `native` in all three commands. It selects the matching installed
+native environment and service endpoint. Optional scene arguments are
+`zh_qa` (default), `en_technical` or `code_review`, for example:
+
+```bash
+bash bench_vllm_910b4.sh native en_technical
+bash profile_vllm_910b4.sh native en_technical
+```
+
+The clients locate the service session recorded by startup, validate backend,
+checkpoint, endpoint and protocol, wait for readiness and refuse simultaneous
+clients. They neither start another service nor stop an existing service.
+Service startup remains in the foreground; stop it from its owning terminal.
+Each launch and task creates a fresh result directory. A `service.latest`
+symlink identifies the current session without deleting older evidence.
+PTO remains AICPU DIRECT, with unchanged native prefill/MTP5, model and framework.
+
+The explicit launcher was checked against the completed device command. The
+one-command wrapper checks are CPU-only; no new10K or device result is claimed.
+The interfaces below are retained for advanced use and historical replay.
+
 
 Run `bash e2e_pypto_vllm_910b4.sh help` inside the existing CANN9.1/vLLM0.23
 execution container. The entry composes the frozen launch command, existing
@@ -8,6 +57,8 @@ It never edits vLLM, the model or generated kernels, and does not use HBG.
 ## Explicit service startup (no historical status file)
 
 Use [serve_vllm_910b4.sh](serve_vllm_910b4.sh) when starting a service directly.
+For normal use prefer the one-command workflow above; the exports below show
+the equivalent advanced configuration.
 All vLLM flags, including `--tensor-parallel-size 4`, are visible in its `args`
 array. The older `e2e_pypto_vllm_910b4.sh serve` is a replay wrapper that reads
 these flags from an external `SERVER_COMMAND_FILE`; it is not a self-contained

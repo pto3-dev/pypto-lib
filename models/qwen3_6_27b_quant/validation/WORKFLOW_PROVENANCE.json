@@ -6,7 +6,11 @@
     "e2e_pypto_vllm_910b4.sh": "shell orchestration entry",
     "e2e_vllm_window.py": "custom SSE/counter window client",
     "e2e_pypto_vllm_profile.py": "frozen server command, official bench, separate capture and offline export",
-    "serve_vllm_910b4.sh": "explicit validated service argv; no historical status file"
+    "serve_vllm_910b4.sh": "explicit validated service argv; no historical status file",
+    "serving_config.sh": "shared configuration for all one-command entries",
+    "bench_vllm_910b4.sh": "one-command official benchmark against the recorded service",
+    "profile_vllm_910b4.sh": "one-command outer capture, export and Verify/Decode statistics",
+    "serving_workflow.py": "recorded service checks and automatic global rank identification"
   },
   "sources": {
     "custom_window_reference_commit": "a62c3c176cc173e2ec84f35054a2e7bb403bc24d",
@@ -15,10 +19,15 @@
   "files": {
     "e2e_pypto_vllm_910b4.sh": "6b91b1199da402c3d0b52204b56a8f81d790fb225e1f84afdd4e25589a868dfa",
     "e2e_vllm_window.py": "5cad52066b5787a5fdae640a62e8a93c2c3f9d10b368132d451d529bb96df52f",
-    "e2e_pypto_vllm_profile.py": "db77d6f78d92746f47bf66661556ca4c14a64c7f544cc060c1417372bd550f79",
+    "e2e_pypto_vllm_profile.py": "68a653f7970f170d9bc085508ceaf7e4e4d3c32057ff67a138159abde145c6a9",
     "long_context_qa.py": "122e6c27984f9e83e408f7a7f09f94a878b7376bbec9a8efefc4c2fb1a4789e8",
-    "serve_vllm_910b4.sh": "31441ec4064bd425ca5ffd1575eb6d632ea269549fa0a7bf35674c3b80d28852",
-    "pto_target_config.json": "056707f5e53f7b4bb02f1030dec9bfe8a50c4cea0a30ae9f92414a0f54a06cfd"
+    "serve_vllm_910b4.sh": "d2fbdab605e3d6d0d8da8aa0fe4bc3b5d1735e9f41fe87329db38a13f6aba6ea",
+    "pto_target_config.json": "056707f5e53f7b4bb02f1030dec9bfe8a50c4cea0a30ae9f92414a0f54a06cfd",
+    "serving_config.sh": "9d48e2c0f11b376d3bf99090a54f0c86d7bab91f9c8b97e7f3fc14d7649784a7",
+    "serving.local.example.sh": "d18fba0942d6646645a16ab509531f8621155aabe6b2a3681f20290f23f8c2b2",
+    "bench_vllm_910b4.sh": "13f262dc7ea8431bd95bc651d98c9be30e2618cb30ea279ed750a9b7c124d9a3",
+    "profile_vllm_910b4.sh": "34ce7b5dac940c936ca4407fdbd5d0b6802f85fcbb7cc72a03062bfdfff78d2c",
+    "serving_workflow.py": "22ba9a46765f1ea6a764af4e7192c963be3e09b1c261c7ae1e1e28c327de4860"
   },
   "offline_checks": {
     "shell_syntax_and_dispatch": true,
@@ -74,5 +83,16 @@
     "busy_cards_rejected_before_launch": true,
     "new_NPU_runs": 0,
     "historical_command_file_replay_preserved": true
+  },
+  "one_command_entry_checks": {
+    "CPU_only": true,
+    "new_NPU_runs": 0,
+    "pto_and_native_benchmark_delegation": true,
+    "pto_and_native_capture_export_real_historical_trace_analysis": true,
+    "mismatched_environment_rejected": true,
+    "startup_matches_validated_device_argv": true,
+    "occupied_cards_rejected": true,
+    "historical_profile_fixtures_are_not_new_collection": true,
+    "validated_environment_PYTHONSAFEPATH_compatible": true
   }
 }

@@ -10,16 +10,21 @@
 # Explicit service arguments for the validated TP4/PP1 B4 MTP5 protocol.
 set -euo pipefail
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+if [[ "${1:-}" == pto || "${1:-}" == native ]]; then
+  export BACKEND=$1
+  shift
+fi
 action=${1:-serve}
 case "$action" in
   -h|--help|help)
     cat <<'HELP'
-Usage: bash serve_vllm_910b4.sh [serve|--print-command]
-Required: MODEL, VLLM_LAUNCHER, RUN_DIR, ASCEND_RT_VISIBLE_DEVICES (four idle cards).
+Usage: bash serve_vllm_910b4.sh [pto|native] [serve|--print-command]
+Configure serving.local.sh once; no per-command exports or result paths are needed.
+The launcher records this service for bench_vllm_910b4.sh and profile_vllm_910b4.sh.
 VLLM_LAUNCHER is the validated executable Python environment wrapper, not vllm.
 BACKEND=pto (default) also requires PTO_TARGET_SOURCE, PTO_BUILD_ROOT,
 SIMPLER_RUNTIME_DIR and PTO_WEIGHT_REFERENCE. No historical status JSON is needed.
-BASE_URL defaults to http://127.0.0.1:8253. PYTHON defaults to python3.
+Default ports: PTO8253, native8254. PYTHON defaults to python3.
 --print-command validates paths/configuration without NPU access or service launch.
 serve validates idle cards, saves the effective argv and starts in foreground.
 This entry requires an already installed environment and compiled PTO bundle.
@@ -28,7 +33,9 @@ HELP
   serve|--print-command) ;;
   *) echo "Unknown action: $action" >&2; exit 2 ;;
 esac
-: "${MODEL:?Set MODEL to the mixed checkpoint directory}"
+source "$here/serving_config.sh"
+export RUN_DIR=${RUN_DIR:-$RESULTS_ROOT/$BACKEND/service_$(date +%Y%m%d_%H%M%S)_$$}
+: "${MODEL:?Set MODEL in serving.local.sh once}"
 : "${VLLM_LAUNCHER:?Set VLLM_LAUNCHER to the validated environment wrapper}"
 : "${RUN_DIR:?Set RUN_DIR to a new absolute result directory}"
 : "${ASCEND_RT_VISIBLE_DEVICES:?Select four currently idle physical cards}"

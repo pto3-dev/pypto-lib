@@ -326,7 +326,14 @@ def main():
         command = frozen_command(root)
         require_unused_port()
         root.mkdir(parents=True, exist_ok=False)
-        save(root / 'server_command.json', dict(command=command, cards=cards))
+        save(root / 'server_command.json', dict(command=command, cards=cards, pid=os.getpid()))
+        if os.environ.get('SERVICE_LATEST_LINK'):
+            # Do not resolve an existing symlink: it identifies the pointer to update.
+            latest = Path(os.environ['SERVICE_LATEST_LINK']).absolute()
+            latest.parent.mkdir(parents=True, exist_ok=True)
+            temporary = latest.with_name(latest.name + f'.{os.getpid()}.tmp')
+            temporary.symlink_to(root, target_is_directory=True)
+            os.replace(temporary, latest)
         os.execvpe(command[0], command, os.environ.copy())
     if args.command in ('qa', 'chat'):
         qa(root, short=args.command == 'chat')
